@@ -261,7 +261,6 @@ const AdminStates: React.FC = () => {
     ? breakdown.reduce((s, r) => s + (r.deliveryRate || 0), 0) / breakdown.length
     : 0;
   const maxTotal     = breakdown.reduce((m, r) => Math.max(m, r.total || 0), 1);
-  const topState     = [...breakdown].sort((a, b) => b.total - a.total)[0];
 
   const topList = topStates.length > 0
     ? topStates
@@ -269,8 +268,6 @@ const AdminStates: React.FC = () => {
         state: r.state, totalLabels: r.total, bestVendor: '', bestRate: r.deliveryRate, vendorCount: 0,
       }));
   const maxTopLabels = topList[0]?.totalLabels || 1;
-
-  const vendorTotal  = vendors.reduce((s, v) => s + (v.total || 0), 0) || 1;
 
   const sorted = [...breakdown]
     .filter(r => {

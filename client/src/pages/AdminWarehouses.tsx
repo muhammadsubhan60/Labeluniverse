@@ -68,9 +68,8 @@ const AdminWarehouses: React.FC = () => {
     load();
   }, [load]);
 
-  const rows = data?.warehouses || [];
-
   const filteredRows = useMemo(() => {
+    const rows = data?.warehouses || [];
     const q = search.trim().toLowerCase();
     return rows.filter((w) => {
       if (showSharedOnly && w.userCount <= 1) return false;
@@ -83,7 +82,7 @@ const AdminWarehouses: React.FC = () => {
         names.includes(q)
       );
     });
-  }, [rows, search, showSharedOnly]);
+  }, [data, search, showSharedOnly]);
 
   if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
 

@@ -1,0 +1,12 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#0B1220"/>
+  <rect x="90" y="90" width="1020" height="450" rx="18" fill="#111827" stroke="#334155"/>
+  <rect x="170" y="410" width="70" height="80" rx="8" fill="#1D4ED8"/>
+  <rect x="280" y="360" width="70" height="130" rx="8" fill="#2563EB"/>
+  <rect x="390" y="320" width="70" height="170" rx="8" fill="#38BDF8"/>
+  <rect x="500" y="280" width="70" height="210" rx="8" fill="#60A5FA"/>
+  <rect x="610" y="240" width="70" height="250" rx="8" fill="#93C5FD"/>
+  <path d="M760 460C800 410 860 390 910 340C950 300 1020 250 1040 200" stroke="#38BDF8" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="1040" cy="200" r="8" fill="#38BDF8"/>
+  <text x="110" y="126" fill="#BFDBFE" font-size="20" font-family="Arial">Performance Chart</text>
+</svg>

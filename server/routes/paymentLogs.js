@@ -54,6 +54,25 @@ router.get('/screenshot/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
+// ── GET /api/payment-logs/me ───────────────────────────────────
+// Self-service endpoint for normal users to read their own payment logs
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const logs = await PaymentLog.find({ user: new mongoose.Types.ObjectId(userId) })
+      .populate('loggedBy', 'firstName lastName')
+      .populate('wallet', 'name')
+      .sort({ date: -1 });
+
+    const totalPaid = logs.reduce((sum, l) => sum + l.amount, 0);
+    res.json({ logs, totalPaid });
+  } catch (err) {
+    console.error('Get self payment logs error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ── GET /api/payment-logs/:userId ─────────────────────────────
 // Returns all payment logs + total paid for a user
 router.get('/:userId', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {

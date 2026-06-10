@@ -49,12 +49,22 @@ const vendorSchema = new mongoose.Schema({
 
   description: { type: String, default: '' },
 
-  // Source: 'shippershub' | 'manual'
+  // Source / portal: 'shippershub' | 'manual' | 'labelcrow'
   source: {
     type: String,
-    enum: ['shippershub', 'manual'],
+    enum: ['shippershub', 'manual', 'labelcrow', 'shiplabel'],
     default: 'shippershub'
   },
+
+  // ── Label Crow vendor fields (source === 'labelcrow') ─────────
+  labelcrowSeriesId:    { type: Number, default: null },
+  labelcrowProviderKey: { type: String, default: null },
+  labelcrowServiceClass:{ type: String, default: null }, // 'priority' | 'ground'
+
+  // ── ShipLabel vendor fields (source === 'shiplabel') ──────────
+  shiplabelServiceId:   { type: String, default: null }, // service id from /api/v2/services
+  shiplabelLabelSeries: { type: String, default: null }, // e.g. '9505'
+  shiplabelLabelFormat: { type: String, default: null }, // e.g. 'usps_priority_mail'
 
   // Vendor type: 'api' = non-manifest API label generation | 'manifest' = manual manifest pricing entry
   vendorType: {

@@ -35,6 +35,7 @@ const cashbookRoutes           = require('./routes/cashbook');
 const equityPartnerRoutes      = require('./routes/equityPartners');
 const financialDashboardRoutes = require('./routes/financialDashboard');
 const shippershubAccountRoutes      = require('./routes/shippershubAccounts');
+const leaderboardRoutes             = require('./routes/leaderboard');
 
 // ── Startup validation ────────────────────────────────────────
 // Fail fast rather than running in a broken / insecure state.
@@ -49,6 +50,10 @@ if (process.env.NODE_ENV === 'production' && !process.env.CLIENT_URL) {
 
 const app    = express();
 const server = createServer(app);
+
+// Trust reverse proxy (Railway, nginx) so express-rate-limit reads the
+// real client IP from X-Forwarded-For instead of the proxy's address.
+app.set('trust proxy', 1);
 
 const allowedOrigins = process.env.CLIENT_URL
   ? [process.env.CLIENT_URL]
@@ -170,6 +175,7 @@ app.use('/api/cashbook',              cashbookRoutes);
 app.use('/api/equity-partners',       equityPartnerRoutes);
 app.use('/api/financial-dashboard',   financialDashboardRoutes);
 app.use('/api/shippershub-accounts',  shippershubAccountRoutes);
+app.use('/api/leaderboard',           leaderboardRoutes);
 
 // ── Health check ──────────────────────────────────────────────
 // Returns minimal info only — no internal state exposed publicly

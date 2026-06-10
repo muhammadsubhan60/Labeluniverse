@@ -346,6 +346,156 @@ router.post('/bulk', authenticateToken, [
       });
     }
 
+    // ── LABELCROW PATH ────────────────────────────────────────
+    if (vendor.source === 'labelcrow') {
+      const labelcrow = require('../services/labelcrow');
+
+      // Deduct balance upfront (job is async — held like a manifest)
+      await balance.addTransaction({
+        type:        'deduction',
+        amount:      totalCost,
+        description: `Label Crow bulk — ${labelRows.length}x ${vendor.carrier} ${vendor.name} (queued)`,
+        performedBy: req.user._id,
+      });
+
+      // Submit to Label Crow API
+      const { jobId, orderId, totalLabels } = await labelcrow.submitBulkJob({
+        seriesId:     vendor.labelcrowSeriesId,
+        carrier:      vendor.carrier.toLowerCase(),
+        serviceClass: vendor.labelcrowServiceClass,
+        providerKey:  vendor.labelcrowProviderKey,
+        labels:       labelRows,
+      });
+
+      // Create pending Label records for history/audit trail
+      const mongooseLc = require('mongoose');
+      const lcBulkJobId = new mongooseLc.Types.ObjectId().toString();
+      await Label.insertMany(labelRows.map((row, i) => ({
+        user:             req.user._id,
+        vendor:           vendor._id,
+        carrier:          vendor.carrier,
+        vendorName:       vendor.name,
+        shippingService:  vendor.shippingService || '',
+        price:            rowCosts[i],
+        isBulk:           true,
+        bulkJobId:        lcBulkJobId,
+        labelcrowJobId:   jobId,
+        labelcrowOrderId: String(orderId),
+        status:           'pending',
+        ...row,
+        weight: parseFloat(row.weight) || 0,
+      })));
+
+      return res.status(202).json({
+        type:       'labelcrow-async',
+        lcJobId:    jobId,
+        lcOrderId:  orderId,
+        total:      totalLabels,
+        bulkJobId:  lcBulkJobId,
+        newBalance: balance.currentBalance,
+      });
+    }
+
+    // ── SHIPLABEL PATH ────────────────────────────────────────
+    if (vendor.source === 'shiplabel') {
+      const shiplabel  = require('../services/shiplabel');
+      const mongoose2  = require('mongoose');
+      const slBulkJobId = new mongoose2.Types.ObjectId().toString();
+
+      // Deduct balance upfront
+      await balance.addTransaction({
+        type:        'deduction',
+        amount:      totalCost,
+        description: `ShipLabel bulk — ${labelRows.length}x ${vendor.carrier} ${vendor.name}`,
+        performedBy: req.user._id,
+      });
+
+      // Create pending Label records
+      const labelDocs = await Label.insertMany(labelRows.map((row, i) => ({
+        user:             req.user._id,
+        vendor:           vendor._id,
+        carrier:          vendor.carrier,
+        vendorName:       vendor.name,
+        shippingService:  vendor.shippingService || '',
+        price:            rowCosts[i],
+        isBulk:           true,
+        bulkJobId:        slBulkJobId,
+        status:           'pending',
+        ...row,
+        weight: parseFloat(row.weight) || 0,
+      })));
+
+      // Process labels in background — batches of 5 for speed
+      const userId = req.user._id;
+      setImmediate(async () => {
+        const BATCH = 5;
+        for (let i = 0; i < labelDocs.length; i += BATCH) {
+          const batch = labelDocs.slice(i, i + BATCH);
+          await Promise.all(batch.map(async (labelDoc, bi) => {
+            const row = labelRows[i + bi];
+            if (!row) return;
+            try {
+              const payload = {
+                label_id:     vendor.shiplabelServiceId,
+                fromName:     row.from_name     || '',
+                fromCompany:  row.from_company  || '',
+                fromAddress:  row.from_address1 || '',
+                fromAddress2: row.from_address2 || '',
+                fromZip:      row.from_zip      || '',
+                fromState:    row.from_state    || '',
+                fromCity:     row.from_city     || '',
+                fromCountry:  'US',
+                toName:       row.to_name       || '',
+                toCompany:    row.to_company    || '',
+                toAddress:    row.to_address1   || '',
+                toAddress2:   row.to_address2   || '',
+                toZip:        row.to_zip        || '',
+                toState:      row.to_state      || '',
+                toCity:       row.to_city       || '',
+                toCountry:    'US',
+                weight:       parseFloat(row.weight) || 0,
+                length:       parseFloat(row.length) || 0,
+                height:       parseFloat(row.height) || 0,
+                width:        parseFloat(row.width)  || 0,
+                ...(vendor.shiplabelLabelSeries ? { label_series: vendor.shiplabelLabelSeries } : {}),
+                ...(vendor.shiplabelLabelFormat ? { label_format: vendor.shiplabelLabelFormat } : {}),
+              };
+              const result = await shiplabel.createOrder(payload);
+              await Label.updateOne({ _id: labelDoc._id }, {
+                $set: {
+                  status:           'generated',
+                  trackingId:       result.tracking_id || '',
+                  pdfUrl:           result.pdf         || null,
+                  shiplabelOrderId: String(result.tracking_id || ''),
+                },
+              });
+            } catch (err) {
+              console.error('[ShipLabel] label failed:', err.message);
+              // Refund this label's cost
+              try {
+                const refundBalance = await Balance.getOrCreateBalance(userId);
+                await refundBalance.addTransaction({
+                  type:        'adjustment',
+                  amount:      labelDoc.price,
+                  description: `ShipLabel refund — label failed (${err.message.slice(0, 60)})`,
+                });
+              } catch (refundErr) {
+                console.error('[ShipLabel] refund failed:', refundErr.message);
+              }
+              await Label.updateOne({ _id: labelDoc._id }, { $set: { status: 'failed' } });
+            }
+          }));
+        }
+      });
+
+      return res.status(202).json({
+        type:       'shiplabel-async',
+        bulkJobId:  slBulkJobId,
+        total:      labelDocs.length,
+        newBalance: balance.currentBalance,
+      });
+    }
+
     // ── API PATH ──────────────────────────────────────────────
     const mongoose = require('mongoose');
     const bulkJobId   = new mongoose.Types.ObjectId().toString();
@@ -492,7 +642,7 @@ router.get('/', authenticateToken, async (req, res) => {
 // Returns bulk jobs grouped by bulkJobId with aggregated totals
 router.get('/bulk-jobs', authenticateToken, async (req, res) => {
   try {
-    const { dateFrom, dateTo, carrier } = req.query;
+    const { dateFrom, dateTo, carrier, portal } = req.query;
     const page  = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(parseInt(req.query.limit) || 15, PAGE_LIMIT_MAX);
     const skip  = (page - 1) * limit;
@@ -508,9 +658,17 @@ router.get('/bulk-jobs', authenticateToken, async (req, res) => {
     const rawSearch = req.query.search;
     const search = rawSearch && rawSearch.length <= 100 ? escapeRegex(rawSearch) : null;
 
+    // Portal filter: pre-fetch vendor IDs that belong to the requested portal
+    let portalVendorIds = null;
+    if (portal && portal !== 'all') {
+      const pv = await Vendor.find({ source: portal }).select('_id').lean();
+      portalVendorIds = pv.map(v => v._id);
+    }
+
     const matchStage = { isBulk: true };
     if (req.user.role !== 'admin') matchStage.user = new mongoose.Types.ObjectId(req.user._id);
-    if (vid)     matchStage.vendor       = new mongoose.Types.ObjectId(vid);
+    if (vid)              matchStage.vendor       = new mongoose.Types.ObjectId(vid);
+    else if (portalVendorIds) matchStage.vendor   = { $in: portalVendorIds };
     if (carrier) matchStage.carrier      = carrier;
     if (search)  matchStage.bulkFileName = { $regex: search, $options: 'i' };
     if (dateFrom || dateTo) {
@@ -542,8 +700,12 @@ router.get('/bulk-jobs', authenticateToken, async (req, res) => {
         { $sort: { createdAt: -1 } },
         { $skip: skip },
         { $limit: limit },
-        { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+        { $lookup: { from: 'users',   localField: 'userId',   foreignField: '_id', as: 'user' } },
         { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+        // Lookup vendor to attach portal/source
+        { $lookup: { from: 'vendors', localField: 'vendorId', foreignField: '_id', as: '_v' } },
+        { $addFields: { portal: { $ifNull: [{ $arrayElemAt: ['$_v.source', 0] }, 'shippershub'] } } },
+        { $project: { _v: 0 } },
       ]),
       Label.aggregate([
         { $match: matchStage },
@@ -580,6 +742,123 @@ router.get('/pdf/:filename', authenticateToken, (req, res) => {
 });
 
 // ── GET /api/labels/:id/pdf  ──────────────────────────────────
+// ── Admin: update tracking status on a label ──────────────────────────────────
+const VALID_TRACKING_STATUSES = [
+  'not_scanned_yet', 'in_transit', 'out_for_delivery', 'delivered',
+  'exception_problem', 'returned_to_sender', 'pending_pickup', 'delayed',
+];
+
+// Normalize various ChatGPT / user-supplied formats to canonical DB keys
+function normalizeTrackingStatus(raw) {
+  const s = (raw || '').trim().toLowerCase().replace(/[\s\-\/]+/g, '_');
+  const MAP = {
+    'not_scanned_yet': 'not_scanned_yet', 'not_scanned': 'not_scanned_yet',
+    'in_transit': 'in_transit', 'intransit': 'in_transit',
+    'out_for_delivery': 'out_for_delivery', 'outfordelivery': 'out_for_delivery',
+    'delivered': 'delivered',
+    'exception_problem': 'exception_problem', 'exception': 'exception_problem',
+    'exception___problem': 'exception_problem',
+    'returned_to_sender': 'returned_to_sender', 'return_to_sender': 'returned_to_sender',
+    'returnedtosender': 'returned_to_sender',
+    'pending_pickup': 'pending_pickup', 'pendingpickup': 'pending_pickup',
+    'delayed': 'delayed',
+  };
+  return MAP[s] || null;
+}
+
+router.patch('/:id/tracking-status', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    const { trackingStatus, note } = req.body;
+    if (!VALID_TRACKING_STATUSES.includes(trackingStatus)) {
+      return res.status(400).json({ message: 'Invalid tracking status' });
+    }
+    const historyEntry = {
+      status:    trackingStatus,
+      note:      (note || '').trim().slice(0, 500),
+      updatedAt: new Date(),
+      updatedBy: req.user._id,
+    };
+    const label = await Label.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set:  { trackingStatus },
+        $push: { trackingStatusHistory: { $each: [historyEntry], $position: 0 } },
+      },
+      { new: true, select: 'trackingStatus trackingStatusHistory' }
+    );
+    if (!label) return res.status(404).json({ message: 'Label not found' });
+    res.json({ trackingStatus: label.trackingStatus, trackingStatusHistory: label.trackingStatusHistory });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error updating tracking status' });
+  }
+});
+
+// ── Admin: bulk update tracking status by tracking ID ─────────────────────────
+router.post('/bulk-status-by-tracking', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+    const { updates } = req.body; // [{ trackingId, status }]
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ message: 'updates must be a non-empty array' });
+    }
+    if (updates.length > 5000) {
+      return res.status(400).json({ message: 'Too many updates — max 5000 per batch' });
+    }
+
+    const historyEntry = (status) => ({
+      status,
+      note: 'AI bulk update',
+      updatedAt: new Date(),
+      updatedBy: req.user._id,
+    });
+
+    // Normalize + group by canonical status
+    const grouped = {};   // { status -> [trackingId] }
+    const invalidIds = [];
+
+    for (const { trackingId, status } of updates) {
+      if (!trackingId) continue;
+      const normalized = normalizeTrackingStatus(status);
+      if (!normalized) { invalidIds.push(trackingId); continue; }
+      if (!grouped[normalized]) grouped[normalized] = [];
+      grouped[normalized].push(trackingId.trim());
+    }
+
+    const allTrackingIds = Object.values(grouped).flat();
+
+    // Fetch existing labels to detect "already same" and "not found"
+    const existing = await Label.find({ trackingId: { $in: allTrackingIds } })
+      .select('trackingId trackingStatus').lean();
+    const existingMap = Object.fromEntries(existing.map(l => [l.trackingId, l.trackingStatus]));
+
+    let updated = 0;
+    let alreadySame = 0;
+
+    for (const [status, ids] of Object.entries(grouped)) {
+      const toUpdate = ids.filter(id => id in existingMap && existingMap[id] !== status);
+      alreadySame  += ids.filter(id => id in existingMap && existingMap[id] === status).length;
+      if (toUpdate.length === 0) continue;
+      await Label.updateMany(
+        { trackingId: { $in: toUpdate } },
+        {
+          $set:  { trackingStatus: status },
+          $push: { trackingStatusHistory: { $each: [historyEntry(status)], $position: 0 } },
+        }
+      );
+      updated += toUpdate.length;
+    }
+
+    const notFound = allTrackingIds.filter(id => !(id in existingMap));
+
+    res.json({ updated, alreadySame, notFound, invalid: invalidIds });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error in bulk status update' });
+  }
+});
+
 // Proxy-serve a label PDF by label ID.
 // Works for both S3 / external URLs and locally stored files.
 // Accepts ?inline=1 to open in browser instead of downloading.
@@ -628,6 +907,70 @@ router.get('/:id/pdf', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Label PDF proxy error:', err);
     res.status(500).json({ message: 'Error serving PDF' });
+  }
+});
+
+// ── POST /api/labels/zip/multi-jobs ──────────────────────────
+// Combined ZIP for auto-vendor bulk mode — takes multiple bulkJobIds,
+// finds their pre-built ZIPs (or falls back to local PDFs), streams one combined ZIP.
+router.post('/zip/multi-jobs', authenticateToken, async (req, res) => {
+  try {
+    const { bulkJobIds } = req.body;
+    if (!Array.isArray(bulkJobIds) || bulkJobIds.length === 0) {
+      return res.status(400).json({ message: 'bulkJobIds array required' });
+    }
+    console.log('[multi-jobs ZIP] bulkJobIds:', bulkJobIds);
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="bulk-labels-combined.zip"');
+
+    const archive = archiver('zip', { zlib: { level: 0 } });
+    archive.on('error', err => { console.error('[multi-jobs ZIP] archive error:', err); if (!res.headersSent) res.end(); });
+    archive.pipe(res);
+
+    let fileCount = 0;
+
+    for (const bulkJobId of bulkJobIds) {
+      if (!bulkJobId) continue;
+      const filter = { bulkJobId, isBulk: true };
+      if (req.user.role !== 'admin') filter.user = req.user._id;
+
+      const labels = await Label.find(filter).sort({ createdAt: 1 }).lean();
+      console.log(`[multi-jobs ZIP] job ${bulkJobId}: ${labels.length} labels`);
+
+      // Prefer the pre-built ZIP stamped on the labels
+      const prebuiltUrl = labels[0]?.bulkZipUrl;
+      if (prebuiltUrl) {
+        const prebuiltPath = path.join(zipsDir, path.basename(prebuiltUrl));
+        if (fs.existsSync(prebuiltPath)) {
+          console.log(`[multi-jobs ZIP] serving pre-built ZIP: ${prebuiltPath}`);
+          // Re-add individual PDFs from the pre-built ZIP isn't possible without unzipper,
+          // so fall through to local PDF approach
+        }
+      }
+
+      // Add individual PDFs (same logic as /zip/bulk/:bulkJobId fallback)
+      labels.forEach((label, i) => {
+        if (!label.pdfUrl) {
+          console.log(`[multi-jobs ZIP] label ${label._id} has no pdfUrl — skipping`);
+          return;
+        }
+        const filename  = path.basename(label.pdfUrl);
+        const localPath = path.join(labelsDir, filename);
+        console.log(`[multi-jobs ZIP] checking ${localPath} → exists: ${fs.existsSync(localPath)}`);
+        if (fs.existsSync(localPath)) {
+          fileCount++;
+          const name = `${String(fileCount).padStart(4, '0')}-${label.trackingId || filename}`;
+          archive.file(localPath, { name: name.endsWith('.pdf') ? name : name + '.pdf' });
+        }
+      });
+    }
+
+    console.log(`[multi-jobs ZIP] finalizing with ${fileCount} files`);
+    await archive.finalize();
+  } catch (error) {
+    console.error('[multi-jobs ZIP] error:', error);
+    if (!res.headersSent) res.status(500).json({ message: 'Failed to build combined ZIP' });
   }
 });
 
@@ -696,6 +1039,72 @@ router.get('/zip/bulk/:bulkJobId', authenticateToken, async (req, res) => {
   }
 });
 
+// ── GET /api/labels/labelcrow-job/:jobId ─────────────────────
+// Poll Label Crow job status. On completion, updates our Label records.
+router.get('/labelcrow-job/:jobId', authenticateToken, async (req, res) => {
+  try {
+    const labelcrow = require('../services/labelcrow');
+    const { jobId } = req.params;
+
+    const sample = await Label.findOne({
+      labelcrowJobId: jobId,
+      ...(req.user.role !== 'admin' ? { user: req.user._id } : {}),
+    }).select('labelcrowOrderId user');
+
+    if (!sample) return res.status(404).json({ message: 'Job not found or access denied' });
+
+    const progress = await labelcrow.pollJob(jobId);
+    const orderId  = sample.labelcrowOrderId;
+
+    if (progress.status === 'completed' || progress.status === 'failed') {
+      const newStatus = progress.status === 'completed' ? 'generated' : 'failed';
+      const zipUrl    = progress.status === 'completed' && orderId
+        ? `/labels/labelcrow-order/${orderId}/zip`
+        : null;
+
+      await Label.updateMany(
+        { labelcrowJobId: jobId },
+        { $set: { status: newStatus, ...(zipUrl ? { bulkZipUrl: zipUrl } : {}) } }
+      );
+
+      const balance = await Balance.getOrCreateBalance(sample.user);
+      return res.json({ ...progress, orderId, zipUrl, newBalance: balance.currentBalance });
+    }
+
+    return res.json(progress);
+  } catch (err) {
+    console.error('[LC poll]', err);
+    res.status(500).json({ message: err.message || 'Polling error' });
+  }
+});
+
+// ── GET /api/labels/labelcrow-order/:orderId/zip ──────────────
+// Proxy-stream the Label Crow order ZIP to the authenticated user.
+router.get('/labelcrow-order/:orderId/zip', authenticateToken, async (req, res) => {
+  try {
+    const labelcrow = require('../services/labelcrow');
+    const { orderId } = req.params;
+
+    const owns = await Label.findOne({
+      labelcrowOrderId: orderId,
+      ...(req.user.role !== 'admin' ? { user: req.user._id } : {}),
+    }).select('_id');
+    if (!owns) return res.status(404).json({ message: 'Order not found or access denied' });
+
+    const { buffer, statusCode } = await labelcrow.downloadOrderZip(orderId);
+    if (statusCode < 200 || statusCode >= 300) {
+      return res.status(502).json({ message: 'Failed to fetch ZIP from Label Crow' });
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="labelcrow-order-${orderId}.zip"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('[LC zip]', err);
+    res.status(500).json({ message: err.message || 'Download error' });
+  }
+});
+
 // ── GET /api/labels/:id ───────────────────────────────────────
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
@@ -714,6 +1123,35 @@ router.get('/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Get label error:', error);
     res.status(500).json({ message: 'Server error getting label' });
+  }
+});
+
+// ── GET /api/labels/shiplabel-job/:bulkJobId ──────────────────
+// Poll background ShipLabel bulk job progress.
+// Returns: { total, generated, failed, pending, done, labels[] }
+router.get('/shiplabel-job/:bulkJobId', authenticateToken, async (req, res) => {
+  try {
+    const { bulkJobId } = req.params;
+
+    const allLabels = await Label.find({
+      user:     req.user._id,
+      bulkJobId,
+    }).select('status trackingId pdfUrl shiplabelOrderId price from_name to_name to_zip createdAt').lean();
+
+    if (!allLabels.length) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    const total     = allLabels.length;
+    const generated = allLabels.filter(l => l.status === 'generated').length;
+    const failed    = allLabels.filter(l => l.status === 'failed').length;
+    const pending   = allLabels.filter(l => l.status === 'pending').length;
+    const done      = pending === 0;
+
+    res.json({ total, generated, failed, pending, done, labels: allLabels });
+  } catch (error) {
+    console.error('ShipLabel job poll error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

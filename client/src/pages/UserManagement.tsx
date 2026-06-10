@@ -24,6 +24,7 @@ interface VendorAccess {
   vendorId: string; vendorName: string; carrier: string;
   vendorType: 'api' | 'manifest';
   shippingService: string; baseRate: number; isAllowed: boolean; rateTiers: RateTier[];
+  portal?: 'shippershub' | 'labelcrow' | 'shiplabel';
 }
 interface Balance {
   currentBalance: number;
@@ -138,6 +139,9 @@ const UserManagement: React.FC = () => {
   const [message, setMessage] = useState('');
   const [error,   setError]   = useState('');
 
+  // ── Mobile layout ─────────────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
   useEffect(() => { fetchUsers(); }, [currentPage, roleFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchWallets(); }, []);
 
@@ -157,6 +161,12 @@ const UserManagement: React.FC = () => {
       return () => clearTimeout(t);
     }
   }, [message, error]);
+
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
 
   if (authUser?.role !== 'admin') return <Navigate to="/dashboard" replace />;
 
@@ -409,7 +419,7 @@ const UserManagement: React.FC = () => {
 
   // ── Render ───────────────────────────────────────────────────
   return (
-    <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', height: '100%' }}>
+    <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', height: isMobile ? 'auto' : '100%' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -437,10 +447,10 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Main 2-column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '0.875rem', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '250px 1fr', gap: '0.875rem', flex: isMobile ? undefined : 1, minHeight: 0 }}>
 
         {/* ── LEFT: User List ───────────────────────────────── */}
-        <div className="sh-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <div className="sh-card" style={{ display: isMobile && (selectedUser !== null || isCreating) ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: isMobile ? 300 : 0 }}>
 
           {/* Search + compact filters */}
           <div style={{ padding: '0.625rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -523,7 +533,7 @@ const UserManagement: React.FC = () => {
         </div>
 
         {/* ── RIGHT: Detail Panel ───────────────────────────── */}
-        <div className="sh-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <div className="sh-card" style={{ display: isMobile && selectedUser === null && !isCreating ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: isMobile ? 400 : 0 }}>
 
           {!selectedUser && !isCreating ? (
             <div className="empty-state">
@@ -538,6 +548,14 @@ const UserManagement: React.FC = () => {
             <>
               {/* Panel header */}
               <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {isMobile && (
+                  <button
+                    onClick={() => { setSelectedUser(null); setIsCreating(false); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-600)', padding: '2px 4px 2px 0', display: 'flex', alignItems: 'center', gap: 3, fontSize: '0.82rem', fontWeight: 700, flexShrink: 0, marginRight: 2 }}
+                  >
+                    ← Users
+                  </button>
+                )}
                 {isCreating ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
                     <UserPlusIcon style={{ width: 15, height: 15, color: 'var(--accent-600)' }} />
@@ -588,7 +606,7 @@ const UserManagement: React.FC = () => {
                 {/* ── EDIT / CREATE FORM ── */}
                 {(activeTab === 'edit' || isCreating) && (
                   <form onSubmit={isCreating ? handleCreate : handleEdit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: 480 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.625rem' }}>
                       <div>
                         <label className="form-label">First Name</label>
                         <input type="text" required className="form-input" value={userForm.firstName}
@@ -650,7 +668,7 @@ const UserManagement: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
                       {/* Balance stats row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.625rem' }}>
                         <div style={{ background: 'var(--navy-25)', border: '1px solid var(--navy-100)', borderRadius: 10, padding: '0.875rem 1rem' }}>
                           <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                             <BanknotesIcon style={{ width: 11, height: 11 }} /> Current Balance
@@ -692,7 +710,7 @@ const UserManagement: React.FC = () => {
                           <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-700)', textTransform: 'capitalize' }}>
                             {balAction === 'adjust' ? 'Adjust Balance (+ or −)' : `${balAction} Balance`}
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.5rem' }}>
                             <div>
                               <label className="form-label">{balAction === 'adjust' ? 'Amount (+ or −)' : 'Amount ($)'}</label>
                               <input
@@ -781,7 +799,7 @@ const UserManagement: React.FC = () => {
                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#15803d' }}>
                               {editPayLog ? 'Edit Payment Entry' : 'Log Payment Received'}
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.5rem' }}>
                               <div>
                                 <label className="form-label">Amount ($)</label>
                                 <input type="number" step="0.01" min="0.01" required className="form-input"
@@ -890,7 +908,9 @@ const UserManagement: React.FC = () => {
 
                       {CARRIERS_ORDER.map(carrier => {
                         const allVendors    = access.filter(v => v.carrier === carrier);
-                        const apiVendors      = allVendors.filter(v => v.vendorType !== 'manifest');
+                        const shVendors      = allVendors.filter(v => v.vendorType !== 'manifest' && (v.portal || 'shippershub') === 'shippershub');
+                        const lcVendors2     = allVendors.filter(v => v.vendorType !== 'manifest' && v.portal === 'labelcrow');
+                        const slVendors2     = allVendors.filter(v => v.vendorType !== 'manifest' && v.portal === 'shiplabel');
                         const manifestVendors = allVendors.filter(v => v.vendorType === 'manifest');
                         const enabledCount  = allVendors.filter(v => v.isAllowed).length;
                         const isCarrierOpen = expandedCarriers[carrier] || false;
@@ -964,14 +984,14 @@ const UserManagement: React.FC = () => {
                                   </p>
                                 ) : (
                                   <div style={{ marginBottom: '0.375rem' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '76px 76px 76px 24px', gap: 3, marginBottom: 3 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr 1fr 24px' : '76px 76px 76px 24px', gap: 3, marginBottom: 3 }}>
                                       {['Min lbs', 'Max lbs', 'Rate ($)', ''].map((h, i) => (
                                         <div key={i} style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase' }}>{h}</div>
                                       ))}
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                       {vendor.rateTiers.map((tier, ti) => (
-                                        <div key={ti} style={{ display: 'grid', gridTemplateColumns: '76px 76px 76px 24px', gap: 3, alignItems: 'center' }}>
+                                        <div key={ti} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr 1fr 24px' : '76px 76px 76px 24px', gap: 3, alignItems: 'center' }}>
                                           <input type="number" min="0" className="form-input" style={{ padding: '0.25rem 0.35rem', fontSize: '0.76rem' }} value={tier.minLbs} onChange={e => updateTierField(vendor.vendorId, ti, 'minLbs', parseFloat(e.target.value) || 0)} />
                                           <input type="number" min="0" className="form-input" style={{ padding: '0.25rem 0.35rem', fontSize: '0.76rem' }} value={tier.maxLbs ?? ''} placeholder="∞" onChange={e => updateTierField(vendor.vendorId, ti, 'maxLbs', e.target.value ? parseFloat(e.target.value) : null)} />
                                           <input type="number" step="0.01" min="0" className="form-input" style={{ padding: '0.25rem 0.35rem', fontSize: '0.76rem' }} value={tier.rate} onChange={e => updateTierField(vendor.vendorId, ti, 'rate', parseFloat(e.target.value) || 0)} />
@@ -1005,7 +1025,13 @@ const UserManagement: React.FC = () => {
                                 <div style={{ fontSize: '0.68rem', color: 'var(--navy-500)' }}>
                                   {allVendors.length === 0
                                     ? 'No vendors configured'
-                                    : `${apiVendors.length} API · ${manifestVendors.length} Manifest · ${enabledCount} enabled`
+                                    : [
+                                        shVendors.length  > 0 && `${shVendors.length} ShippersHub`,
+                                        lcVendors2.length > 0 && `${lcVendors2.length} Label Crow`,
+                                        slVendors2.length > 0 && `${slVendors2.length} ShipLabel`,
+                                        manifestVendors.length > 0 && `${manifestVendors.length} Manifest`,
+                                        `${enabledCount} enabled`,
+                                      ].filter(Boolean).join(' · ')
                                   }
                                 </div>
                               </div>
@@ -1027,13 +1053,33 @@ const UserManagement: React.FC = () => {
                             {isCarrierOpen && (
                               <div style={{ background: '#fff' }}>
 
-                                {/* ── API Vendors sub-section ── */}
-                                {apiVendors.length > 0 && (
+                                {/* ── ShippersHub Vendors sub-section ── */}
+                                {shVendors.length > 0 && (
                                   <>
-                                    <div style={{ padding: '0.35rem 0.875rem', background: 'var(--navy-50)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>API Vendors</span>
+                                    <div style={{ padding: '0.35rem 0.875rem', background: '#eff6ff', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ShippersHub</span>
                                     </div>
-                                    {apiVendors.map((vendor, vi) => renderVendorRow(vendor, vi, vi === 0))}
+                                    {shVendors.map((vendor, vi) => renderVendorRow(vendor, vi, vi === 0))}
+                                  </>
+                                )}
+
+                                {/* ── Label Crow Vendors sub-section ── */}
+                                {lcVendors2.length > 0 && (
+                                  <>
+                                    <div style={{ padding: '0.35rem 0.875rem', background: '#f5f3ff', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Label Crow</span>
+                                    </div>
+                                    {lcVendors2.map((vendor, vi) => renderVendorRow(vendor, vi, vi === 0))}
+                                  </>
+                                )}
+
+                                {/* ── ShipLabel Vendors sub-section ── */}
+                                {slVendors2.length > 0 && (
+                                  <>
+                                    <div style={{ padding: '0.35rem 0.875rem', background: '#ecfdf5', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ShipLabel</span>
+                                    </div>
+                                    {slVendors2.map((vendor, vi) => renderVendorRow(vendor, vi, vi === 0))}
                                   </>
                                 )}
 

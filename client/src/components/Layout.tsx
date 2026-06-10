@@ -15,6 +15,7 @@ import {
   ClipboardDocumentListIcon,
   RectangleStackIcon,
   BuildingStorefrontIcon,
+  CubeIcon,
   Squares2X2Icon,
   SignalIcon,
   BanknotesIcon,
@@ -25,8 +26,9 @@ import {
   BellIcon,
   MegaphoneIcon,
   Cog6ToothIcon,
-  CreditCardIcon,
-  GiftIcon,
+  MapIcon,
+  TrophyIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Announcement types ────────────────────────────────────────────────────────
@@ -186,6 +188,7 @@ const Layout: React.FC = () => {
   const labelsNav: NavItem[] = [
     { name: 'Single Label',     href: '/labels/single',       icon: TagIcon,                   current: location.pathname === '/labels/single' },
     { name: 'Bulk Labels',      href: '/labels/bulk',          icon: RectangleStackIcon,        current: location.pathname === '/labels/bulk' },
+    { name: 'Leaderboard',      href: '/leaderboard',         icon: TrophyIcon,                current: location.pathname === '/leaderboard' },
     { name: 'Single History',   href: '/labels/history',      icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/history' },
     { name: 'Bulk History',     href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },
     { name: 'Manifest History', href: '/manifest/history',    icon: Squares2X2Icon,            current: location.pathname === '/manifest/history' },
@@ -195,6 +198,9 @@ const Layout: React.FC = () => {
   const adminOpsItems: NavItem[] = user?.role === 'admin' ? [
     { name: 'Live Monitor', href: '/admin/live',     icon: SignalIcon,     current: location.pathname === '/admin/live' },
     { name: 'Manifest Ops', href: '/admin/manifest', icon: Squares2X2Icon, current: location.pathname === '/admin/manifest' },
+    { name: 'Warehouses',   href: '/admin/warehouses', icon: CubeIcon, current: location.pathname === '/admin/warehouses' },
+    { name: 'State Analytics',   href: '/admin/states',                icon: MapIcon,       current: location.pathname === '/admin/states' },
+    { name: 'AI Bulk Tracking', href: '/admin/bulk-tracking-update', icon: SparklesIcon,  current: location.pathname === '/admin/bulk-tracking-update' },
   ] : [];
 
   // Admin — Finance
@@ -216,8 +222,8 @@ const Layout: React.FC = () => {
   ] : [];
 
   const accountNav: NavItem[] = [
-    { name: 'Packages',    href: '/packages', icon: GiftIcon,       current: location.pathname === '/packages' },
-    { name: 'Credit Score',href: '/credit',   icon: CreditCardIcon, current: location.pathname === '/credit' },
+    { name: 'Topup History', href: '/topups', icon: BanknotesIcon,  current: location.pathname === '/topups' },
+    { name: 'Payment History', href: '/payments', icon: BookOpenIcon, current: location.pathname === '/payments' },
     { name: 'Profile',     href: '/profile',  icon: UserIcon,       current: location.pathname === '/profile' },
   ];
 

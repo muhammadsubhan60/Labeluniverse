@@ -1,15 +1,42 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
   MagnifyingGlassIcon, TruckIcon, ArrowDownTrayIcon,
   XMarkIcon, EyeIcon, ArrowUturnLeftIcon, FunnelIcon,
   TagIcon, CurrencyDollarIcon, CalendarDaysIcon,
   ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
+// ── Tracking status config ────────────────────────────────────
+const TS_CONFIG: Record<string, { label: string; bg: string; color: string; border: string }> = {
+  not_scanned_yet:   { label: 'Not Scanned Yet',    bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' },
+  in_transit:        { label: 'In Transit',          bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  out_for_delivery:  { label: 'Out for Delivery',    bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
+  delivered:         { label: 'Delivered',           bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+  exception_problem: { label: 'Exception / Problem', bg: '#FFF5F5', color: '#DC2626', border: '#FECACA' },
+  returned_to_sender:{ label: 'Returned to Sender',  bg: '#FFF1F2', color: '#BE123C', border: '#FECDD3' },
+  pending_pickup:    { label: 'Pending Pickup',      bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA' },
+  delayed:           { label: 'Delayed',             bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
+};
+const TS_OPTIONS = Object.keys(TS_CONFIG);
+
+// Resolve legacy values stored in DB before enum migration
+function resolveTs(ts?: string): string {
+  if (!ts || ts === 'not_scanned') return 'not_scanned_yet';
+  if (ts === 'exception') return 'exception_problem';
+  if (ts === 'return_to_sender') return 'returned_to_sender';
+  return TS_CONFIG[ts] ? ts : 'not_scanned_yet';
+}
+
 // ── Types ─────────────────────────────────────────────────────
+interface TrackingHistoryEntry {
+  status: string; note?: string; updatedAt: string;
+  updatedBy?: { firstName: string; lastName: string };
+}
 interface Label {
   _id: string; carrier: string; vendorName: string; shippingService: string;
   trackingId: string;
@@ -20,7 +47,8 @@ interface Label {
   to_address1?: string; to_address2?: string; to_zip?: string;
   to_company?: string; to_phone?: string;
   weight: number; length?: number; width?: number; height?: number; note?: string;
-  price: number; status: string;
+  price: number; status: string; trackingStatus?: string;
+  trackingStatusHistory?: TrackingHistoryEntry[];
   pdfUrl?: string; isBulk: boolean; bulkJobId?: string;
   createdAt: string;
   vendor?: { _id: string };
@@ -94,10 +122,124 @@ const PdfModal: React.FC<{ url: string; trackingId: string; onClose: () => void 
   </div>
 );
 
+// ── Status History Modal ──────────────────────────────────────
+const StatusHistoryModal: React.FC<{
+  label: Label;
+  isAdmin: boolean;
+  onClose: () => void;
+  onSave: (labelId: string, status: string, note: string) => Promise<void>;
+}> = ({ label, isAdmin, onClose, onSave }) => {
+  const [selStatus, setSelStatus] = React.useState(resolveTs(label.trackingStatus));
+  const [note, setNote]           = React.useState('');
+  const [saving, setSaving]       = React.useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(label._id, selStatus, note);
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(2,6,23,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.4)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid var(--navy-200)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ClockIcon style={{ width: 15, height: 15, color: '#fff' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy-900)' }}>Tracking Status</div>
+              {label.trackingId && <div style={{ fontSize: '0.67rem', fontFamily: 'monospace', color: 'var(--navy-400)', marginTop: 1 }}>{label.trackingId}</div>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, border: 'none', background: 'var(--navy-100)', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-500)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-200)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--navy-100)')}>
+            <XMarkIcon style={{ width: 14, height: 14 }} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+          {/* Admin update form */}
+          {isAdmin && (
+            <div style={{ background: 'var(--navy-50)', borderRadius: 10, padding: '0.875rem 1rem', border: '1px solid var(--navy-200)' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Update Status</div>
+              <select
+                value={selStatus}
+                onChange={e => setSelStatus(e.target.value)}
+                style={{ width: '100%', height: 36, paddingLeft: 10, paddingRight: 28, border: `1.5px solid ${TS_CONFIG[selStatus]?.border ?? '#E2E8F0'}`, borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, color: TS_CONFIG[selStatus]?.color ?? '#475569', backgroundColor: TS_CONFIG[selStatus]?.bg ?? '#F8FAFC', outline: 'none', marginBottom: 8, cursor: 'pointer', appearance: 'none' as const }}>
+                {TS_OPTIONS.map(k => <option key={k} value={k}>{TS_CONFIG[k].label}</option>)}
+              </select>
+              <textarea
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                placeholder="Add a note (optional)…"
+                maxLength={500}
+                rows={2}
+                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '8px 10px', border: '1.5px solid var(--navy-200)', borderRadius: 8, fontSize: '0.78rem', color: 'var(--navy-800)', outline: 'none', background: 'var(--bg-card)', fontFamily: 'inherit', lineHeight: 1.5 }}
+                onFocus={e => (e.target.style.borderColor = '#6366f1')}
+                onBlur={e => (e.target.style.borderColor = 'var(--navy-200)')}
+              />
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{ marginTop: 8, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px', background: saving ? '#94A3B8' : '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}>
+                {saving ? 'Saving…' : 'Save Status'}
+              </button>
+            </div>
+          )}
+
+          {/* History timeline */}
+          <div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+              History ({(label.trackingStatusHistory?.length ?? 0)})
+            </div>
+            {(!label.trackingStatusHistory || label.trackingStatusHistory.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--navy-400)', fontSize: '0.8rem' }}>No history yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {label.trackingStatusHistory.map((entry, i) => {
+                  const ts = resolveTs(entry.status);
+                  const cfg = TS_CONFIG[ts] ?? TS_CONFIG['not_scanned_yet'];
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: 4 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: cfg.color, border: `2px solid ${cfg.border}`, flexShrink: 0 }} />
+                        {i < (label.trackingStatusHistory!.length - 1) && <div style={{ width: 2, height: 22, background: 'var(--navy-100)', marginTop: 4 }} />}
+                      </div>
+                      <div style={{ flex: 1, paddingBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700 }}>{cfg.label}</span>
+                          {i === 0 && <span style={{ fontSize: '0.62rem', background: '#EEF2FF', color: '#4F46E5', borderRadius: 10, padding: '1px 6px', fontWeight: 700 }}>Latest</span>}
+                        </div>
+                        {entry.note && <div style={{ fontSize: '0.73rem', color: 'var(--navy-600)', marginTop: 3, lineHeight: 1.4 }}>"{entry.note}"</div>}
+                        <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', marginTop: 3 }}>
+                          {new Date(entry.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {entry.updatedBy && ` · ${entry.updatedBy.firstName} ${entry.updatedBy.lastName}`}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Skeleton row ──────────────────────────────────────────────
 const SkeletonRow = () => (
   <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-    {[60, 180, 130, 130, 80, 80, 90].map((w, i) => (
+    {[60, 180, 130, 130, 80, 80, 110, 90].map((w, i) => (
       <td key={i} style={{ padding: '0.875rem 0.875rem' }}>
         <div style={{ height: 10, width: w, borderRadius: 5, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite' }} />
         {i === 1 && <div style={{ height: 8, width: 50, borderRadius: 4, background: '#F1F5F9', marginTop: 6 }} />}
@@ -114,14 +256,17 @@ const SkeletonRow = () => (
 // ── Main component ────────────────────────────────────────────
 const LabelHistory: React.FC = () => {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.role === 'admin';
   const [labels,     setLabels]     = useState<Label[]>([]);
   const [vendors,    setVendors]    = useState<Vendor[]>([]);
   const [total,      setTotal]      = useState(0);
   const [page,       setPage]       = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading,  setIsLoading]  = useState(true);
-  const [viewPdf,    setViewPdf]    = useState<{ url: string; trackingId: string } | null>(null);
-  const [openAction, setOpenAction] = useState<string | null>(null);
+  const [viewPdf,        setViewPdf]        = useState<{ url: string; trackingId: string } | null>(null);
+  const [openAction,     setOpenAction]     = useState<string | null>(null);
+  const [historyLabel,   setHistoryLabel]   = useState<Label | null>(null);
 
   // Filters
   const [search,   setSearch]   = useState('');
@@ -210,6 +355,29 @@ const LabelHistory: React.FC = () => {
   const openPdf = async (label: Label) => {
     const blobUrl = await fetchLabelPdf(label._id);
     if (blobUrl) setViewPdf({ url: blobUrl, trackingId: label.trackingId });
+  };
+
+  const handleUpdateTrackingStatus = async (labelId: string, trackingStatus: string, note = '') => {
+    // Optimistic update
+    setLabels(prev => prev.map(l => l._id === labelId ? { ...l, trackingStatus } : l));
+    try {
+      const res = await axios.patch(`/labels/${labelId}/tracking-status`, { trackingStatus, note });
+      // Merge back the authoritative history from server
+      setLabels(prev => prev.map(l =>
+        l._id === labelId
+          ? { ...l, trackingStatus: res.data.trackingStatus, trackingStatusHistory: res.data.trackingStatusHistory }
+          : l
+      ));
+      // If the history modal is open for this label, keep it in sync
+      setHistoryLabel(prev => prev && prev._id === labelId
+        ? { ...prev, trackingStatus: res.data.trackingStatus, trackingStatusHistory: res.data.trackingStatusHistory }
+        : prev
+      );
+    } catch (e) {
+      console.error('Failed to update tracking status', e);
+      // Revert optimistic update
+      setLabels(prev => prev.map(l => l._id === labelId ? { ...l, trackingStatus: l.trackingStatus } : l));
+    }
   };
 
   // Pagination page numbers
@@ -370,7 +538,7 @@ const LabelHistory: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
               <tr style={{ background: 'var(--navy-50)' }}>
-                {['#', 'Tracking & Carrier', 'Route', 'User', 'Vendor', 'Price', 'Date', 'Actions'].map(h => (
+                {['#', 'Tracking & Carrier', 'Route', 'User', 'Vendor', 'Price', 'Date', 'Tracking Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '0.625rem 0.875rem', textAlign: 'left', fontSize: '0.63rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', borderBottom: '1.5px solid var(--navy-200)' }}>
                     {h}
                   </th>
@@ -382,7 +550,7 @@ const LabelHistory: React.FC = () => {
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '4rem', textAlign: 'center' }}>
+                  <td colSpan={9} style={{ padding: '4rem', textAlign: 'center' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 52, height: 52, borderRadius: 14, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <TagIcon style={{ width: 26, height: 26, color: '#CBD5E1' }} />
@@ -496,6 +664,49 @@ const LabelHistory: React.FC = () => {
                         </div>
                       </td>
 
+                      {/* Tracking Status */}
+                      <td style={{ padding: '0.875rem 0.875rem', minWidth: 170 }}>
+                        {(() => {
+                          const ts = resolveTs(label.trackingStatus);
+                          const cfg = TS_CONFIG[ts];
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              {isAdmin ? (
+                                <select
+                                  value={ts}
+                                  onChange={e => handleUpdateTrackingStatus(label._id, e.target.value)}
+                                  style={{
+                                    flex: 1, height: 28, paddingLeft: 7, paddingRight: 22,
+                                    border: `1.5px solid ${cfg.border}`, borderRadius: 6,
+                                    fontSize: '0.68rem', fontWeight: 700, color: cfg.color,
+                                    backgroundColor: cfg.bg, cursor: 'pointer', outline: 'none',
+                                    appearance: 'none' as const,
+                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394A3B8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
+                                    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 5px center', backgroundSize: 13,
+                                  }}>
+                                  {TS_OPTIONS.map(k => <option key={k} value={k}>{TS_CONFIG[k].label}</option>)}
+                                </select>
+                              ) : (
+                                <span
+                                  onClick={() => setHistoryLabel(label)}
+                                  style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '3px 9px', fontSize: '0.65rem', fontWeight: 700, display: 'inline-block', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                                  {cfg.label}
+                                </span>
+                              )}
+                              {/* History icon */}
+                              <button
+                                onClick={() => setHistoryLabel(label)}
+                                title="View status history"
+                                style={{ width: 26, height: 26, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--navy-200)', borderRadius: 6, background: 'var(--navy-50)', color: 'var(--navy-400)', cursor: 'pointer', transition: 'all 0.15s' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#EEF2FF'; e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'var(--navy-50)'; e.currentTarget.style.borderColor = 'var(--navy-200)'; e.currentTarget.style.color = 'var(--navy-400)'; }}>
+                                <ClockIcon style={{ width: 11, height: 11 }} />
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </td>
+
                       {/* Actions */}
                       <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -587,9 +798,9 @@ const LabelHistory: React.FC = () => {
                 <ChevronLeftIcon style={{ width: 13, height: 13 }} />
               </button>
 
-              {pageNums.map((n, i) =>
+              {pageNums.map((n) =>
                 n < 0 ? (
-                  <span key={i} style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#CBD5E1' }}>…</span>
+                  <span key={`ellipsis-${n}`} style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#CBD5E1' }}>…</span>
                 ) : (
                   <button
                     key={n}
@@ -612,6 +823,14 @@ const LabelHistory: React.FC = () => {
       </div>
 
       {viewPdf && <PdfModal url={viewPdf.url} trackingId={viewPdf.trackingId} onClose={() => setViewPdf(null)} />}
+      {historyLabel && (
+        <StatusHistoryModal
+          label={historyLabel}
+          isAdmin={isAdmin}
+          onClose={() => setHistoryLabel(null)}
+          onSave={handleUpdateTrackingStatus}
+        />
+      )}
 
       <style>{`
         @keyframes shimmer {

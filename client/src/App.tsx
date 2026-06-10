@@ -9,6 +9,8 @@ import VendorLayout from './components/VendorLayout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import LandingProxy from './pages/LandingProxy';
+import BlogIndex from './pages/BlogIndex';
+import BlogPost from './pages/BlogPost';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
@@ -18,11 +20,14 @@ import LabelGenerator from './pages/LabelGenerator';
 import LabelHistory from './pages/LabelHistory';
 import BulkLabels from './pages/BulkLabels';
 import BulkLabelGenerator from './pages/BulkLabelGenerator';
+import BulkTrackingUpdate from './pages/BulkTrackingUpdate';
 import VendorManagement from './pages/VendorManagement';
 import UserVendorAccess from './pages/UserVendorAccess';
 import AdminManifestOps from './pages/AdminManifestOps';
 import LiveActivity from './pages/LiveActivity';
 import AdminLiveActivity from './pages/AdminLiveActivity';
+import AdminWarehouses from './pages/AdminWarehouses';
+import AdminStates from './pages/AdminStates';
 import VendorLogin from './pages/vendor/VendorLogin';
 import VendorDashboard from './pages/vendor/VendorDashboard';
 import VendorJobDetail from './pages/vendor/VendorJobDetail';
@@ -33,8 +38,9 @@ import Finance             from './pages/Finance';
 import CashBook            from './pages/CashBook';
 import FinancialDashboard  from './pages/FinancialDashboard';
 import Settings            from './pages/Settings';
-import Packages            from './pages/Packages';
-import CreditScore         from './pages/CreditScore';
+import TopupHistory        from './pages/TopupHistory';
+import PaymentHistory      from './pages/PaymentHistory';
+import Leaderboard         from './pages/Leaderboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './App.css';
 
@@ -70,6 +76,8 @@ function App() {
 
                 {/* Public home page (keep URL as /) */}
                 <Route path="/" element={<LandingProxy />} />
+                <Route path="/blog" element={<BlogIndex />} />
+                <Route path="/blog/:slug" element={<BlogPost />} />
 
                 {/* ── Main portal (Label Flow users) ─────────────────────── */}
                 <Route element={
@@ -88,8 +96,9 @@ function App() {
                   <Route path="/manifest/upload"     element={<Navigate to="/labels/bulk" replace />} />
                   <Route path="/manifest/history"    element={<ManifestHistory />} />
                   <Route path="/activity"            element={<LiveActivity />} />
-                  <Route path="/packages"            element={<Packages />} />
-                  <Route path="/credit"              element={<CreditScore />} />
+                  <Route path="/leaderboard"         element={<Leaderboard />} />
+                  <Route path="/topups"              element={<TopupHistory />} />
+                  <Route path="/payments"            element={<PaymentHistory />} />
 
                   {/* Admin-only routes */}
                   <Route path="/admin"                         element={<AdminOnly><AdminDashboard /></AdminOnly>} />
@@ -102,6 +111,9 @@ function App() {
                   <Route path="/admin/financial-dashboard"     element={<AdminOnly><FinancialDashboard /></AdminOnly>} />
                   <Route path="/admin/settings"                element={<AdminOnly><Settings /></AdminOnly>} />
                   <Route path="/admin/live"                    element={<AdminOnly><AdminLiveActivity /></AdminOnly>} />
+                  <Route path="/admin/warehouses"              element={<AdminOnly><AdminWarehouses /></AdminOnly>} />
+                  <Route path="/admin/states"                  element={<AdminOnly><AdminStates /></AdminOnly>} />
+                  <Route path="/admin/bulk-tracking-update"   element={<AdminOnly><BulkTrackingUpdate /></AdminOnly>} />
 
                   {/* Reseller routes (admin can also access) */}
                   <Route path="/reseller/clients" element={<AdminOrReseller><ResellerClients /></AdminOrReseller>} />

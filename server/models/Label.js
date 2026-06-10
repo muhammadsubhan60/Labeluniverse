@@ -24,6 +24,13 @@ const labelSchema = new mongoose.Schema({
   shippershubLabelId: { type: String, default: null },
   trackingId:         { type: String, default: '' },
 
+  // Label Crow async job references
+  labelcrowJobId:   { type: String, default: null },
+  labelcrowOrderId: { type: String, default: null },
+
+  // ShipLabel order reference
+  shiplabelOrderId: { type: String, default: null },
+
   // From address
   from_name:     { type: String, default: '' },
   from_company:  { type: String, default: '' },
@@ -69,9 +76,22 @@ const labelSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['generated', 'failed', 'cancelled'],
+    enum: ['generated', 'failed', 'cancelled', 'pending'],
     default: 'generated'
-  }
+  },
+
+  trackingStatus: {
+    type: String,
+    enum: ['not_scanned_yet', 'in_transit', 'out_for_delivery', 'delivered', 'exception_problem', 'returned_to_sender', 'pending_pickup', 'delayed'],
+    default: 'not_scanned_yet'
+  },
+
+  trackingStatusHistory: [{
+    status:    { type: String, required: true },
+    note:      { type: String, default: '' },
+    updatedAt: { type: Date,   default: Date.now },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  }]
 }, {
   timestamps: true
 });

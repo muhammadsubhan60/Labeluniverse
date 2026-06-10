@@ -6,6 +6,7 @@ import {
   CurrencyDollarIcon, TagIcon, ClipboardDocumentListIcon,
   UserGroupIcon, ArrowUpRightIcon, ClockIcon, SparklesIcon,
   InformationCircleIcon, ArrowTrendingUpIcon, ChevronDownIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -16,6 +17,10 @@ interface UserStats {
   savings: { total: number; labelCount: number };
   recentLabels:   any[];
   activeManifests: any[];
+  trackingStatus?: {
+    not_scanned_yet: number; in_transit: number; out_for_delivery: number; delivered: number;
+    exception_problem: number; returned_to_sender: number; pending_pickup: number; delayed: number;
+  };
 }
 
 interface VendorAccessItem {
@@ -68,11 +73,13 @@ const MANIFEST_STATUS_LABEL: Record<string, string> = {
 
 // ── MetricCard ────────────────────────────────────────────────────────────────
 const MetricCard = ({
-  label, value, sub, color, Icon, onClick, infoTooltip,
+  label, value, sub, color, Icon, onClick, infoTooltip, ActionIcon, onActionClick,
 }: {
   label: string; value: string | number; sub?: string;
   color: string; Icon: React.ElementType; onClick?: () => void;
   infoTooltip?: string;
+  ActionIcon?: React.ElementType;
+  onActionClick?: () => void;
 }) => {
   const [showTip, setShowTip] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -102,7 +109,7 @@ const MetricCard = ({
         borderRadius: '16px 16px 0 0',
       }} />
 
-      {/* Icon row + optional info */}
+      {/* Icon row + optional action + optional info */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{
           width: 42, height: 42, borderRadius: 12,
@@ -113,28 +120,43 @@ const MetricCard = ({
           <Icon style={{ width: 19, height: 19, color }} />
         </div>
 
-        {infoTooltip && (
-          <div
-            style={{ position: 'relative', lineHeight: 1, marginTop: 3 }}
-            onMouseEnter={() => setShowTip(true)}
-            onMouseLeave={() => setShowTip(false)}
-            onClick={e => e.stopPropagation()}
-          >
-            <InformationCircleIcon style={{ width: 14, height: 14, color: '#cbd5e1', cursor: 'help' }} />
-            {showTip && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 100,
-                background: '#1e293b', color: '#f1f5f9',
-                borderRadius: 10, padding: '10px 13px',
-                fontSize: '0.69rem', lineHeight: 1.6, fontWeight: 400,
-                width: 252, boxShadow: '0 12px 32px rgba(0,0,0,0.22)',
-                pointerEvents: 'none',
-              }}>
-                {infoTooltip}
-              </div>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+          {ActionIcon && onActionClick && (
+            <button
+              onClick={e => { e.stopPropagation(); onActionClick(); }}
+              title="Adjust for lost items"
+              style={{
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                lineHeight: 1, display: 'flex', alignItems: 'center',
+              }}
+            >
+              <ArrowUpTrayIcon style={{ width: 14, height: 14, color: '#94a3b8' }} />
+            </button>
+          )}
+
+          {infoTooltip && (
+            <div
+              style={{ position: 'relative', lineHeight: 1 }}
+              onMouseEnter={() => setShowTip(true)}
+              onMouseLeave={() => setShowTip(false)}
+              onClick={e => e.stopPropagation()}
+            >
+              <InformationCircleIcon style={{ width: 14, height: 14, color: '#cbd5e1', cursor: 'help' }} />
+              {showTip && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 100,
+                  background: '#1e293b', color: '#f1f5f9',
+                  borderRadius: 10, padding: '10px 13px',
+                  fontSize: '0.69rem', lineHeight: 1.6, fontWeight: 400,
+                  width: 252, boxShadow: '0 12px 32px rgba(0,0,0,0.22)',
+                  pointerEvents: 'none',
+                }}>
+                  {infoTooltip}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Value */}
@@ -351,8 +373,8 @@ const HeroBanner = ({ greeting, name, dateLabel, balanceLabel, balance, onCta }:
 
 // ── AddBalanceModal ───────────────────────────────────────────────────────────
 const AddBalanceModal = ({
-  open, onClose, onViewPackages,
-}: { open: boolean; onClose: () => void; onViewPackages: () => void }) => {
+  open, onClose,
+}: { open: boolean; onClose: () => void }) => {
   if (!open) return null;
   return (
     <div
@@ -440,17 +462,6 @@ const AddBalanceModal = ({
         {/* Footer */}
         <div style={{ display: 'flex', gap: 10 }}>
           <button
-            onClick={onViewPackages}
-            style={{
-              flex: 1, padding: '0.65rem', borderRadius: 10,
-              background: 'linear-gradient(135deg, #1D4ED8, #6366f1)',
-              border: 'none', color: '#fff', fontWeight: 700,
-              fontSize: '0.82rem', cursor: 'pointer',
-            }}
-          >
-            View Packages →
-          </button>
-          <button
             onClick={onClose}
             style={{
               flex: 1, padding: '0.65rem', borderRadius: 10,
@@ -467,6 +478,258 @@ const AddBalanceModal = ({
   );
 };
 
+// ── LossAdjustDrawer ──────────────────────────────────────────────────────────
+const LOSS_KEY = 'savings_loss_per_item';
+
+const LossAdjustModal = ({
+  open, onClose, exceptionCount, savingsTotal, onApply,
+}: {
+  open: boolean; onClose: () => void;
+  exceptionCount: number; savingsTotal: number;
+  onApply: (perItem: number) => void;
+}) => {
+  const [raw, setRaw] = useState(() => localStorage.getItem(LOSS_KEY) ?? '');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      // tiny delay so the CSS transition fires after mount
+      requestAnimationFrame(() => setMounted(true));
+    } else {
+      setMounted(false);
+    }
+  }, [open]);
+
+  if (!open && !mounted) return null;
+
+  const perItem   = parseFloat(raw) || 0;
+  const totalLoss = exceptionCount * perItem;
+  const adjusted  = savingsTotal - totalLoss;
+
+  const handleApply = () => {
+    if (raw) localStorage.setItem(LOSS_KEY, raw);
+    onApply(perItem);
+    onClose();
+  };
+
+  const handleClear = () => {
+    setRaw('');
+    localStorage.removeItem(LOSS_KEY);
+    onApply(0);
+    onClose();
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: mounted ? 'rgba(15,23,42,0.45)' : 'rgba(15,23,42,0)',
+          backdropFilter: mounted ? 'blur(3px)' : 'none',
+          transition: 'background 0.28s, backdrop-filter 0.28s',
+        }}
+      />
+
+      {/* Drawer panel */}
+      <div
+        style={{
+          position: 'fixed', top: '50%', right: 24, zIndex: 1001,
+          transform: mounted ? 'translateX(0) translateY(-50%)' : 'translateX(calc(100% + 24px)) translateY(-50%)',
+          width: 360,
+          maxHeight: 'min(580px, 90vh)',
+          background: 'var(--bg-card)',
+          borderRadius: 16,
+          border: '1px solid var(--navy-200)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+          transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+        }}
+      >
+        {/* ── Drawer header ── */}
+        <div style={{
+          padding: '1.4rem 1.6rem 1.2rem',
+          borderBottom: '1px solid var(--navy-100)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              background: 'linear-gradient(135deg, #f9731622, #f9731608)',
+              border: '1px solid #f9731628',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <ArrowUpTrayIcon style={{ width: 17, height: 17, color: '#f97316' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--navy-900)', lineHeight: 1.2 }}>
+                Loss Adjustment
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginTop: 2 }}>
+                Adjusts Total Savings &amp; ROI
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: 8, border: '1px solid var(--navy-200)',
+              background: 'var(--navy-50)', cursor: 'pointer', color: 'var(--navy-500)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.9rem', flexShrink: 0,
+            }}
+          >✕</button>
+        </div>
+
+        {/* ── Scrollable body ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1.6rem', display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
+
+          {/* Exception stat */}
+          <div>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              From your tracking records
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '1rem 1.1rem', borderRadius: 12,
+              background: '#fff5f5', border: '1px solid #fecaca',
+            }}>
+              <div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#dc2626' }}>Exception / Problem</div>
+                <div style={{ fontSize: '0.72rem', color: '#b91c1c', marginTop: 2 }}>Labels flagged in tracking</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 800, color: '#dc2626', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                  {exceptionCount}
+                </div>
+                <div style={{ fontSize: '0.65rem', color: '#ef4444', marginTop: 2 }}>labels</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Input */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-700)', marginBottom: 8 }}>
+              How much did you lose per item?
+            </label>
+            <div style={{ position: 'relative' }}>
+              <span style={{
+                position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)',
+                fontSize: '1rem', fontWeight: 700, color: 'var(--navy-400)', pointerEvents: 'none',
+              }}>$</span>
+              <input
+                autoFocus
+                type="number" min="0" step="0.01"
+                value={raw}
+                onChange={e => setRaw(e.target.value)}
+                placeholder="0.00"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '0.75rem 0.9rem 0.75rem 1.75rem',
+                  border: '1.5px solid var(--navy-200)', borderRadius: 10,
+                  fontSize: '1.1rem', fontWeight: 700, color: 'var(--navy-900)',
+                  background: 'var(--bg-card)', outline: 'none',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => (e.target.style.borderColor = '#f97316')}
+                onBlur={e => (e.target.style.borderColor = 'var(--navy-200)')}
+              />
+            </div>
+            <div style={{ fontSize: '0.71rem', color: 'var(--navy-400)', marginTop: 6 }}>
+              Enter the average product value for lost items
+            </div>
+          </div>
+
+          {/* Calculation breakdown */}
+          <div style={{
+            borderRadius: 12, overflow: 'hidden',
+            border: '1px solid var(--navy-200)',
+          }}>
+            <div style={{ padding: '0.7rem 1rem', background: 'var(--navy-50)', borderBottom: '1px solid var(--navy-200)' }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Calculation
+              </span>
+            </div>
+            {[
+              { label: 'Original savings',  val: fmt$(savingsTotal),             color: '#10b981' },
+              { label: `${exceptionCount} exceptions × ${fmt$(perItem)}`, val: `−${fmt$(totalLoss)}`, color: '#dc2626' },
+            ].map(({ label, val, color }) => (
+              <div key={label} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '0.65rem 1rem', borderBottom: '1px solid var(--navy-100)',
+                fontSize: '0.82rem',
+              }}>
+                <span style={{ color: 'var(--navy-600)' }}>{label}</span>
+                <span style={{ fontWeight: 700, color }}>{val}</span>
+              </div>
+            ))}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '0.8rem 1rem',
+              background: adjusted >= 0 ? '#f0fdf4' : '#fff5f5',
+            }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy-800)' }}>Adjusted Savings</span>
+              <span style={{ fontSize: '1rem', fontWeight: 800, color: adjusted >= 0 ? '#10b981' : '#dc2626' }}>{fmt$(adjusted)}</span>
+            </div>
+          </div>
+
+          {/* ROI note */}
+          <div style={{
+            padding: '0.75rem 1rem', borderRadius: 10,
+            background: 'var(--navy-50)', border: '1px solid var(--navy-200)',
+            fontSize: '0.76rem', color: 'var(--navy-500)', lineHeight: 1.55,
+          }}>
+            ROI on the dashboard will automatically recalculate using the adjusted savings figure.
+          </div>
+        </div>
+
+        {/* ── Sticky footer ── */}
+        <div style={{
+          padding: '1.1rem 1.6rem',
+          borderTop: '1px solid var(--navy-100)',
+          display: 'flex', gap: 10, flexShrink: 0,
+          background: 'var(--bg-card)',
+        }}>
+          <button
+            onClick={handleClear}
+            style={{
+              flex: 1, padding: '0.7rem', borderRadius: 10,
+              background: 'var(--navy-100)', border: '1px solid var(--navy-200)',
+              color: 'var(--navy-600)', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer',
+              transition: 'background 0.12s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-200)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--navy-100)')}
+          >
+            Clear
+          </button>
+          <button
+            onClick={handleApply}
+            disabled={perItem <= 0}
+            style={{
+              flex: 2, padding: '0.7rem', borderRadius: 10,
+              background: perItem > 0 ? '#f97316' : 'var(--navy-200)',
+              border: 'none',
+              color: perItem > 0 ? '#fff' : 'var(--navy-400)',
+              fontWeight: 700, fontSize: '0.85rem',
+              cursor: perItem > 0 ? 'pointer' : 'not-allowed',
+              transition: 'background 0.15s, opacity 0.15s',
+              opacity: perItem > 0 ? 1 : 0.6,
+            }}
+            onMouseEnter={e => { if (perItem > 0) e.currentTarget.style.background = '#ea6c0a'; }}
+            onMouseLeave={e => { if (perItem > 0) e.currentTarget.style.background = '#f97316'; }}
+          >
+            Apply Adjustment →
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
 // ── User Dashboard ─────────────────────────────────────────────────────────────
 const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   const navigate = useNavigate();
@@ -474,6 +737,11 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   const [vendorAccess, setVendorAccess] = useState<VendorAccessItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showAddBalance, setShowAddBalance] = useState(false);
+  const [showLossModal, setShowLossModal]   = useState(false);
+  const [lossPerItem, setLossPerItem] = useState<number>(() => {
+    const saved = localStorage.getItem(LOSS_KEY);
+    return saved ? parseFloat(saved) || 0 : 0;
+  });
 
   const load = useCallback(async () => {
     try {
@@ -494,7 +762,10 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
 
   const { balance, labels, manifests, savings, recentLabels, activeManifests } = stats;
   const totalLabels = labels.total || 1;
-  const roi = balance.totalDeposited > 0 ? ((savings?.total ?? 0) / balance.totalDeposited) * 100 : 0;
+  const exceptionCount  = stats.trackingStatus?.exception_problem ?? 0;
+  const rawSavings      = savings?.total ?? 0;
+  const adjustedSavings = rawSavings - exceptionCount * lossPerItem;
+  const roi = balance.totalDeposited > 0 ? (adjustedSavings / balance.totalDeposited) * 100 : 0;
   const SAVINGS_TOOLTIP = 'This figure compares your label cost against standard USPS retail rates. Your actual savings may differ if you had prior negotiated rates. Think of this as an estimated benchmark — not a guaranteed fixed saving.';
   const now = new Date();
   const greeting  = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening';
@@ -530,9 +801,53 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
         <MetricCard label="Labels Generated" value={labels.generated}             sub={`${labels.failed} failed`}                                                         color="#0ea5e9" Icon={TagIcon}                 onClick={() => navigate('/labels/history')} />
         <MetricCard label="Active Manifests" value={manifests.active}             sub={`${manifests.completed} completed`}                                                color="#f59e0b" Icon={ClipboardDocumentListIcon} />
         <MetricCard label="Total Spent"      value={fmt$(balance.totalSpent)}     sub="Labels + manifests"                                                               color="#6366f1" Icon={CurrencyDollarIcon} />
-        <MetricCard label="Total Savings"    value={fmt$(savings?.total ?? 0)}    sub={savings?.labelCount ? `vs USPS retail · ${savings.labelCount} labels` : 'vs USPS retail'} color="#10b981" Icon={SparklesIcon} infoTooltip={SAVINGS_TOOLTIP} />
-        <MetricCard label="ROI"              value={`${roi.toFixed(1)}%`}         sub={`${fmt$(savings?.total ?? 0)} saved · ${fmt$(balance.totalDeposited)} deposited`} color="#8b5cf6" Icon={ArrowTrendingUpIcon} />
+        <MetricCard
+          label="Total Savings"
+          value={fmt$(adjustedSavings)}
+          sub={lossPerItem > 0
+            ? `Adjusted · ${exceptionCount} exceptions × ${fmt$(lossPerItem)}`
+            : savings?.labelCount ? `vs USPS retail · ${savings.labelCount} labels` : 'vs USPS retail'}
+          color="#10b981"
+          Icon={SparklesIcon}
+          infoTooltip={SAVINGS_TOOLTIP}
+          ActionIcon={ArrowUpTrayIcon}
+          onActionClick={() => setShowLossModal(true)}
+        />
+        <MetricCard label="ROI" value={`${roi.toFixed(1)}%`} sub={`${fmt$(adjustedSavings)} saved · ${fmt$(balance.totalDeposited)} deposited`} color="#8b5cf6" Icon={ArrowTrendingUpIcon} />
       </div>
+
+      {/* Tracking Status Breakdown */}
+      {stats.trackingStatus && (
+        <div className="sh-card" style={{ padding: '1.3rem 1.5rem' }}>
+          <SectionHeader title="Label Tracking Status" accent="#1D4ED8"
+            action={<button className="btn btn-ghost btn-sm" style={{ fontSize: '0.72rem' }} onClick={() => navigate('/labels/history')}>View Labels →</button>}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
+            {([
+              { key: 'not_scanned_yet',   label: 'Not Scanned Yet',    bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0', dot: '#94A3B8' },
+              { key: 'in_transit',        label: 'In Transit',         bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE', dot: '#3B82F6' },
+              { key: 'out_for_delivery',  label: 'Out for Delivery',   bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE', dot: '#8B5CF6' },
+              { key: 'delivered',         label: 'Delivered',          bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0', dot: '#22C55E' },
+              { key: 'exception_problem', label: 'Exception / Problem',bg: '#FFF5F5', color: '#DC2626', border: '#FECACA', dot: '#EF4444' },
+              { key: 'returned_to_sender',label: 'Returned to Sender', bg: '#FFF1F2', color: '#BE123C', border: '#FECDD3', dot: '#F43F5E' },
+              { key: 'pending_pickup',    label: 'Pending Pickup',     bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA', dot: '#F97316' },
+              { key: 'delayed',           label: 'Delayed',            bg: '#FFFBEB', color: '#92400E', border: '#FDE68A', dot: '#F59E0B' },
+            ] as const).map(({ key, label, bg, color, border, dot }) => {
+              const count = stats.trackingStatus![key] ?? 0;
+              return (
+                <div key={key} style={{ background: bg, border: `1.5px solid ${border}`, borderRadius: 12, padding: '0.9rem 1rem', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+                  </div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color, letterSpacing: '-0.03em', lineHeight: 1 }}>{count}</div>
+                  <div style={{ fontSize: '0.68rem', color, opacity: 0.7 }}>label{count !== 1 ? 's' : ''}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Mid row */}
       <div className="dashboard-two-col-grid" style={{ display: 'grid', gap: '1rem' }}>
@@ -749,7 +1064,16 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
       </div>
 
       {/* Add Balance Modal */}
-      <AddBalanceModal open={showAddBalance} onClose={() => setShowAddBalance(false)} onViewPackages={() => { setShowAddBalance(false); navigate('/packages'); }} />
+      <AddBalanceModal open={showAddBalance} onClose={() => setShowAddBalance(false)} />
+
+      {/* Loss Adjustment Modal */}
+      <LossAdjustModal
+        open={showLossModal}
+        onClose={() => setShowLossModal(false)}
+        exceptionCount={exceptionCount}
+        savingsTotal={rawSavings}
+        onApply={setLossPerItem}
+      />
     </div>
   );
 };
@@ -1009,7 +1333,7 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
       </div>
 
       {/* Add Balance Modal */}
-      <AddBalanceModal open={showAddBalance} onClose={() => setShowAddBalance(false)} onViewPackages={() => { setShowAddBalance(false); navigate('/packages'); }} />
+      <AddBalanceModal open={showAddBalance} onClose={() => setShowAddBalance(false)} />
     </div>
   );
 };

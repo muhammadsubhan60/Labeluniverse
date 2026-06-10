@@ -33,6 +33,7 @@ async function buildAccessList(userId, isAdmin = false) {
       baseRate:        v.rate,
       isAllowed:       isAdmin ? true : (rec ? rec.isAllowed : false),
       rateTiers:       rec ? rec.rateTiers : [],
+      portal:          v.source === 'labelcrow' ? 'labelcrow' : v.source === 'shiplabel' ? 'shiplabel' : 'shippershub',
     });
   }
   return result;

@@ -41,6 +41,7 @@ interface BulkJob {
   bulkZipUrl?: string;
   carrier: string;
   vendorName: string;
+  portal?: string;
   totalLabels: number;
   totalPrice: number;
   generatedCount: number;
@@ -59,6 +60,13 @@ const CC: Record<string, { bg: string; color: string; border: string; accent: st
   DHL:   { bg: '#FEF3C7', color: '#78350F', border: '#FDE68A', accent: '#D97706' },
 };
 const CARRIERS = ['USPS', 'UPS', 'FedEx', 'DHL'];
+
+// ── Portal theme ──────────────────────────────────────────────
+const PORTALS: { id: string; label: string; bg: string; color: string; border: string }[] = [
+  { id: 'shippershub', label: 'ShippersHub', bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  { id: 'labelcrow',   label: 'Label Crow',  bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
+  { id: 'shiplabel',   label: 'ShipLabel',   bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
+];
 
 // ── Status badge ──────────────────────────────────────────────
 function jobStatus(job: BulkJob) {
@@ -92,7 +100,7 @@ const StatusBadge: React.FC<{ job: BulkJob }> = ({ job }) => {
 // ── Skeleton row ──────────────────────────────────────────────
 const SkeletonRow = () => (
   <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-    {[50, 140, 160, 90, 80, 90, 110, 120].map((w, i) => (
+    {[50, 140, 160, 90, 80, 90, 90, 110, 120, 90].map((w, i) => (
       <td key={i} style={{ padding: '1rem 0.875rem' }}>
         <div style={{ height: 10, width: w, borderRadius: 5, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite' }} />
         {(i === 1 || i === 2) && <div style={{ height: 8, width: w * 0.6, borderRadius: 4, background: '#F1F5F9', marginTop: 5 }} />}
@@ -114,6 +122,7 @@ const BulkLabels: React.FC = () => {
   const [search,         setSearch]         = useState('');
   const [carrier,        setCarrier]        = useState('');
   const [vendorId,       setVendorId]       = useState('');
+  const [portal,         setPortal]         = useState('');
   const [dateFrom,       setDateFrom]       = useState('');
   const [dateTo,         setDateTo]         = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
@@ -123,7 +132,7 @@ const BulkLabels: React.FC = () => {
 
   const LIMIT = 15;
   const filteredVendors = carrier ? vendors.filter(v => v.carrier === carrier) : vendors;
-  const hasFilters = !!(carrier || vendorId || dateFrom || dateTo);
+  const hasFilters = !!(carrier || vendorId || portal || dateFrom || dateTo);
   const totalSpent = jobs.reduce((s, j) => s + (j.totalPrice || 0), 0);
 
   useEffect(() => {
@@ -137,6 +146,7 @@ const BulkLabels: React.FC = () => {
       if (search)   params.search   = search;
       if (carrier)  params.carrier  = carrier;
       if (vendorId) params.vendorId = vendorId;
+      if (portal)   params.portal   = portal;
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo)   params.dateTo   = dateTo;
       const res = await axios.get('/labels/bulk-jobs', { params });
@@ -149,7 +159,7 @@ const BulkLabels: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, carrier, vendorId, dateFrom, dateTo]);
+  }, [search, carrier, vendorId, portal, dateFrom, dateTo]);
 
   useEffect(() => { fetchJobs(1); }, [fetchJobs]);
 
@@ -169,7 +179,7 @@ const BulkLabels: React.FC = () => {
   };
 
   const resetFilters = () => {
-    setCarrier(''); setVendorId(''); setDateFrom(''); setDateTo('');
+    setCarrier(''); setVendorId(''); setPortal(''); setDateFrom(''); setDateTo('');
     setSearch(''); setShowDateFilter(false);
   };
 
@@ -278,6 +288,23 @@ const BulkLabels: React.FC = () => {
           })}
         </div>
 
+        {/* Portal filter pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.5rem 0.875rem', borderBottom: '1px solid var(--navy-100)', overflowX: 'auto' }}>
+          <span style={{ fontSize: '0.63rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', marginRight: 4 }}>Portal</span>
+          {[{ id: '', label: 'All' }, ...PORTALS].map(p => {
+            const active = portal === p.id;
+            const cfg = p.id ? PORTALS.find(x => x.id === p.id) : null;
+            return (
+              <button
+                key={p.id || 'all'}
+                onClick={() => { setPortal(p.id); fetchJobs(1); }}
+                style={{ padding: '4px 12px', border: `1.5px solid ${active ? (cfg?.border ?? '#6366f1') : 'var(--navy-200)'}`, borderRadius: 20, background: active ? (cfg?.bg ?? '#EEF2FF') : 'var(--navy-50)', color: active ? (cfg?.color ?? '#4F46E5') : 'var(--navy-500)', fontSize: '0.72rem', fontWeight: active ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Date range row */}
         {showDateFilter && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0.625rem 0.875rem', background: 'var(--navy-50)' }}>
@@ -308,7 +335,7 @@ const BulkLabels: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
               <tr style={{ background: 'var(--navy-50)' }}>
-                {['#', 'User', 'Job File', 'Labels', 'Price', 'Vendor', 'Date', 'Status', 'Track', 'Download'].map(h => (
+                {['#', 'User', 'Job File', 'Labels', 'Price', 'Vendor', 'Portal', 'Date', 'Status', 'Track', 'Download'].map(h => (
                   <th key={h} style={{ padding: '0.625rem 0.875rem', textAlign: 'left', fontSize: '0.63rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', borderBottom: '1.5px solid var(--navy-200)' }}>
                     {h}
                   </th>
@@ -320,7 +347,7 @@ const BulkLabels: React.FC = () => {
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
               ) : jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: '4rem', textAlign: 'center' }}>
+                  <td colSpan={11} style={{ padding: '4rem', textAlign: 'center' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 52, height: 52, borderRadius: 14, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <RectangleStackIcon style={{ width: 26, height: 26, color: '#CBD5E1' }} />
@@ -405,6 +432,19 @@ const BulkLabels: React.FC = () => {
                         <div style={{ fontSize: '0.76rem', color: '#475569', fontWeight: 500, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {job.vendorName || '—'}
                         </div>
+                      </td>
+
+                      {/* Portal */}
+                      <td style={{ padding: '1rem 0.875rem', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const cfg = PORTALS.find(p => p.id === job.portal);
+                          if (!cfg) return <span style={{ fontSize: '0.7rem', color: '#CBD5E1' }}>—</span>;
+                          return (
+                            <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '3px 9px', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.03em', display: 'inline-block' }}>
+                              {cfg.label}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       {/* Date */}

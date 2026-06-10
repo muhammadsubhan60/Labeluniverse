@@ -167,4 +167,131 @@ router.post('/import-from-shippershub', authenticateToken, authorize('admin'), a
   }
 });
 
+// ── POST /api/vendors/import-from-labelcrow ───────────────────
+// Admin: sync Label Crow series × provider_key combos as Vendor records
+router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const labelcrow = require('../services/labelcrow');
+    const [seriesList, providersRaw] = await Promise.all([
+      labelcrow.getSeries(),
+      labelcrow.getProviders(),
+    ]);
+
+    // Build map: 'carrier:service_class' → Set<provider_key>
+    const providerMap = new Map();
+    for (const p of providersRaw) {
+      for (const sc of (p.service_classes || [])) {
+        const k = `${p.carrier}:${sc.service_class}`;
+        if (!providerMap.has(k)) providerMap.set(k, new Set());
+        for (const pk of (sc.provider_keys || [])) providerMap.get(k).add(pk);
+      }
+    }
+
+    const created = [];
+    const updated = [];
+
+    for (const series of seriesList) {
+      const k = `${series.carrier}:${series.service_class}`;
+      const pkeys = providerMap.has(k) ? [...providerMap.get(k)] : [''];
+      const rateVal = series.price_brackets?.[0]?.price ?? 0;
+      const svc = series.service_class;
+      const svcLabel = svc.charAt(0).toUpperCase() + svc.slice(1);
+
+      for (const providerKey of pkeys) {
+        const vendorName = providerKey
+          ? `${series.series_code} · ${svcLabel} · ${providerKey}`
+          : `${series.series_code} · ${svcLabel}`;
+
+        const filter = {
+          source: 'labelcrow',
+          labelcrowSeriesId: series.id,
+          labelcrowProviderKey: providerKey,
+        };
+
+        const existing = await Vendor.findOne(filter);
+        if (!existing) {
+          await Vendor.create({
+            name:                  vendorName,
+            carrier:               'USPS',
+            source:                'labelcrow',
+            vendorType:            'api',
+            shippingService:       svc,
+            rate:                  rateVal,
+            isActive:              true,
+            labelcrowSeriesId:     series.id,
+            labelcrowProviderKey:  providerKey,
+            labelcrowServiceClass: svc,
+          });
+          created.push(vendorName);
+        } else {
+          await Vendor.updateOne(filter, {
+            $set: { name: vendorName, shippingService: svc, labelcrowServiceClass: svc },
+          });
+          updated.push(vendorName);
+        }
+      }
+    }
+
+    res.json({
+      message: `Label Crow sync — ${created.length} added, ${updated.length} updated`,
+      created,
+      updated,
+    });
+  } catch (error) {
+    console.error('Import Label Crow vendors error:', error);
+    res.status(502).json({ message: `Label Crow error: ${error.message}` });
+  }
+});
+
+// ── POST /api/vendors/import-from-shiplabel ───────────────────
+// Admin: sync ShipLabel services as Vendor records
+router.post('/import-from-shiplabel', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const shiplabel = require('../services/shiplabel');
+    const services  = await shiplabel.getServices();
+
+    const created = [];
+    const updated = [];
+
+    for (const svc of services) {
+      // Parse rate from first price range (strip "$" and " lbs")
+      const rawPrice = svc.price_ranges?.[0]?.price || '$0';
+      const rateVal  = parseFloat(rawPrice.replace(/[^0-9.]/g, '')) || 0;
+
+      const filter = { source: 'shiplabel', shiplabelServiceId: String(svc.id) };
+      const existing = await Vendor.findOne(filter);
+
+      if (!existing) {
+        await Vendor.create({
+          name:                 svc.name,
+          carrier:              'USPS',
+          source:               'shiplabel',
+          vendorType:           'api',
+          shippingService:      svc.inferredFormat || '',
+          rate:                 rateVal,
+          isActive:             true,
+          shiplabelServiceId:   String(svc.id),
+          shiplabelLabelSeries: svc.inferredSeries || '',
+          shiplabelLabelFormat: svc.inferredFormat || '',
+        });
+        created.push(svc.name);
+      } else {
+        await Vendor.updateOne(filter, {
+          $set: { name: svc.name, shippingService: svc.inferredFormat || existing.shippingService },
+        });
+        updated.push(svc.name);
+      }
+    }
+
+    res.json({
+      message: `ShipLabel sync — ${created.length} added, ${updated.length} updated`,
+      created,
+      updated,
+    });
+  } catch (error) {
+    console.error('Import ShipLabel vendors error:', error);
+    res.status(502).json({ message: `ShipLabel error: ${error.message}` });
+  }
+});
+
 module.exports = router;

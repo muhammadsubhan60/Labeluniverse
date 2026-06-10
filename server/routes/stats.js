@@ -197,6 +197,7 @@ async function userStats(userId) {
     recentLabels,
     activeManifests,
     uspsLabels,
+    trackingStatusGroups,
   ] = await Promise.all([
     Label.aggregate([
       { $match: { user: uid } },
@@ -217,6 +218,11 @@ async function userStats(userId) {
     // USPS non-manifested generated labels for savings calculation
     Label.find({ user: uid, carrier: 'USPS', isBulk: false, status: 'generated' })
       .select('weight price').lean(),
+    // Tracking status breakdown
+    Label.aggregate([
+      { $match: { user: uid, status: 'generated' } },
+      { $group: { _id: '$trackingStatus', count: { $sum: 1 } } },
+    ]),
   ]);
 
   const labels = { total: 0, generated: 0, failed: 0, spent: 0, byCarrier: {} };
@@ -252,6 +258,12 @@ async function userStats(userId) {
     if (saving > 0) { totalSavings += saving; savingsLabels++; }
   }
 
+  const trackingCounts = { not_scanned_yet: 0, in_transit: 0, out_for_delivery: 0, delivered: 0, exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0 };
+  for (const g of trackingStatusGroups) {
+    const key = g._id || 'not_scanned_yet';
+    if (key in trackingCounts) trackingCounts[key] = g.count;
+  }
+
   return {
     balance: {
       currentBalance: balance.currentBalance,
@@ -263,59 +275,10 @@ async function userStats(userId) {
     savings: { total: totalSavings, labelCount: savingsLabels },
     recentLabels,
     activeManifests,
+    trackingStatus: trackingCounts,
   };
 }
 
-// ── GET /api/stats/credit  — credit score + limit for current user ────────────
-router.get('/credit', authenticateToken, async (req, res) => {
-  try {
-    const uid  = new mongoose.Types.ObjectId(String(req.user._id));
-    const user = await User.findById(uid).select('creditLimit creditUsed createdAt');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const [balance, labelCount] = await Promise.all([
-      Balance.getOrCreateBalance(req.user._id),
-      Label.countDocuments({ user: uid }),
-    ]);
-
-    const txns         = balance.transactions || [];
-    const totalDeposited = txns.filter(t => t.type === 'topup').reduce((s, t) => s + t.amount, 0);
-    const accountAgeDays = Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24));
-
-    // Score components
-    const ageScore      = Math.min(100, Math.floor((accountAgeDays / 730) * 100));
-    const labelScore    = Math.min(200, Math.floor((labelCount / 500) * 200));
-    const depositScore  = Math.min(200, Math.floor((totalDeposited / 1000) * 200));
-    const activityScore = labelCount > 0 ? 50 : 0;
-    const creditScore   = Math.min(850, 300 + ageScore + labelScore + depositScore + activityScore);
-
-    const creditLimit     = user.creditLimit  || 0;
-    const creditUsed      = user.creditUsed   || 0;
-    const creditAvailable = Math.max(0, creditLimit - creditUsed);
-
-    res.json({
-      creditScore,
-      creditLimit,
-      creditUsed,
-      creditAvailable,
-      breakdown: {
-        base:            300,
-        accountAge:      ageScore,
-        labelsGenerated: labelScore,
-        depositHistory:  depositScore,
-        activityBonus:   activityScore,
-      },
-      factors: {
-        accountAgeDays,
-        totalLabels:     labelCount,
-        totalDeposited,
-      },
-    });
-  } catch (err) {
-    console.error('Credit score error:', err);
-    res.status(500).json({ message: 'Error fetching credit score' });
-  }
-});
 
 // ── GET /api/stats/admin-live  (admin only) ──────────────────────────────────
 // Real-time platform snapshot for the admin live monitor page.
@@ -388,6 +351,123 @@ router.get('/admin-live', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Admin live stats error:', err);
     res.status(500).json({ message: 'Error fetching admin live stats' });
+  }
+});
+
+// ── GET /api/stats/admin-warehouses  (admin only) ────────────────────────────
+// Warehouse identity is derived from label "from" address fields.
+router.get('/admin-warehouses', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
+
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10), 1), 500);
+
+    const rows = await Label.aggregate([
+      { $match: { status: 'generated' } },
+      {
+        $addFields: {
+          warehouseKey: {
+            $concat: [
+              { $trim: { input: { $ifNull: ['$from_address1', ''] } } }, '|',
+              { $trim: { input: { $ifNull: ['$from_city', ''] } } }, '|',
+              { $trim: { input: { $ifNull: ['$from_state', ''] } } }, '|',
+              { $trim: { input: { $ifNull: ['$from_zip', ''] } } }, '|',
+              { $trim: { input: { $ifNull: ['$from_country', ''] } } },
+            ],
+          },
+          warehouseName: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$from_company', ''] } } } }, 0] },
+              { $trim: { input: { $ifNull: ['$from_company', ''] } } },
+              { $trim: { input: { $ifNull: ['$from_name', ''] } } },
+            ],
+          },
+        },
+      },
+      {
+        $match: {
+          warehouseKey: { $nin: ['', '||||'] },
+        },
+      },
+      {
+        $group: {
+          _id: '$warehouseKey',
+          parcelCount: { $sum: 1 },
+          users: { $addToSet: '$user' },
+          totalRevenue: { $sum: '$price' },
+          lastShipmentAt: { $max: '$createdAt' },
+          firstShipmentAt: { $min: '$createdAt' },
+          warehouseName: { $first: '$warehouseName' },
+          from_address1: { $first: '$from_address1' },
+          from_city: { $first: '$from_city' },
+          from_state: { $first: '$from_state' },
+          from_zip: { $first: '$from_zip' },
+          from_country: { $first: '$from_country' },
+        },
+      },
+      {
+        $addFields: {
+          userCount: { $size: '$users' },
+        },
+      },
+      { $sort: { userCount: -1, parcelCount: -1, lastShipmentAt: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'users',
+          foreignField: '_id',
+          as: 'userDocs',
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          warehouseKey: '$_id',
+          warehouseName: 1,
+          parcelCount: 1,
+          userCount: 1,
+          totalRevenue: 1,
+          lastShipmentAt: 1,
+          firstShipmentAt: 1,
+          from_address1: 1,
+          from_city: 1,
+          from_state: 1,
+          from_zip: 1,
+          from_country: 1,
+          users: {
+            $map: {
+              input: '$userDocs',
+              as: 'u',
+              in: {
+                _id: '$$u._id',
+                firstName: '$$u.firstName',
+                lastName: '$$u.lastName',
+                email: '$$u.email',
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    const summary = rows.reduce((acc, row) => {
+      acc.totalWarehouses += 1;
+      acc.totalParcels += row.parcelCount || 0;
+      acc.sharedWarehouses += row.userCount > 1 ? 1 : 0;
+      if (row.userCount > acc.maxUsersOnSingleWarehouse) {
+        acc.maxUsersOnSingleWarehouse = row.userCount;
+      }
+      return acc;
+    }, { totalWarehouses: 0, totalParcels: 0, sharedWarehouses: 0, maxUsersOnSingleWarehouse: 0 });
+
+    res.json({
+      summary,
+      warehouses: rows,
+    });
+  } catch (err) {
+    console.error('Admin warehouse stats error:', err);
+    res.status(500).json({ message: 'Error fetching warehouse stats' });
   }
 });
 

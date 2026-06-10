@@ -18,8 +18,14 @@ interface ApiVendor {
   rate: number;
   isActive: boolean;
   source: string;
-  shippershubCarrierId: string | null;
-  shippershubVendorId: string | null;
+  shippershubCarrierId:  string | null;
+  shippershubVendorId:   string | null;
+  labelcrowSeriesId:     number | null;
+  labelcrowProviderKey:  string | null;
+  labelcrowServiceClass: string | null;
+  shiplabelServiceId:    string | null;
+  shiplabelLabelSeries:  string | null;
+  shiplabelLabelFormat:  string | null;
   createdAt: string;
 }
 
@@ -224,6 +230,7 @@ const VendorManagement: React.FC = () => {
   const { user } = useAuth();
 
   const [activeTab,     setActiveTab]     = useState<'api' | 'manifest'>('api');
+  const [activePortal,  setActivePortal]  = useState<'shippershub' | 'labelcrow' | 'shiplabel'>('shippershub');
 
   // API vendors (ShippersHub)
   const [apiVendors,    setApiVendors]    = useState<ApiVendor[]>([]);
@@ -236,6 +243,14 @@ const VendorManagement: React.FC = () => {
   const [diagLoading,   setDiagLoading]   = useState(false);
   const [diagData,      setDiagData]      = useState<any[] | null>(null);
   const [diagError,     setDiagError]     = useState('');
+
+  // API vendors (Label Crow)
+  const [lcVendors,     setLcVendors]     = useState<ApiVendor[]>([]);
+  const [lcSyncing,     setLcSyncing]     = useState(false);
+
+  // API vendors (ShipLabel)
+  const [slVendors,     setSlVendors]     = useState<ApiVendor[]>([]);
+  const [slSyncing,     setSlSyncing]     = useState(false);
 
   // Manifest vendors
   const [vendors,       setVendors]       = useState<ManifestVendor[]>([]);
@@ -261,7 +276,10 @@ const VendorManagement: React.FC = () => {
     setApiLoading(true);
     try {
       const res = await axios.get('/vendors');
-      setApiVendors((res.data.vendors || []).filter((v: ApiVendor) => v.source === 'shippershub'));
+      const all: ApiVendor[] = res.data.vendors || [];
+      setApiVendors(all.filter(v => v.source === 'shippershub'));
+      setLcVendors(all.filter(v => v.source === 'labelcrow'));
+      setSlVendors(all.filter(v => v.source === 'shiplabel'));
     } catch { /* ignore */ }
     finally { setApiLoading(false); }
   };
@@ -311,6 +329,26 @@ const VendorManagement: React.FC = () => {
     } catch (err: any) {
       setDiagError(err.response?.data?.message || 'Could not connect to ShippersHub');
     } finally { setDiagLoading(false); }
+  };
+
+  const handleSyncLabelCrow = async () => {
+    setLcSyncing(true);
+    try {
+      const res = await axios.post('/vendors/import-from-labelcrow');
+      notify(res.data.message || 'Label Crow sync complete');
+      fetchApiVendors();
+    } catch (err: any) { notify(err.response?.data?.message || 'Label Crow sync failed', true); }
+    finally { setLcSyncing(false); }
+  };
+
+  const handleSyncShipLabel = async () => {
+    setSlSyncing(true);
+    try {
+      const res = await axios.post('/vendors/import-from-shiplabel');
+      notify(res.data.message || 'ShipLabel sync complete');
+      fetchApiVendors();
+    } catch (err: any) { notify(err.response?.data?.message || 'ShipLabel sync failed', true); }
+    finally { setSlSyncing(false); }
   };
 
   const fetchVendors = async () => {
@@ -421,7 +459,7 @@ const VendorManagement: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 className="page-title" style={{ margin: 0 }}>Vendor Management</h1>
-          <p className="page-subtitle" style={{ margin: 0 }}>Manage API vendors (ShippersHub) and manifest vendors.</p>
+          <p className="page-subtitle" style={{ margin: 0 }}>Manage API vendors (ShippersHub, Label Crow, ShipLabel) and manifest vendors.</p>
         </div>
         {activeTab === 'manifest' && (
           <button className="btn btn-primary" onClick={() => { setForm(BLANK); setShowCreate(true); }}>
@@ -429,21 +467,13 @@ const VendorManagement: React.FC = () => {
           </button>
         )}
         {activeTab === 'api' && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost" onClick={handleDiagnose} disabled={diagLoading}
-              title="Fetch live carriers and vendor IDs from your ShippersHub account">
-              {diagLoading
-                ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Checking…</>
-                : <><MagnifyingGlassIcon style={{ width: 16, height: 16 }} /> Check Connection</>
-              }
-            </button>
-            <button className="btn btn-primary" onClick={handleImportShippersHub} disabled={importing}>
-              {importing
-                ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Syncing…</>
-                : <><CloudArrowDownIcon style={{ width: 16, height: 16 }} /> Sync from ShippersHub</>
-              }
-            </button>
-          </div>
+          <button className="btn btn-ghost" onClick={handleDiagnose} disabled={diagLoading}
+            title="Check live connection to ShippersHub">
+            {diagLoading
+              ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Checking…</>
+              : <><MagnifyingGlassIcon style={{ width: 16, height: 16 }} /> Check Connection</>
+            }
+          </button>
         )}
       </div>
 
@@ -462,7 +492,7 @@ const VendorManagement: React.FC = () => {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid var(--navy-100)', paddingBottom: 0 }}>
         {([
-          { key: 'api',      label: `API Vendors (ShippersHub)  ${apiVendors.length > 0 ? `· ${apiVendors.length}` : ''}` },
+          { key: 'api',      label: `API Vendors  ${(apiVendors.length + lcVendors.length + slVendors.length) > 0 ? `· ${apiVendors.length + lcVendors.length + slVendors.length}` : ''}` },
           { key: 'manifest', label: `Manifest Vendors  ${vendors.length > 0 ? `· ${vendors.length}` : ''}` },
         ] as { key: 'api' | 'manifest'; label: string }[]).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
@@ -477,158 +507,298 @@ const VendorManagement: React.FC = () => {
       </div>
 
       {/* ── API Vendors Tab ──────────────────────────────────── */}
-      {activeTab === 'api' && (
-        <>
-          {/* Diagnostics panel */}
-          {(diagData !== null || diagError) && (
-            <div className="sh-card" style={{ padding: '1rem 1.25rem', border: diagError ? '1.5px solid #fca5a5' : '1.5px solid #bbf7d0', background: diagError ? '#fff5f5' : '#f0fdf4' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontWeight: 700, fontSize: '0.82rem', color: diagError ? '#b91c1c' : '#15803d' }}>
-                  {diagError ? '✗ Connection failed' : `✓ ShippersHub connected — ${diagData!.length} carrier(s) found`}
-                </span>
-                <button onClick={() => { setDiagData(null); setDiagError(''); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 2 }}>
-                  <XMarkIcon style={{ width: 14, height: 14 }} />
+      {activeTab === 'api' && (() => {
+        const PORTALS = [
+          {
+            id:       'shippershub' as const,
+            label:    'ShippersHub',
+            count:    apiVendors.length,
+            accent:   '#1D4ED8',
+            bg:       '#EFF6FF',
+            border:   '#BFDBFE',
+            syncing:  importing,
+            onSync:   handleImportShippersHub,
+            syncLabel:'Sync from ShippersHub',
+            desc:     'API vendors synced from your ShippersHub account',
+          },
+          {
+            id:       'labelcrow' as const,
+            label:    'Label Crow',
+            count:    lcVendors.length,
+            accent:   '#7C3AED',
+            bg:       '#F5F3FF',
+            border:   '#DDD6FE',
+            syncing:  lcSyncing,
+            onSync:   handleSyncLabelCrow,
+            syncLabel:'Sync from Label Crow',
+            desc:     'USPS vendors · each series × provider key combo',
+          },
+          {
+            id:       'shiplabel' as const,
+            label:    'ShipLabel',
+            count:    slVendors.length,
+            accent:   '#059669',
+            bg:       '#ECFDF5',
+            border:   '#A7F3D0',
+            syncing:  slSyncing,
+            onSync:   handleSyncShipLabel,
+            syncLabel:'Sync from ShipLabel',
+            desc:     'USPS vendors synced from shiplabel.net',
+          },
+        ];
+        const portal = PORTALS.find(p => p.id === activePortal)!;
+
+        return (
+          <>
+            {/* ── Portal selector card ─────────────────────────── */}
+            <div className="sh-card" style={{ padding: 0, overflow: 'hidden' }}>
+
+              {/* Portal pills row */}
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--navy-100)' }}>
+                {PORTALS.map(p => {
+                  const active = activePortal === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setActivePortal(p.id)}
+                      style={{
+                        flex: 1, padding: '0.75rem 0.5rem', border: 'none', cursor: 'pointer',
+                        background: active ? p.bg : '#fff',
+                        borderBottom: active ? `2.5px solid ${p.accent}` : '2.5px solid transparent',
+                        transition: 'all 0.12s',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                      }}
+                    >
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: active ? p.accent : 'var(--navy-500)' }}>
+                        {p.label}
+                      </span>
+                      <span style={{
+                        fontSize: '0.68rem', fontWeight: 700,
+                        background: active ? p.accent : 'var(--navy-100)',
+                        color: active ? '#fff' : 'var(--navy-500)',
+                        padding: '1px 8px', borderRadius: 99, transition: 'all 0.12s',
+                      }}>
+                        {p.count} vendor{p.count !== 1 ? 's' : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active portal header: description + sync button */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', background: portal.bg }}>
+                <span style={{ fontSize: '0.78rem', color: portal.accent, fontWeight: 600 }}>{portal.desc}</span>
+                <button
+                  onClick={portal.onSync}
+                  disabled={portal.syncing}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                    padding: '6px 14px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
+                    border: `1.5px solid ${portal.accent}`,
+                    background: portal.syncing ? portal.bg : portal.accent,
+                    color: portal.syncing ? portal.accent : '#fff',
+                    cursor: portal.syncing ? 'not-allowed' : 'pointer',
+                    opacity: portal.syncing ? 0.75 : 1, transition: 'all 0.15s',
+                  }}
+                >
+                  {portal.syncing
+                    ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderColor: `${portal.accent}40`, borderTopColor: portal.accent }} /> Syncing…</>
+                    : <><ArrowPathIcon style={{ width: 13, height: 13 }} /> {portal.syncLabel}</>
+                  }
                 </button>
               </div>
-              {diagError && <p style={{ fontSize: '0.82rem', color: '#b91c1c', margin: 0 }}>{diagError}</p>}
-              {diagData && diagData.map((carrier: any) => (
-                <div key={carrier._id || carrier.id} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-700)', marginBottom: 4 }}>
-                    {carrier.name} — Carrier ID: <code style={{ background: '#e0f2fe', padding: '1px 5px', borderRadius: 3, fontSize: '0.75rem' }}>{carrier._id || carrier.id || '?'}</code>
-                  </div>
-                  {(carrier.vendors || []).length === 0
-                    ? <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>No vendors found for this carrier</div>
-                    : (carrier.vendors || []).map((v: any) => (
-                        <div key={v._id || v.id} style={{ fontSize: '0.72rem', color: 'var(--navy-600)', display: 'flex', gap: 8, marginBottom: 2 }}>
-                          <span style={{ fontWeight: 600 }}>{v.name}</span>
-                          <span>Vendor ID: <code style={{ background: '#e0f2fe', padding: '1px 4px', borderRadius: 3 }}>{v._id || v.id || '?'}</code></span>
-                          <span style={{ color: 'var(--navy-400)' }}>{v.status || ''}</span>
-                        </div>
-                      ))
-                  }
-                </div>
-              ))}
-              {diagData && diagData.length > 0 && (
-                <p style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginTop: 8, marginBottom: 0 }}>
-                  If the IDs above don't match what's stored in your vendors, click <strong>Sync from ShippersHub</strong> to re-import.
-                </p>
-              )}
             </div>
-          )}
 
-          <div className="sh-card">
-            {apiLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
-            ) : apiVendors.length === 0 ? (
-              <div className="empty-state">
-                <CloudArrowDownIcon style={{ width: 40, height: 40 }} />
-                <h3>No API vendors yet</h3>
-                <p>Click "Sync from ShippersHub" to import your carriers and vendors.</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="sh-table">
-                  <thead>
-                    <tr>
-                      <th>Vendor Name</th>
-                      <th>Carrier</th>
-                      <th>Service</th>
-                      <th>Rate ($/label)</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {apiVendors.map(v => (
-                      <tr key={v._id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--navy-900)' }}>{v.name}</span>
-                            {(!v.shippershubCarrierId || !v.shippershubVendorId) && (
-                              <span title="Missing ShippersHub carrier or vendor ID — label generation will fail. Re-sync to fix."
-                                style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 5px', fontSize: '0.65rem', fontWeight: 700, cursor: 'help' }}>
-                                ⚠ IDs missing
-                              </span>
-                            )}
+            {/* ── Diagnostics (ShippersHub only) ──────────────── */}
+            {activePortal === 'shippershub' && (diagData !== null || diagError) && (
+              <div className="sh-card" style={{ padding: '1rem 1.25rem', border: diagError ? '1.5px solid #fca5a5' : '1.5px solid #bbf7d0', background: diagError ? '#fff5f5' : '#f0fdf4' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.82rem', color: diagError ? '#b91c1c' : '#15803d' }}>
+                    {diagError ? '✗ Connection failed' : `✓ ShippersHub connected — ${diagData!.length} carrier(s) found`}
+                  </span>
+                  <button onClick={() => { setDiagData(null); setDiagError(''); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 2 }}>
+                    <XMarkIcon style={{ width: 14, height: 14 }} />
+                  </button>
+                </div>
+                {diagError && <p style={{ fontSize: '0.82rem', color: '#b91c1c', margin: 0 }}>{diagError}</p>}
+                {diagData && diagData.map((carrier: any) => (
+                  <div key={carrier._id || carrier.id} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-700)', marginBottom: 4 }}>
+                      {carrier.name} — Carrier ID: <code style={{ background: '#e0f2fe', padding: '1px 5px', borderRadius: 3, fontSize: '0.75rem' }}>{carrier._id || carrier.id || '?'}</code>
+                    </div>
+                    {(carrier.vendors || []).length === 0
+                      ? <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>No vendors found for this carrier</div>
+                      : (carrier.vendors || []).map((v: any) => (
+                          <div key={v._id || v.id} style={{ fontSize: '0.72rem', color: 'var(--navy-600)', display: 'flex', gap: 8, marginBottom: 2 }}>
+                            <span style={{ fontWeight: 600 }}>{v.name}</span>
+                            <span>Vendor ID: <code style={{ background: '#e0f2fe', padding: '1px 4px', borderRadius: 3 }}>{v._id || v.id || '?'}</code></span>
+                            <span style={{ color: 'var(--navy-400)' }}>{v.status || ''}</span>
                           </div>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 2 }}>
-                            Carrier ID: {v.shippershubCarrierId || <span style={{ color: '#dc2626' }}>not set</span>}
-                          </div>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)' }}>
-                            Vendor ID: {v.shippershubVendorId || <span style={{ color: '#dc2626' }}>not set</span>}
-                          </div>
-                        </td>
-                        <td>
-                          {(() => {
-                            const s = CARRIER_STYLES[v.carrier] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
-                            return (
-                              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                                {v.carrier}
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shippingService || '—'}</td>
-                        <td>
-                          <span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span>
-                        </td>
-                        <td>
-                          <span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>
-                            {v.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 2 }}>
-                            <button title="Edit rate / toggle" onClick={() => openEditApi(v)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-600)', padding: 5, borderRadius: 4 }}>
-                              <PencilIcon style={{ width: 15, height: 15 }} />
-                            </button>
-                            <button title="Delete" onClick={() => handleDeleteApi(v)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}>
-                              <TrashIcon style={{ width: 15, height: 15 }} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        ))
+                    }
+                  </div>
+                ))}
+                {diagData && diagData.length > 0 && (
+                  <p style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginTop: 8, marginBottom: 0 }}>
+                    If the IDs above don't match what's stored in your vendors, click <strong>Sync from ShippersHub</strong> to re-import.
+                  </p>
+                )}
               </div>
             )}
-          </div>
 
-          {/* Edit API vendor modal */}
-          {editApi && (
-            <Modal title={`Edit — ${editApi.name}`} onClose={() => setEditApi(null)}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ padding: '0.75rem 1rem', background: 'var(--navy-25)', borderRadius: 8, border: '1px solid var(--navy-100)', fontSize: '0.82rem', color: 'var(--navy-600)' }}>
-                  <strong>{editApi.carrier}</strong>{editApi.shippingService ? ` · ${editApi.shippingService}` : ''} &mdash; ShippersHub vendor
+            {/* ── Vendor table ─────────────────────────────────── */}
+            <div className="sh-card">
+              {apiLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
+              ) : activePortal === 'shippershub' ? (
+                apiVendors.length === 0 ? (
+                  <div className="empty-state">
+                    <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#93C5FD' }} />
+                    <h3>No ShippersHub vendors yet</h3>
+                    <p>Click <strong>Sync from ShippersHub</strong> above to import your carriers and vendors.</p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="sh-table">
+                      <thead><tr><th>Vendor Name</th><th>Carrier</th><th>Service</th><th>Rate</th><th>Status</th><th></th></tr></thead>
+                      <tbody>
+                        {apiVendors.map(v => (
+                          <tr key={v._id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span>
+                                {(!v.shippershubCarrierId || !v.shippershubVendorId) && (
+                                  <span title="Missing IDs — re-sync to fix"
+                                    style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 5px', fontSize: '0.65rem', fontWeight: 700, cursor: 'help' }}>
+                                    ⚠ IDs missing
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 1 }}>
+                                C: {v.shippershubCarrierId || <span style={{ color: '#dc2626' }}>—</span>} · V: {v.shippershubVendorId || <span style={{ color: '#dc2626' }}>—</span>}
+                              </div>
+                            </td>
+                            <td>{(() => { const s = CARRIER_STYLES[v.carrier] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' }; return <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{v.carrier}</span>; })()}</td>
+                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shippingService || '—'}</td>
+                            <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
+                            <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 2 }}>
+                                <button onClick={() => openEditApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1D4ED8', padding: 5, borderRadius: 4 }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
+                                <button onClick={() => handleDeleteApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : activePortal === 'labelcrow' ? (
+                lcVendors.length === 0 ? (
+                  <div className="empty-state">
+                    <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#C4B5FD' }} />
+                    <h3>No Label Crow vendors yet</h3>
+                    <p>Click <strong>Sync from Label Crow</strong> above to import all series × provider combinations.</p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="sh-table">
+                      <thead><tr><th>Vendor Name</th><th>Series ID</th><th>Service</th><th>Provider Key</th><th>Rate</th><th>Status</th><th></th></tr></thead>
+                      <tbody>
+                        {lcVendors.map(v => (
+                          <tr key={v._id}>
+                            <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
+                            <td><code style={{ background: '#ede9fe', color: '#5b21b6', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.labelcrowSeriesId ?? '—'}</code></td>
+                            <td>
+                              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: v.labelcrowServiceClass === 'priority' ? '#e8f0fe' : '#f0fdf4', color: v.labelcrowServiceClass === 'priority' ? '#1a56db' : '#15803d', border: `1px solid ${v.labelcrowServiceClass === 'priority' ? '#bfdbfe' : '#bbf7d0'}` }}>
+                                {v.labelcrowServiceClass ? v.labelcrowServiceClass.charAt(0).toUpperCase() + v.labelcrowServiceClass.slice(1) : '—'}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.labelcrowProviderKey || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
+                            <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
+                            <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 2 }}>
+                                <button onClick={() => openEditApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7C3AED', padding: 5, borderRadius: 4 }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
+                                <button onClick={() => handleDeleteApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : (
+                slVendors.length === 0 ? (
+                  <div className="empty-state">
+                    <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#6EE7B7' }} />
+                    <h3>No ShipLabel vendors yet</h3>
+                    <p>Click <strong>Sync from ShipLabel</strong> above to import all services from your account.</p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="sh-table">
+                      <thead><tr><th>Vendor Name</th><th>Service ID</th><th>Series</th><th>Format</th><th>Rate</th><th>Status</th><th></th></tr></thead>
+                      <tbody>
+                        {slVendors.map(v => (
+                          <tr key={v._id}>
+                            <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
+                            <td><code style={{ background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.shiplabelServiceId ?? '—'}</code></td>
+                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelSeries || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
+                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelFormat || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
+                            <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
+                            <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 2 }}>
+                                <button onClick={() => openEditApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669', padding: 5, borderRadius: 4 }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
+                                <button onClick={() => handleDeleteApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Edit API vendor modal */}
+            {editApi && (
+              <Modal title={`Edit — ${editApi.name}`} onClose={() => setEditApi(null)}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ padding: '0.75rem 1rem', background: 'var(--navy-25)', borderRadius: 8, border: '1px solid var(--navy-100)', fontSize: '0.82rem', color: 'var(--navy-600)' }}>
+                    <strong>{editApi.carrier}</strong>{editApi.shippingService ? ` · ${editApi.shippingService}` : ''} &mdash;{' '}
+                    {editApi.source === 'labelcrow' ? 'Label Crow vendor' : editApi.source === 'shiplabel' ? 'ShipLabel vendor' : 'ShippersHub vendor'}
+                  </div>
+                  <div>
+                    <label className="form-label">Rate per Label ($)</label>
+                    <input className="form-input" type="number" step="0.01" min="0"
+                      value={apiRate} onChange={e => setApiRate(e.target.value)} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input type="checkbox" id="apiActive" checked={apiActive}
+                      onChange={e => setApiActive(e.target.checked)}
+                      style={{ width: 16, height: 16, accentColor: 'var(--accent-600)' }} />
+                    <label htmlFor="apiActive" style={{ fontSize: '0.875rem', color: 'var(--navy-700)', cursor: 'pointer' }}>
+                      Active (users can generate labels with this vendor)
+                    </label>
+                  </div>
                 </div>
-                <div>
-                  <label className="form-label">Rate per Label ($)</label>
-                  <input className="form-input" type="number" step="0.01" min="0"
-                    value={apiRate} onChange={e => setApiRate(e.target.value)} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.5rem' }}>
+                  <button className="btn btn-ghost" onClick={() => setEditApi(null)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={handleSaveApi} disabled={apiSaving}>
+                    {apiSaving ? 'Saving…' : 'Save Changes'}
+                  </button>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input type="checkbox" id="apiActive" checked={apiActive}
-                    onChange={e => setApiActive(e.target.checked)}
-                    style={{ width: 16, height: 16, accentColor: 'var(--accent-600)' }} />
-                  <label htmlFor="apiActive" style={{ fontSize: '0.875rem', color: 'var(--navy-700)', cursor: 'pointer' }}>
-                    Active (users can generate labels with this vendor)
-                  </label>
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.5rem' }}>
-                <button className="btn btn-ghost" onClick={() => setEditApi(null)}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleSaveApi} disabled={apiSaving}>
-                  {apiSaving ? 'Saving…' : 'Save Changes'}
-                </button>
-              </div>
-            </Modal>
-          )}
-        </>
-      )}
+              </Modal>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── Manifest Vendors Tab ─────────────────────────────── */}
       {activeTab === 'manifest' && (

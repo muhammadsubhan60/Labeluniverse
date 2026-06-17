@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd client && npm install --include=dev && npm run build",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
   "outputDirectory": "client/build",
   "framework": null,
   "rewrites": [

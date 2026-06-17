@@ -116,7 +116,7 @@ const Login: React.FC = () => {
                 <BrandMonogram size={20} color="#111" strokeWidth={2.3} />
               </div>
               <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px' }}>
-                Label<span> Flow</span>
+                Label<span> Universe</span>
               </span>
             </a>
 
@@ -193,7 +193,7 @@ const Login: React.FC = () => {
                 <BrandMonogram size={18} color="#111" strokeWidth={2.2} />
               </div>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px' }}>
-                Label<span> Flow</span>
+                Label<span> Universe</span>
               </span>
             </a>
             <p style={{ margin: 0, fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>

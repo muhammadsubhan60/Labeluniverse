@@ -8,9 +8,6 @@ import Layout from './components/Layout';
 import VendorLayout from './components/VendorLayout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-import LandingProxy from './pages/LandingProxy';
-import BlogIndex from './pages/BlogIndex';
-import BlogPost from './pages/BlogPost';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
@@ -72,10 +69,8 @@ function App() {
                   <Route path="earnings"  element={<VendorEarnings />} />
                 </Route>
 
-                {/* Public home page (keep URL as /) */}
-                <Route path="/" element={<LandingProxy />} />
-                <Route path="/blog" element={<BlogIndex />} />
-                <Route path="/blog/:slug" element={<BlogPost />} />
+                {/* Root redirects to login */}
+                <Route path="/" element={<Navigate to="/login" replace />} />
 
                 {/* ── Main portal (LABEL UNIVERSE users) ─────────────────────── */}
                 <Route element={

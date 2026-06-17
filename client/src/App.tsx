@@ -36,6 +36,7 @@ import CashBook            from './pages/CashBook';
 import FinancialDashboard  from './pages/FinancialDashboard';
 import Settings            from './pages/Settings';
 import Leaderboard         from './pages/Leaderboard';
+import Suggestions        from './pages/Suggestions';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './App.css';
 
@@ -90,6 +91,7 @@ function App() {
                   <Route path="/manifest/history"    element={<ManifestHistory />} />
                   <Route path="/activity"            element={<LiveActivity />} />
                   <Route path="/leaderboard"         element={<Leaderboard />} />
+                  <Route path="/suggestions"         element={<Suggestions />} />
                   <Route path="/topups"              element={<Navigate to="/profile" replace />} />
                   <Route path="/payments"            element={<Navigate to="/profile" replace />} />
 

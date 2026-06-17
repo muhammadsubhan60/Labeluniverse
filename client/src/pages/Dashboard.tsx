@@ -73,13 +73,10 @@ const KpiCard = ({
   infoTooltip?: string; onAction?: () => void; ActionIcon?: React.ElementType;
 }) => {
   const [tip, setTip] = useState(false);
-  const [hov, setHov] = useState(false);
   return (
     <div
       className={`db-card${onClick ? ' db-card-hover' : ''}`}
       onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
       style={{ padding: '1.1rem 1.2rem', position: 'relative', overflow: 'hidden', fontFamily: FONT }}
     >
       {/* color accent strip */}

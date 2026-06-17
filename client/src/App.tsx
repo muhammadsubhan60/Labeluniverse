@@ -38,8 +38,6 @@ import Finance             from './pages/Finance';
 import CashBook            from './pages/CashBook';
 import FinancialDashboard  from './pages/FinancialDashboard';
 import Settings            from './pages/Settings';
-import TopupHistory        from './pages/TopupHistory';
-import PaymentHistory      from './pages/PaymentHistory';
 import Leaderboard         from './pages/Leaderboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './App.css';

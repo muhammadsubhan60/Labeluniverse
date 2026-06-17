@@ -5,7 +5,7 @@ import axios from 'axios';
 import {
   MagnifyingGlassIcon, TruckIcon, ArrowDownTrayIcon,
   XMarkIcon, EyeIcon, ArrowUturnLeftIcon,
-  TagIcon, CurrencyDollarIcon, CalendarDaysIcon,
+  TagIcon, CalendarDaysIcon,
   ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';

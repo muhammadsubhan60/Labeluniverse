@@ -4,11 +4,11 @@ WORKDIR /app
 
 # Server dependencies (production only — skip devDeps like nodemon)
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Client dependencies (all — devDeps required for CRACO build)
 COPY client/package*.json ./client/
-RUN cd client && npm ci
+RUN cd client && npm install
 
 # Copy all source
 COPY . .

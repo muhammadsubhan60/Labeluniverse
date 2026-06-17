@@ -87,7 +87,8 @@ const Layout: React.FC = () => {
   const [alertIdx,       setAlertIdx]       = useState(0);   // which undismissed item to show
   const [bellOpen,       setBellOpen]       = useState(false);
   const [unreadCount,    setUnreadCount]    = useState(0);
-  const bellRef = useRef<HTMLDivElement>(null);
+  const bellRef    = useRef<HTMLDivElement>(null);
+  const bellBtnRef = useRef<HTMLButtonElement>(null);
 
   const { user, logout } = useAuth();
   const location         = useLocation();
@@ -140,10 +141,13 @@ const Layout: React.FC = () => {
       .catch(() => {});
   }, [user]);
 
-  // Close bell dropdown when clicking outside
+  // Close bell dropdown when clicking outside (both dropdown and trigger button)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+      if (
+        bellRef.current    && !bellRef.current.contains(e.target as Node) &&
+        bellBtnRef.current && !bellBtnRef.current.contains(e.target as Node)
+      ) setBellOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -367,7 +371,7 @@ const Layout: React.FC = () => {
             {!collapsed && (
               <div style={{ overflow: 'hidden', flex: 1 }}>
                 <div className="sidebar-brand-name">LABEL UNIVERSE</div>
-                <div className="sidebar-brand-sub">LABEL UNIVERSE</div>
+                <div className="sidebar-brand-sub">Shipping Portal</div>
               </div>
             )}
           </div>
@@ -442,194 +446,74 @@ const Layout: React.FC = () => {
         {/* ── User footer ─────────────────────────────────────────────── */}
         <div className={`sidebar-footer${collapsed ? ' sidebar-footer-collapsed' : ''}`}>
           {collapsed ? (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-                <div className="avatar avatar-sm avatar-indigo" title={`${user?.firstName} ${user?.lastName} · ${user?.role}`}>
-                  {initials}
-                </div>
+            /* Collapsed: stack avatar → balance → action icons */
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+              <div className="avatar avatar-sm avatar-indigo" title={`${user?.firstName} ${user?.lastName} · ${user?.role}`}>
+                {initials}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <button onClick={handleLogout} title="Sign out" className="sidebar-logout-btn">
-                  <ArrowLeftOnRectangleIcon style={{ width: 16, height: 16 }} />
-                </button>
+              <div style={{ fontSize: '0.58rem', fontWeight: 800, color: '#4ade80', letterSpacing: '-0.2px' }}>
+                {balance === null ? '—' : `$${balance.toFixed(2)}`}
               </div>
-            </>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="avatar avatar-sm avatar-indigo">{initials}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user?.firstName} {user?.lastName}
-                </div>
-                <span style={{
-                  display: 'inline-block', marginTop: 2,
-                  fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.07em',
-                  textTransform: 'uppercase', padding: '1px 7px', borderRadius: 99,
-                  background: roleChip.bg, color: roleChip.color,
-                }}>
-                  {roleChip.label}
-                </span>
-              </div>
-              <button onClick={handleLogout} title="Sign out" className="sidebar-logout-btn">
-                <ArrowLeftOnRectangleIcon style={{ width: 16, height: 16 }} />
+              <button ref={bellBtnRef} className="sidebar-footer-btn" onClick={openBell} title="Notifications">
+                <BellIcon style={{ width: 14, height: 14 }} />
+                {unreadCount > 0 && <span className="bell-badge" />}
+              </button>
+              <ThemeToggle compact className="sidebar-footer-btn" />
+              <button onClick={handleLogout} title="Sign out" className="sidebar-footer-btn logout">
+                <ArrowLeftOnRectangleIcon style={{ width: 14, height: 14 }} />
               </button>
             </div>
+          ) : (
+            /* Expanded: user info row → divider → balance + action row */
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+                <div className="avatar avatar-sm avatar-indigo">{initials}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user?.firstName} {user?.lastName}
+                  </div>
+                  <span style={{
+                    display: 'inline-block', marginTop: 2,
+                    fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', padding: '1px 7px', borderRadius: 99,
+                    background: roleChip.bg, color: roleChip.color,
+                  }}>
+                    {roleChip.label}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 10 }} />
+
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                {/* Balance */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.58rem', fontWeight: 700, color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 1 }}>
+                    Balance
+                  </div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#4ade80', letterSpacing: '-0.3px' }}>
+                    {balance === null ? '—' : `$${balance.toFixed(2)}`}
+                  </div>
+                </div>
+                {/* Action buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button ref={bellBtnRef} className="sidebar-footer-btn" onClick={openBell} title="Notifications">
+                    <BellIcon style={{ width: 15, height: 15 }} />
+                    {unreadCount > 0 && <span className="bell-badge" />}
+                  </button>
+                  <ThemeToggle compact className="sidebar-footer-btn" />
+                  <button onClick={handleLogout} title="Sign out" className="sidebar-footer-btn logout">
+                    <ArrowLeftOnRectangleIcon style={{ width: 15, height: 15 }} />
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </aside>
 
       {/* ── Main content ────────────────────────────────────────────── */}
       <div className={`main-content${collapsed ? ' sidebar-collapsed' : ''}`}>
-
-        {/* Top bar */}
-        <header className="top-bar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-
-            {/* Mobile hamburger */}
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="mobile-menu-btn"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-500)', padding: 4, borderRadius: 6, display: 'none' }}
-            >
-              <Bars3Icon style={{ width: 22, height: 22 }} />
-            </button>
-
-            {/* Breadcrumb */}
-            <nav style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              {activeSection && activePage && (
-                <>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--navy-400)', fontWeight: 500 }}>
-                    {activeSection.label}
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--navy-300)' }}>/</span>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-800)' }}>
-                    {activePage.name}
-                  </span>
-                </>
-              )}
-              {!activePage && (
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-800)' }}>Dashboard</span>
-              )}
-            </nav>
-          </div>
-
-          {/* Right side */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ThemeToggle compact className="topbar-icon-btn" />
-
-            {/* Notification bell */}
-            <div ref={bellRef} style={{ position: 'relative' }}>
-              <button
-                className="topbar-icon-btn"
-                title="Notifications"
-                onClick={openBell}
-                style={{ position: 'relative' }}
-              >
-                <BellIcon style={{ width: 17, height: 17 }} />
-                {unreadCount > 0 && (
-                  <span style={{
-                    position: 'absolute', top: 2, right: 2,
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: '#EF4444', border: '1.5px solid #fff',
-                  }} />
-                )}
-              </button>
-
-              {/* Bell dropdown */}
-              {bellOpen && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 10px)', right: 0,
-                  width: 340, background: '#fff', borderRadius: 14,
-                  border: '1.5px solid var(--navy-150, #e8edf5)',
-                  boxShadow: '0 16px 48px rgba(0,0,0,0.14)',
-                  zIndex: 9000, overflow: 'hidden',
-                }}>
-                  {/* Header */}
-                  <div style={{
-                    padding: '0.85rem 1.1rem 0.7rem',
-                    borderBottom: '1px solid var(--navy-100)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-900)' }}>Announcements</span>
-                    <button
-                      onClick={() => { setBellOpen(false); navigate('/announcements'); }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--accent-600)', fontWeight: 600 }}
-                    >
-                      View all →
-                    </button>
-                  </div>
-
-                  {/* Items */}
-                  <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                    {announcements.length === 0 ? (
-                      <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.82rem' }}>
-                        No announcements yet.
-                      </div>
-                    ) : (
-                      announcements.slice(0, 6).map((a, i) => {
-                        const cat = CAT_STYLE[a.category] ?? CAT_STYLE.general;
-                        const isNew = !localStorage.getItem(LAST_SEEN_KEY) ||
-                          new Date(a.createdAt) > new Date(localStorage.getItem(LAST_SEEN_KEY)!);
-                        return (
-                          <div
-                            key={a._id}
-                            onClick={() => { setBellOpen(false); navigate('/announcements'); }}
-                            style={{
-                              display: 'flex', gap: 10, padding: '0.7rem 1.1rem',
-                              borderBottom: i < announcements.slice(0,6).length - 1 ? '1px solid var(--navy-50)' : 'none',
-                              cursor: 'pointer', background: isNew ? `${cat.bg}80` : '#fff',
-                              transition: 'background 0.1s',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
-                            onMouseLeave={e => (e.currentTarget.style.background = isNew ? `${cat.bg}80` : '#fff')}
-                          >
-                            {/* Accent bar */}
-                            <div style={{ width: 3, borderRadius: 99, background: cat.bar, flexShrink: 0, alignSelf: 'stretch', minHeight: 28 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                <span style={{
-                                  fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em',
-                                  textTransform: 'uppercase', padding: '1px 6px', borderRadius: 99,
-                                  background: cat.badge, color: cat.badgeText,
-                                }}>
-                                  {CAT_LABEL[a.category]}
-                                </span>
-                                {isNew && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', flexShrink: 0 }} />}
-                              </div>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--navy-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {a.title}
-                              </div>
-                              <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 1 }}>
-                                {new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div style={{ width: 1, height: 24, background: 'var(--navy-100)' }} />
-
-            {/* User chip */}
-            <div className="topbar-user-chip" style={{ cursor: 'default' }}>
-              <div className="avatar avatar-sm avatar-indigo">{initials}</div>
-              <div style={{ lineHeight: 1.3 }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#059669' }}>
-                  {balance === null ? '—' : `$${balance.toFixed(2)}`}
-                </div>
-                <div style={{ fontSize: '0.67rem', color: 'var(--navy-500)', textTransform: 'capitalize' }}>
-                  {user?.role}
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
 
         {/* Page content */}
         <main className="page-content">
@@ -638,6 +522,119 @@ const Layout: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* ── Mobile bottom navigation ─────────────────────────── */}
+      <nav className="mobile-bottom-nav">
+        {[
+          { href: '/dashboard',     icon: HomeIcon,           name: 'Home',    current: location.pathname === '/dashboard' },
+          { href: '/labels/single', icon: TagIcon,            name: 'Label',   current: location.pathname === '/labels/single' },
+          { href: '/labels/bulk',   icon: RectangleStackIcon, name: 'Bulk',    current: location.pathname === '/labels/bulk' },
+          { href: '/profile',       icon: UserIcon,           name: 'Profile', current: location.pathname === '/profile' },
+        ].map(item => (
+          <Link
+            key={item.href}
+            to={item.href}
+            className={`mobile-nav-item${item.current ? ' active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <item.icon style={{ width: 22, height: 22 }} />
+            <span>{item.name}</span>
+          </Link>
+        ))}
+        <button
+          className="mobile-nav-item"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <Bars3Icon style={{ width: 22, height: 22 }} />
+          <span>More</span>
+        </button>
+      </nav>
+
+      {/* ── Bell dropdown — fixed to escape sidebar overflow-x:hidden ── */}
+      {bellOpen && (
+        <div
+          ref={bellRef}
+          style={{
+            position: 'fixed',
+            left: 'var(--sidebar-w, 256px)',
+            bottom: 8,
+            marginLeft: 10,
+            width: 340,
+            background: 'var(--bg-card)',
+            borderRadius: 14,
+            border: '1.5px solid var(--navy-200)',
+            boxShadow: '0 -6px 32px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06)',
+            zIndex: 9100,
+            overflow: 'hidden',
+            animation: 'fadeInUp 0.18s ease both',
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            padding: '0.85rem 1.1rem 0.7rem',
+            borderBottom: '1px solid var(--navy-100)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-900)' }}>Announcements</span>
+            <button
+              onClick={() => { setBellOpen(false); navigate('/announcements'); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--accent-600)', fontWeight: 600 }}
+            >
+              View all →
+            </button>
+          </div>
+
+          {/* Items */}
+          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+            {announcements.length === 0 ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.82rem' }}>
+                No announcements yet.
+              </div>
+            ) : (
+              announcements.slice(0, 6).map((a, i) => {
+                const cat = CAT_STYLE[a.category] ?? CAT_STYLE.general;
+                const isNew = !localStorage.getItem(LAST_SEEN_KEY) ||
+                  new Date(a.createdAt) > new Date(localStorage.getItem(LAST_SEEN_KEY)!);
+                return (
+                  <div
+                    key={a._id}
+                    onClick={() => { setBellOpen(false); navigate('/announcements'); }}
+                    style={{
+                      display: 'flex', gap: 10, padding: '0.7rem 1.1rem',
+                      borderBottom: i < announcements.slice(0, 6).length - 1 ? '1px solid var(--navy-50)' : 'none',
+                      cursor: 'pointer',
+                      background: isNew ? `${cat.bg}80` : 'var(--bg-card)',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = isNew ? `${cat.bg}80` : 'var(--bg-card)')}
+                  >
+                    <div style={{ width: 3, borderRadius: 99, background: cat.bar, flexShrink: 0, alignSelf: 'stretch', minHeight: 28 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <span style={{
+                          fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em',
+                          textTransform: 'uppercase', padding: '1px 6px', borderRadius: 99,
+                          background: cat.badge, color: cat.badgeText,
+                        }}>
+                          {CAT_LABEL[a.category]}
+                        </span>
+                        {isNew && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', flexShrink: 0 }} />}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--navy-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {a.title}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 1 }}>
+                        {new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Fixed tooltip — escapes sidebar overflow clipping */}
       {collapsed && tooltip && (
@@ -690,12 +687,11 @@ const Layout: React.FC = () => {
           to   { opacity: 1; max-height: 60px; }
         }
         @media (max-width: 768px) {
-          .mobile-menu-btn        { display: flex !important; }
-          .sidebar-collapse-btn   { display: none !important; }
-          .sidebar-mobile-close   { display: flex !important; }
+          .sidebar-collapse-btn { display: none !important; }
+          .sidebar-mobile-close { display: flex !important; }
         }
         @media (min-width: 769px) {
-          .sidebar-mobile-close   { display: none !important; }
+          .sidebar-mobile-close { display: none !important; }
         }
       `}</style>
     </div>

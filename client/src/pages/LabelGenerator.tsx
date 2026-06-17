@@ -5,7 +5,7 @@ import {
   TruckIcon, CheckCircleIcon, ExclamationCircleIcon,
   ArrowDownTrayIcon, XMarkIcon, ArrowsRightLeftIcon,
   BuildingOfficeIcon, PlusIcon, TrashIcon, ChevronDownIcon,
-  SparklesIcon, TagIcon, ChevronRightIcon,
+  SparklesIcon, TagIcon,
 } from '@heroicons/react/24/outline';
 import { getUspsZone1Rate } from '../utils/uspsRates';
 import uspsLogo  from '../Logos/United_States_Postal_Service-Logo.wine.png';
@@ -109,19 +109,6 @@ const StateSelect: React.FC<{
   </div>
 );
 
-// Step number badge
-const StepBadge = ({ n, done, active }: { n: number; done: boolean; active: boolean }) => (
-  <div style={{
-    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '0.65rem', fontWeight: 800, fontFamily: FONT,
-    background: done ? '#16A34A' : active ? '#6366F1' : 'var(--navy-200)',
-    color: done || active ? '#fff' : 'var(--navy-500)',
-    transition: 'all 0.2s',
-  }}>
-    {done ? '✓' : n}
-  </div>
-);
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 const LabelGenerator: React.FC = () => {
@@ -294,13 +281,6 @@ const LabelGenerator: React.FC = () => {
     }
   };
 
-  // Step states for the flow
-  const step1Done   = true; // portal always selected
-  const step2Done   = !!selectedCarrier;
-  const step3Done   = !!selectedVendorId;
-  const step2Active = !step2Done;
-  const step3Active = step2Done && !step3Done;
-
   return (
     <>
       {/* ── Manifest vendor modal ──────────────────────────────────────────── */}
@@ -376,116 +356,110 @@ const LabelGenerator: React.FC = () => {
 
         <form id="label-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
 
-          {/* ── Step flow: Portal → Carrier → Vendor ────────────────────────── */}
-          <div className="db-card" style={{ padding: '1.1rem 1.4rem', overflow: 'visible' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '160px 36px 1fr 36px 220px', alignItems: 'start', gap: 0, minHeight: 80 }}>
+          {/* ── Service selection: 3 compact labeled rows ───────────────────── */}
+          <div className="db-card" style={{ overflow: 'hidden' }}>
 
-              {/* ①  Portal */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <StepBadge n={1} done={step1Done} active={false} />
-                  <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--navy-500)', fontFamily: FONT }}>Portal</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {PORTALS.map(p => {
-                    const sel = selectedPortal === p.id;
-                    return (
-                      <button
-                        key={p.id} type="button"
-                        onClick={() => handlePortalSelect(p.id)}
-                        style={{
-                          textAlign: 'left', padding: '5px 10px', borderRadius: 7, fontSize: '0.75rem', fontWeight: sel ? 700 : 500,
-                          border: `1.5px solid ${sel ? p.color : 'var(--navy-200)'}`,
-                          background: sel ? p.bg : 'transparent',
-                          color: sel ? p.color : 'var(--navy-500)',
-                          cursor: 'pointer', transition: 'all 0.15s', fontFamily: FONT,
-                          boxShadow: sel ? `0 0 0 2px ${p.color}22` : 'none',
-                        }}>
-                        {p.label}
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* Portal row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.6rem 1rem', borderBottom: '1px solid var(--navy-100)' }}>
+              <span style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.1em', minWidth: 52, fontFamily: FONT }}>Portal</span>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {PORTALS.map(p => {
+                  const sel = selectedPortal === p.id;
+                  return (
+                    <button key={p.id} type="button" onClick={() => handlePortalSelect(p.id)}
+                      style={{
+                        padding: '4px 11px', borderRadius: 6, fontSize: '0.74rem', fontWeight: sel ? 700 : 500,
+                        border: `1.5px solid ${sel ? p.color : 'var(--navy-200)'}`,
+                        background: sel ? p.bg : 'transparent',
+                        color: sel ? p.color : 'var(--navy-500)',
+                        cursor: 'pointer', transition: 'all 0.15s', fontFamily: FONT,
+                        outline: 'none',
+                      }}>
+                      {p.label}
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* Connector */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 36 }}>
-                <ChevronRightIcon style={{ width: 16, height: 16, color: step2Done ? '#16A34A' : 'var(--navy-300)', transition: 'color 0.2s' }} />
+            {/* Carrier row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.6rem 1rem', borderBottom: '1px solid var(--navy-100)' }}>
+              <span style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.1em', minWidth: 52, fontFamily: FONT }}>Carrier</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {CARRIERS.map(c => {
+                  const cfg = CARRIER_CFG[c];
+                  const sel = selectedCarrier === c;
+                  return (
+                    <button key={c} type="button" onClick={() => handleCarrierSelect(c)}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        height: 34, padding: '4px 12px', borderRadius: 7,
+                        border: `1.5px solid ${sel ? cfg.solid : 'var(--navy-200)'}`,
+                        background: sel ? cfg.light : 'var(--bg-card)',
+                        cursor: 'pointer', transition: 'all 0.15s', outline: 'none',
+                        boxShadow: sel ? `0 0 0 2.5px ${cfg.solid}22` : 'none',
+                      }}>
+                      <img src={cfg.logo} alt={c} style={{ height: 22, width: 'auto', maxWidth: 72, objectFit: 'contain' }} />
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* ②  Carrier */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <StepBadge n={2} done={step2Done} active={step2Active} />
-                  <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: step2Done ? 'var(--navy-700)' : 'var(--navy-500)', fontFamily: FONT }}>Carrier</span>
+            {/* Vendor row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.6rem 1rem' }}>
+              <span style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.1em', minWidth: 52, fontFamily: FONT }}>Vendor</span>
+
+              {selectedPortal === 'labelcrow' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <ExclamationCircleIcon style={{ width: 14, height: 14, color: '#7C3AED', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.78rem', color: '#5B21B6', fontFamily: FONT }}>
+                    Label Crow is bulk-only —{' '}
+                    <button type="button" onClick={() => navigate('/labels/bulk')}
+                      style={{ background: 'none', border: 'none', color: '#7C3AED', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 'inherit', fontFamily: FONT }}>
+                      use Bulk Labels
+                    </button>
+                  </span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {CARRIERS.map(c => {
-                    const cfg = CARRIER_CFG[c];
-                    const sel = selectedCarrier === c;
-                    return (
-                      <button
-                        key={c} type="button"
-                        onClick={() => handleCarrierSelect(c)}
-                        style={{
-                          padding: '8px 4px', borderRadius: 10,
-                          border: `2px solid ${sel ? cfg.solid : 'var(--navy-200)'}`,
-                          background: sel ? cfg.light : 'var(--bg-card)',
-                          cursor: 'pointer', transition: 'all 0.15s',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          boxShadow: sel ? `0 0 0 3px ${cfg.solid}22, 0 2px 8px ${cfg.solid}28` : '0 1px 2px rgba(0,0,0,0.04)',
-                          outline: 'none', height: 54,
-                        }}>
-                        <img src={cfg.logo} alt={c} style={{ height: 30, width: 'auto', maxWidth: 88, objectFit: 'contain' }} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Connector */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 36 }}>
-                <ChevronRightIcon style={{ width: 16, height: 16, color: step3Done ? '#16A34A' : step2Done ? 'var(--navy-400)' : 'var(--navy-200)', transition: 'color 0.2s' }} />
-              </div>
-
-              {/* ③  Vendor */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <StepBadge n={3} done={step3Done} active={step3Active} />
-                  <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: step2Done ? 'var(--navy-700)' : 'var(--navy-400)', fontFamily: FONT }}>Vendor</span>
-                </div>
-
-                {selectedPortal === 'labelcrow' ? (
-                  <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 9, padding: '0.6rem 0.75rem' }}>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#5B21B6', marginBottom: 3, fontFamily: FONT }}>Bulk only</div>
-                    <div style={{ fontSize: '0.68rem', color: '#7C3AED', lineHeight: 1.4, fontFamily: FONT }}>
-                      Label Crow requires{' '}
-                      <button type="button" onClick={() => navigate('/labels/bulk')}
-                        style={{ background: 'none', border: 'none', color: '#7C3AED', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 'inherit', fontFamily: FONT }}>
-                        Bulk Labels
-                      </button>
-                    </div>
-                  </div>
-                ) : !selectedCarrier ? (
-                  <div style={{ height: 54, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy-50)', border: '1.5px dashed var(--navy-200)', borderRadius: 10 }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)', fontFamily: FONT }}>Pick a carrier first</span>
-                  </div>
-                ) : (
+              ) : (
+                <>
                   <select
                     value={selectedVendorId}
                     onChange={handleVendorChange}
-                    style={{ ...inputStyle, cursor: 'pointer', height: 54 }}>
-                    <option value="">— {selectedCarrier} service —</option>
+                    disabled={!selectedCarrier}
+                    style={{
+                      flex: 1, height: 34, padding: '0 0.75rem',
+                      border: `1.5px solid ${selectedVendorId ? (activeCfg?.solid ?? '#6366f1') : 'var(--navy-200)'}`,
+                      borderRadius: 7, fontSize: '0.82rem', fontWeight: selectedVendorId ? 600 : 400,
+                      color: selectedVendorId ? 'var(--navy-900)' : 'var(--navy-400)',
+                      background: 'var(--bg-card)', cursor: selectedCarrier ? 'pointer' : 'not-allowed',
+                      outline: 'none', fontFamily: FONT,
+                      opacity: selectedCarrier ? 1 : 0.5, transition: 'border-color 0.15s',
+                    }}>
+                    <option value="">{selectedCarrier ? `— ${selectedCarrier} service —` : '— select a carrier first —'}</option>
                     {carrierVendors.map(v => (
                       <option key={v.vendorId} value={v.vendorId}>
                         {v.vendorName}{v.shippingService ? ` · ${v.shippingService}` : ''}{v.vendorType === 'manifest' ? ' (Manifest)' : ''}
                       </option>
                     ))}
                   </select>
-                )}
-              </div>
 
+                  {selectedAccess && weight > 0 && (
+                    <span style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0', borderRadius: 7, padding: '4px 11px', fontSize: '0.85rem', fontWeight: 800, fontFamily: FONT, whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>
+                      ${effectiveRate.toFixed(2)}
+                    </span>
+                  )}
+
+                  {uspsSaving && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#ECFDF5', color: '#065F46', border: '1px solid #6EE7B7', borderRadius: 20, padding: '3px 10px', fontSize: '0.7rem', fontWeight: 700, fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                      <SparklesIcon style={{ width: 10, height: 10 }} />
+                      Save ${uspsSaving.saving.toFixed(2)} vs retail
+                    </span>
+                  )}
+                </>
+              )}
             </div>
+
           </div>
 
           {/* ── Address card ─────────────────────────────────────────────────── */}

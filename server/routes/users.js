@@ -59,6 +59,12 @@ router.get('/', authenticateToken, authorize('admin'), async (req, res) => {
 // ── GET /api/users/reseller/clients ───────────────────────────
 router.get('/reseller/clients', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {
   try {
+    if (req.user.role === 'admin') {
+      // Admins see all role:user accounts (created via User Management)
+      const clients = await User.find({ role: 'user' }).select('-password').sort({ createdAt: -1 });
+      return res.json({ clients });
+    }
+    // Resellers see only their linked clients
     const user = await User.findById(req.user._id).populate('clients', '-password');
     res.json({ clients: user.clients || [] });
   } catch (error) {

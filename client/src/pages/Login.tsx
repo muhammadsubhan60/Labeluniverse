@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  EyeIcon, EyeSlashIcon, TruckIcon, ShieldCheckIcon, ClockIcon,
+  EyeIcon, EyeSlashIcon, ShieldCheckIcon,
   ExclamationCircleIcon, CheckCircleIcon,
+  BoltIcon, CubeTransparentIcon, ChartBarIcon,
 } from '@heroicons/react/24/outline';
 import BrandMonogram from '../components/BrandMonogram';
 
@@ -43,9 +44,10 @@ const Login: React.FC = () => {
   };
 
   const features = [
-    { icon: ShieldCheckIcon, title: 'Secure by default', desc: 'TLS-protected sessions and role-based access.' },
-    { icon: ClockIcon,       title: 'Fast daily flow',   desc: 'Compare rates and print labels in minutes.' },
-    { icon: TruckIcon,       title: 'Bulk-ready ops',    desc: 'Batch shipping for high-volume seller teams.' },
+    { icon: CubeTransparentIcon, title: 'Fully centralized',   desc: 'Orders, labels, balances, and team access — all under one roof.' },
+    { icon: BoltIcon,            title: 'Deep integrations',    desc: 'Connected to every service your operation depends on, out of the box.' },
+    { icon: ChartBarIcon,        title: 'Real-time visibility', desc: 'Live activity feeds, leaderboards, and instant balance updates.' },
+    { icon: ShieldCheckIcon,     title: 'Role-based security',  desc: 'Admin, reseller, and user tiers with fine-grained access control.' },
   ];
 
   const inputStyle: React.CSSProperties = {
@@ -98,89 +100,92 @@ const Login: React.FC = () => {
           {/* Dot pattern */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)',
             backgroundSize: '24px 24px',
           }} />
-          {/* Indigo glow */}
+          {/* Indigo glow — bottom-left origin */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'radial-gradient(ellipse 70% 55% at 50% 85%, rgba(99,102,241,0.28) 0%, transparent 70%)',
+            background: 'radial-gradient(ellipse 80% 60% at 10% 100%, rgba(99,102,241,0.32) 0%, transparent 65%)',
+          }} />
+          {/* Subtle top-right warmth */}
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            background: 'radial-gradient(ellipse 50% 40% at 100% 0%, rgba(30,58,138,0.4) 0%, transparent 60%)',
           }} />
 
           <div style={{ position: 'relative', zIndex: 1 }}>
+
             {/* Logo */}
-            <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48, textDecoration: 'none' }}>
+            <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 44, textDecoration: 'none' }}>
               <div style={{
-                width: 38, height: 38, background: '#fff',
-                border: '1px solid rgba(255,255,255,0.45)', borderRadius: 9,
+                width: 36, height: 36, background: '#fff',
+                border: '1px solid rgba(255,255,255,0.4)', borderRadius: 9,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
               }}>
-                <BrandMonogram size={20} color="#111" strokeWidth={2.3} />
+                <BrandMonogram size={19} color="#111" strokeWidth={2.3} />
               </div>
-              <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', fontFamily: FONT }}>
-                Label<span style={{ opacity: 0.75 }}> Universe</span>
+              <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', fontFamily: FONT }}>
+                Label<span style={{ color: 'rgba(255,255,255,0.55)' }}> Universe</span>
               </span>
             </a>
 
+            {/* Eyebrow */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <div style={{ width: 3, height: 16, background: '#818cf8', borderRadius: 99 }} />
+              <span style={{ fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', letterSpacing: '0.13em', fontFamily: FONT }}>
+                Operations Hub
+              </span>
+            </div>
+
             {/* Headline */}
             <h2 style={{
-              fontSize: isTablet ? '1.8rem' : 'clamp(1.9rem, 3vw, 2.6rem)',
-              fontWeight: 900, color: '#fff', letterSpacing: '-1.2px',
-              lineHeight: 1.1, marginBottom: 16, fontFamily: FONT,
+              fontSize: isTablet ? '1.75rem' : 'clamp(1.85rem, 2.8vw, 2.4rem)',
+              fontWeight: 900, color: '#fff', letterSpacing: '-1px',
+              lineHeight: 1.1, marginBottom: 14, fontFamily: FONT,
             }}>
-              Keep every label<br />
-              in <span style={{ color: '#818cf8' }}>one modern flow.</span>
+              One hub.<br />
+              <span style={{ color: '#818cf8' }}>Everything connected.</span>
             </h2>
             <p style={{
-              fontSize: '0.9rem', color: 'rgba(255,255,255,0.5)',
-              lineHeight: 1.75, marginBottom: 36, fontWeight: 400,
-              maxWidth: 340, fontFamily: FONT,
+              fontSize: '0.87rem', color: 'rgba(255,255,255,0.44)',
+              lineHeight: 1.72, marginBottom: 26, fontWeight: 400,
+              maxWidth: 320, fontFamily: FONT,
             }}>
-              Sign in to compare USPS, FedEx, and UPS rates, then run single or bulk shipping from one workspace.
+              A centralized workspace that integrates your entire shipping operation — labels, balances, team roles, and live activity in one place.
             </p>
 
-            {/* Feature bullets */}
-            {features.map(({ icon: Icon, title, desc }) => (
-              <div key={title} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
-                <div style={{
-                  width: 34, height: 34, borderRadius: 8,
-                  background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(129,140,248,0.28)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <Icon style={{ width: 16, height: 16, color: '#a5b4fc' }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff', marginBottom: 2, fontFamily: FONT }}>{title}</div>
-                  <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.38)', lineHeight: 1.5, fontFamily: FONT }}>{desc}</div>
-                </div>
-              </div>
-            ))}
-
-            {/* Carrier row */}
-            <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '24px 0 18px' }} />
-            <div style={{
-              fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '2px', color: 'rgba(255,255,255,0.22)',
-              marginBottom: 10, fontFamily: FONT,
-            }}>
-              Works with all major carriers
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            {/* Stat chips */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 28 }}>
               {[
-                { label: 'USPS', c: '#60a5fa' },
-                { label: 'FedEx', c: '#c084fc' },
-                { label: 'UPS',  c: '#fbbf24' },
-                { label: 'DHL',  c: '#f97316' },
-              ].map(({ label: l, c }) => (
-                <span key={l} style={{
-                  padding: '5px 12px',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.09)',
-                  borderRadius: 100,
-                  fontSize: '11px', fontWeight: 700, color: c, fontFamily: FONT,
-                }}>{l}</span>
+                { n: '100%',   label: 'Centralized'  },
+                { n: 'Live',   label: 'Activity Feed' },
+                { n: 'Multi',  label: 'Integrations'  },
+                { n: 'Tiered', label: 'Access Control' },
+              ].map(({ n, label }) => (
+                <div key={label} style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 99, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#fff', fontFamily: FONT }}>{n}</span>
+                  <span style={{ fontSize: '0.63rem', color: 'rgba(255,255,255,0.34)', fontFamily: FONT }}>{label}</span>
+                </div>
               ))}
             </div>
+
+            {/* Feature list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {features.map(({ icon: Icon, title, desc }) => (
+                <div key={title} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(129,140,248,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                    <Icon style={{ width: 13, height: 13, color: '#a5b4fc' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'rgba(255,255,255,0.88)', marginBottom: 2, fontFamily: FONT }}>{title}</div>
+                    <div style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.34)', lineHeight: 1.55, fontFamily: FONT }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
       )}
@@ -201,24 +206,28 @@ const Login: React.FC = () => {
         {isMobile && (
           <div style={{
             width: '100%',
-            background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)',
-            padding: '28px 24px 32px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #1e3a8a 100%)',
+            padding: '26px 24px 30px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+            position: 'relative', overflow: 'hidden',
           }}>
-            <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 12 }}>
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '22px 22px', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 60% at 10% 100%, rgba(99,102,241,0.25) 0%, transparent 65%)', pointerEvents: 'none' }} />
+            <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', position: 'relative', zIndex: 1 }}>
               <div style={{
-                width: 34, height: 34, background: '#fff',
-                border: '1px solid rgba(255,255,255,0.45)', borderRadius: 8,
+                width: 32, height: 32, background: '#fff',
+                border: '1px solid rgba(255,255,255,0.4)', borderRadius: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
               }}>
-                <BrandMonogram size={18} color="#111" strokeWidth={2.2} />
+                <BrandMonogram size={17} color="#111" strokeWidth={2.2} />
               </div>
-              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', fontFamily: FONT }}>
-                Label Universe
+              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', fontFamily: FONT }}>
+                Label<span style={{ color: 'rgba(255,255,255,0.55)' }}> Universe</span>
               </span>
             </a>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'rgba(255,255,255,0.45)', textAlign: 'center', fontFamily: FONT }}>
-              Shipping labels for US ecom sellers
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.38)', textAlign: 'center', fontFamily: FONT, position: 'relative', zIndex: 1 }}>
+              One hub. Everything connected.
             </p>
           </div>
         )}
@@ -361,9 +370,9 @@ const Login: React.FC = () => {
           {/* Trust chips */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
             {[
-              { icon: ShieldCheckIcon, label: 'Secure' },
-              { icon: CheckCircleIcon, label: 'USPS Ready' },
-              { icon: TruckIcon,       label: 'US Support' },
+              { icon: ShieldCheckIcon, label: 'Secure'       },
+              { icon: CheckCircleIcon, label: 'Centralized'  },
+              { icon: BoltIcon,        label: 'Integrated'   },
             ].map(({ icon: Icon, label: l }) => (
               <span key={l} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,

@@ -1,0 +1,12 @@
+node_modules
+client/node_modules
+client/build
+.env
+.env.*
+.git
+.claude
+.playwright-mcp
+*.log
+npm-debug.log*
+server/uploads
+server/data

@@ -37,6 +37,7 @@ const financialDashboardRoutes = require('./routes/financialDashboard');
 const shippershubAccountRoutes      = require('./routes/shippershubAccounts');
 const leaderboardRoutes             = require('./routes/leaderboard');
 const suggestionRoutes              = require('./routes/suggestions');
+const shopifyRoutes                 = require('./routes/shopify');
 
 // ── Startup validation ────────────────────────────────────────
 // Fail fast rather than running in a broken / insecure state.
@@ -140,6 +141,8 @@ const authLimiter = rateLimit({
 });
 
 // ── Body parsing ──────────────────────────────────────────────
+// Shopify webhook needs raw body for HMAC verification — mount before json()
+app.use('/api/shopify/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -178,6 +181,7 @@ app.use('/api/financial-dashboard',   financialDashboardRoutes);
 app.use('/api/shippershub-accounts',  shippershubAccountRoutes);
 app.use('/api/leaderboard',           leaderboardRoutes);
 app.use('/api/suggestions',           suggestionRoutes);
+app.use('/api/shopify',               shopifyRoutes);
 
 // ── Health check ──────────────────────────────────────────────
 // Returns minimal info only — no internal state exposed publicly

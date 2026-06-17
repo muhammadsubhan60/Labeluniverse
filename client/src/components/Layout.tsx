@@ -30,6 +30,7 @@ import {
   TrophyIcon,
   SparklesIcon,
   LightBulbIcon,
+  ShoppingBagIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Announcement types ────────────────────────────────────────────────────────
@@ -194,6 +195,7 @@ const Layout: React.FC = () => {
   const labelsNav: NavItem[] = [
     { name: 'Single Label',     href: '/labels/single',       icon: TagIcon,                   current: location.pathname === '/labels/single' },
     { name: 'Bulk Labels',      href: '/labels/bulk',          icon: RectangleStackIcon,        current: location.pathname === '/labels/bulk' },
+    { name: 'Orders',           href: '/orders',              icon: ShoppingBagIcon,           current: location.pathname === '/orders' },
     { name: 'Leaderboard',      href: '/leaderboard',         icon: TrophyIcon,                current: location.pathname === '/leaderboard' },
     { name: 'Single History',   href: '/labels/history',      icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/history' },
     { name: 'Bulk History',     href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },

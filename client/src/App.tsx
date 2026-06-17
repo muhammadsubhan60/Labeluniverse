@@ -38,6 +38,7 @@ import Settings            from './pages/Settings';
 import Leaderboard         from './pages/Leaderboard';
 import Suggestions        from './pages/Suggestions';
 import Orders             from './pages/Orders';
+import ShopifyCustomers  from './pages/ShopifyCustomers';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './App.css';
 
@@ -111,6 +112,10 @@ function App() {
                   <Route path="/admin/warehouses"              element={<AdminOnly><AdminWarehouses /></AdminOnly>} />
                   <Route path="/admin/states"                  element={<AdminOnly><AdminStates /></AdminOnly>} />
                   <Route path="/admin/bulk-tracking-update"   element={<AdminOnly><BulkTrackingUpdate /></AdminOnly>} />
+
+                  {/* Shopify customers */}
+                  <Route path="/orders/customers" element={<Orders />} />
+                  <Route path="/customers" element={<ShopifyCustomers />} />
 
                   {/* Reseller routes (admin can also access) */}
                   <Route path="/reseller/clients" element={<AdminOrReseller><ResellerClients /></AdminOrReseller>} />

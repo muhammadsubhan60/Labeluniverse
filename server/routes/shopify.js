@@ -161,6 +161,53 @@ router.delete('/disconnect', authenticateToken, async (req, res) => {
   }
 });
 
+// ── GET /api/shopify/customers ───────────────────────────────────────────────
+router.get('/customers', authenticateToken, async (req, res) => {
+  try {
+    const conn = await ShopifyConnection.findOne({ userId: req.user._id });
+    if (!conn) return res.status(404).json({ message: 'No Shopify store connected' });
+
+    const { search = '', page = 1, limit = 50 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const matchStage = { userId: req.user._id };
+
+    const pipeline = [
+      { $match: matchStage },
+      { $group: {
+        _id: '$customer.email',
+        firstName:     { $last: '$customer.firstName' },
+        lastName:      { $last: '$customer.lastName' },
+        email:         { $last: '$customer.email' },
+        phone:         { $last: '$customer.phone' },
+        orderCount:    { $sum: 1 },
+        totalSpent:    { $sum: { $toDouble: { $ifNull: ['$totalPrice', '0'] } } },
+        lastOrderDate: { $max: '$shopifyCreatedAt' },
+        city:          { $last: '$shippingAddress.city' },
+        provinceCode:  { $last: '$shippingAddress.provinceCode' },
+      }},
+      { $sort: { lastOrderDate: -1 } },
+    ];
+
+    let customers = await ShopifyOrder.aggregate(pipeline);
+
+    if (search) {
+      const q = search.toLowerCase();
+      customers = customers.filter(c =>
+        `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q)
+      );
+    }
+
+    const total = customers.length;
+    const paged = customers.slice(skip, skip + Number(limit));
+
+    res.json({ customers: paged, total, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ── GET /api/shopify/orders ───────────────────────────────────────────────────
 router.get('/orders', authenticateToken, async (req, res) => {
   try {

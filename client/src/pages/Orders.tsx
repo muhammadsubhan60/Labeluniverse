@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
 import {
   ShoppingBagIcon,
   ArrowPathIcon,
@@ -54,6 +55,8 @@ export default function Orders() {
   const { token } = useAuth();
   const navigate  = useNavigate();
   const location  = useLocation();
+  const { socket } = useSocket();
+  const pollRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [status,    setStatus]    = useState<ConnectionStatus>({ connected: false });
   const [orders,    setOrders]    = useState<ShopifyOrder[]>([]);
@@ -114,6 +117,34 @@ export default function Orders() {
   useEffect(() => {
     fetchStatus().then(() => fetchOrders());
   }, [fetchStatus, fetchOrders]);
+
+  // ── Real-time: socket event from Shopify webhook ──────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewOrder = (order: ShopifyOrder) => {
+      setOrders(prev => {
+        // Avoid duplicates if the order already exists
+        const exists = prev.some(o => o.shopifyOrderId === order.shopifyOrderId);
+        if (exists) return prev.map(o => o.shopifyOrderId === order.shopifyOrderId ? order : o);
+        return [order, ...prev];
+      });
+      setTotal(t => t + 1);
+      setSyncMsg(`New order #${order.orderNumber} received from ${order.customer.firstName} ${order.customer.lastName}`);
+    };
+
+    socket.on('shopify:new-order', handleNewOrder);
+    return () => { socket.off('shopify:new-order', handleNewOrder); };
+  }, [socket]);
+
+  // ── Polling fallback: refresh every 60s while page is open ───────────────
+  useEffect(() => {
+    if (!status.connected) return;
+    pollRef.current = setInterval(() => {
+      fetchOrders(page, filter);
+    }, 60_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [status.connected, fetchOrders, page, filter]);
 
   // ── Connect flow ──────────────────────────────────────────────────────────
   const handleConnect = async () => {

@@ -222,13 +222,18 @@ router.post('/webhook/orders-create', async (req, res) => {
     const conn = await ShopifyConnection.findOne({ shop: shop.toLowerCase() });
     if (!conn) return;
 
-    const order = JSON.parse(req.body.toString());
-    const data  = shopifyService.normalizeOrder(order, conn.shop);
-    await ShopifyOrder.findOneAndUpdate(
+    const order  = JSON.parse(req.body.toString());
+    const data   = shopifyService.normalizeOrder(order, conn.shop);
+    const saved  = await ShopifyOrder.findOneAndUpdate(
       { userId: conn.userId, shopifyOrderId: data.shopifyOrderId },
       { $set: { ...data, userId: conn.userId } },
       { upsert: true, new: true }
     );
+
+    // Push real-time update to the user's browser via socket.io
+    if (req.io && saved) {
+      req.io.to(conn.userId.toString()).emit('shopify:new-order', saved);
+    }
   } catch (err) {
     console.error('[Shopify] Webhook processing error:', err.message);
   }

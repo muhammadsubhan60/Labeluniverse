@@ -240,8 +240,6 @@ const Layout: React.FC = () => {
     { key: 'account',     label: 'Account',     items: accountNav },
   ];
 
-  const allNav = [...overviewNav, ...labelsNav, ...adminOpsItems, ...adminFinanceItems, ...mgmtItems, ...accountNav];
-  const activePage = allNav.find(n => n.current);
   const initials  = `${user?.firstName?.charAt(0) ?? ''}${user?.lastName?.charAt(0) ?? ''}`;
 
   const roleChip = user?.role === 'admin'

@@ -1,6 +1,6 @@
-/* ============================================================
-   Label Flow — Design System
-   Premium Shipping Label Flow
+﻿/* ============================================================
+   LABEL UNIVERSE — Design System
+   Premium Shipping LABEL UNIVERSE
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -180,7 +180,7 @@ body {
 .to-primary-800 { --tw-gradient-to: var(--accent-800) !important; }
 .to-primary-900 { --tw-gradient-to: var(--accent-900) !important; }
 
-/* ── Label Flow Card ─────────────────────────────────────────── */
+/* ── LABEL UNIVERSE Card ─────────────────────────────────────────── */
 .sh-card {
   background: var(--bg-card);
   border-radius: var(--radius-xl);
@@ -754,6 +754,45 @@ html[data-theme='dark'] .alert-info    { background: rgba(30, 58, 138, 0.25); co
 }
 .vendor-rate-grid {
   grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.5fr);
+}
+
+/* ── New Bento Dashboard Layout ────────────────────────────────── */
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 1fr 356px;
+  gap: 1rem;
+  align-items: start;
+}
+.dashboard-kpi-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+.dashboard-kpi-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.db-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  border: 1px solid var(--navy-200);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+.db-card-hover:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+  cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-layout { grid-template-columns: 1fr; }
+  .dashboard-kpi-3col { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 700px) {
+  .dashboard-kpi-3col { grid-template-columns: 1fr 1fr; }
+  .dashboard-kpi-2col { grid-template-columns: 1fr; }
 }
 
 /* ── Page Header ─────────────────────────────────────────────── */

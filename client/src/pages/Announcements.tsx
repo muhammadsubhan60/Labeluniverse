@@ -322,7 +322,7 @@ const AnnouncementCard: React.FC<{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>
-            {item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}` : 'Label Flow'}
+            {item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}` : 'LABEL UNIVERSE'}
           </span>
           <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)', fontWeight: 500 }}>{date}</span>
         </div>

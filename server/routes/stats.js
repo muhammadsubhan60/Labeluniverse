@@ -39,6 +39,7 @@ async function adminStats() {
     totalBalanceHeld,
     recentManifests,
     recentUsers,
+    portalGroups,
   ] = await Promise.all([
     // Users by role + isActive
     User.aggregate([
@@ -73,6 +74,13 @@ async function adminStats() {
       .select('carrier status userBilling assignedVendor user createdAt'),
     // Recent signups
     User.find().sort({ createdAt: -1 }).limit(6).select('firstName lastName email role isActive createdAt'),
+    // Generated labels by portal (join vendor to get source)
+    Label.aggregate([
+      { $match: { status: 'generated' } },
+      { $lookup: { from: 'vendors', localField: 'vendor', foreignField: '_id', as: '_v' } },
+      { $addFields: { portal: { $ifNull: [{ $arrayElemAt: ['$_v.source', 0] }, 'shippershub'] } } },
+      { $group: { _id: '$portal', count: { $sum: 1 }, revenue: { $sum: '$price' } } },
+    ]),
   ]);
 
   // --- process user groups ---
@@ -115,11 +123,22 @@ async function adminStats() {
     else vendors.inactive = g.count;
   }
 
+  // --- process portal groups ---
+  const labelsByPortal = { shippershub: { count: 0, revenue: 0 }, labelcrow: { count: 0, revenue: 0 }, shiplabel: { count: 0, revenue: 0 } };
+  for (const g of portalGroups) {
+    const key = g._id || 'shippershub';
+    if (key in labelsByPortal) {
+      labelsByPortal[key].count   = g.count   || 0;
+      labelsByPortal[key].revenue = g.revenue || 0;
+    }
+  }
+
   return {
     users,
     labels,
     manifests,
     vendors,
+    labelsByPortal,
     totalBalanceHeld: totalBalanceHeld[0]?.total || 0,
     totalRevenue: labels.revenue + manifests.revenue,
     recentManifests,
@@ -641,6 +660,38 @@ router.get('/label-chart', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Label chart error:', err);
     res.status(500).json({ message: 'Error fetching chart data' });
+  }
+});
+
+// ── GET /api/stats/tracking-status  (user/reseller — month-filterable) ─────────
+// Query: month=YYYY-MM (omit for all-time)
+router.get('/tracking-status', authenticateToken, async (req, res) => {
+  try {
+    const { _id: userId } = req.user;
+    const uid = new mongoose.Types.ObjectId(String(userId));
+    const { month } = req.query;
+
+    const matchStage = { user: uid, status: 'generated' };
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [y, m] = month.split('-').map(Number);
+      matchStage.createdAt = { $gte: new Date(y, m - 1, 1), $lt: new Date(y, m, 1) };
+    }
+
+    const groups = await Label.aggregate([
+      { $match: matchStage },
+      { $group: { _id: '$trackingStatus', count: { $sum: 1 } } },
+    ]);
+
+    const counts = { not_scanned_yet: 0, in_transit: 0, out_for_delivery: 0, delivered: 0,
+      exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0 };
+    for (const g of groups) {
+      const key = g._id || 'not_scanned_yet';
+      if (key in counts) counts[key] = g.count;
+    }
+    res.json(counts);
+  } catch (err) {
+    console.error('Tracking status filter error:', err);
+    res.status(500).json({ message: 'Error fetching tracking status' });
   }
 });
 

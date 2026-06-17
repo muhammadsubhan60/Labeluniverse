@@ -177,24 +177,55 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
       labelcrow.getProviders(),
     ]);
 
-    // Build map: 'carrier:service_class' → Set<provider_key>
+    // ── Debug: log exactly what the LC API returned ───────────
+    console.log('[LC Sync] seriesList raw:', JSON.stringify(seriesList, null, 2));
+    console.log('[LC Sync] providersRaw raw:', JSON.stringify(providersRaw, null, 2));
+    console.log('[LC Sync] seriesList count:', seriesList.length);
+    console.log('[LC Sync] providersRaw count:', providersRaw.length);
+
+    // ── Build providerMap handling BOTH LC response formats ───
+    // Format A (grouped):  { carrier, service_classes: [{ service_class, provider_keys: [] }] }
+    // Format B (flat):     { carrier, service_class, provider_key }
     const providerMap = new Map();
     for (const p of providersRaw) {
-      for (const sc of (p.service_classes || [])) {
-        const k = `${p.carrier}:${sc.service_class}`;
+      if (Array.isArray(p.service_classes)) {
+        // Format A
+        for (const sc of p.service_classes) {
+          const k = `${p.carrier}:${sc.service_class}`;
+          if (!providerMap.has(k)) providerMap.set(k, new Set());
+          for (const pk of (sc.provider_keys || [])) {
+            if (pk) providerMap.get(k).add(pk);
+          }
+        }
+      } else if (p.service_class !== undefined) {
+        // Format B — each item is a single {carrier, service_class, provider_key}
+        const k = `${p.carrier}:${p.service_class}`;
         if (!providerMap.has(k)) providerMap.set(k, new Set());
-        for (const pk of (sc.provider_keys || [])) providerMap.get(k).add(pk);
+        if (p.provider_key) providerMap.get(k).add(p.provider_key);
       }
     }
 
-    const created = [];
-    const updated = [];
+    console.log('[LC Sync] providerMap built:', Object.fromEntries(
+      [...providerMap.entries()].map(([k, v]) => [k, [...v]])
+    ));
+
+    const created     = [];
+    const updated     = [];
+    const deactivated = [];
+    // Track which seriesIds got at least one real (non-empty) providerKey vendor
+    const seriesWithRealKey = new Set();
 
     for (const series of seriesList) {
-      const k = `${series.carrier}:${series.service_class}`;
-      const pkeys = providerMap.has(k) ? [...providerMap.get(k)] : [''];
-      const rateVal = series.price_brackets?.[0]?.price ?? 0;
-      const svc = series.service_class;
+      const k     = `${series.carrier}:${series.service_class}`;
+      const hasRealKeys = providerMap.has(k) && providerMap.get(k).size > 0;
+      const pkeys = hasRealKeys ? [...providerMap.get(k)] : [''];
+
+      console.log(`[LC Sync] Series id=${series.id} code=${series.series_code} ${k} → providerKeys: [${pkeys.join(', ') || '(empty)'}]`);
+
+      if (hasRealKeys) seriesWithRealKey.add(series.id);
+
+      const rateVal  = series.price_brackets?.[0]?.price ?? 0;
+      const svc      = series.service_class;
       const svcLabel = svc.charAt(0).toUpperCase() + svc.slice(1);
 
       for (const providerKey of pkeys) {
@@ -204,7 +235,7 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
 
         const filter = {
           source: 'labelcrow',
-          labelcrowSeriesId: series.id,
+          labelcrowSeriesId:    series.id,
           labelcrowProviderKey: providerKey,
         };
 
@@ -225,20 +256,52 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
           created.push(vendorName);
         } else {
           await Vendor.updateOne(filter, {
-            $set: { name: vendorName, shippingService: svc, labelcrowServiceClass: svc },
+            $set: { name: vendorName, shippingService: svc, labelcrowServiceClass: svc, rate: rateVal, isActive: true },
           });
           updated.push(vendorName);
         }
       }
     }
 
+    // Deactivate old empty-key vendors where we now have proper-keyed replacements
+    if (seriesWithRealKey.size > 0) {
+      const staleVendors = await Vendor.find({
+        source:               'labelcrow',
+        labelcrowSeriesId:    { $in: [...seriesWithRealKey] },
+        labelcrowProviderKey: { $in: [null, ''] },
+        isActive:             true,
+      }).select('_id name labelcrowSeriesId');
+
+      for (const v of staleVendors) {
+        await Vendor.updateOne({ _id: v._id }, { $set: { isActive: false } });
+        deactivated.push({ id: v._id, name: v.name, seriesId: v.labelcrowSeriesId });
+        console.log(`[LC Sync] Deactivated stale empty-key vendor: "${v.name}" (${v._id})`);
+      }
+    }
+
+    const msg = [
+      `${created.length} added`,
+      `${updated.length} updated`,
+      deactivated.length ? `${deactivated.length} stale empty-key vendor(s) deactivated` : '',
+    ].filter(Boolean).join(', ');
+
+    console.log(`[LC Sync] Done — ${msg}`);
+
     res.json({
-      message: `Label Crow sync — ${created.length} added, ${updated.length} updated`,
+      message: `Label Crow sync — ${msg}`,
       created,
       updated,
+      deactivated: deactivated.map(v => v.name),
+      _debug: {
+        seriesCount:    seriesList.length,
+        providersCount: providersRaw.length,
+        providerMap:    Object.fromEntries([...providerMap.entries()].map(([k, v]) => [k, [...v]])),
+        series:         seriesList.map(s => ({ id: s.id, code: s.series_code, carrier: s.carrier, serviceClass: s.service_class })),
+        providers:      providersRaw,
+      },
     });
   } catch (error) {
-    console.error('Import Label Crow vendors error:', error);
+    console.error('[LC Sync] ERROR:', error.message, error.stack?.split('\n').slice(0, 4).join(' | '));
     res.status(502).json({ message: `Label Crow error: ${error.message}` });
   }
 });

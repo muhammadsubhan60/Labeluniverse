@@ -72,7 +72,7 @@ router.post('/reseller/clients', authenticateToken, authorize('admin', 'reseller
   body('firstName').trim().notEmpty().withMessage('First name is required'),
   body('lastName').trim().notEmpty().withMessage('Last name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
-  body('password').isLength({ min: 12 }).withMessage('Password must be at least 12 characters'),
+  body('password').isLength({ min: 5 }).withMessage('Password must be at least 5 characters'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -154,7 +154,7 @@ router.post('/', authenticateToken, authorize('admin'), [
   body('firstName').trim().notEmpty().withMessage('First name is required'),
   body('lastName').trim().notEmpty().withMessage('Last name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
-  body('password').isLength({ min: 12 }).withMessage('Password must be at least 12 characters'),
+  body('password').isLength({ min: 5 }).withMessage('Password must be at least 5 characters'),
   body('role').isIn(['admin', 'reseller', 'user']).withMessage('Invalid role')
 ], async (req, res) => {
   try {
@@ -256,6 +256,27 @@ router.put('/:id', authenticateToken, [
   } catch (error) {
     console.error('Update user error:', error);
     res.status(500).json({ message: 'Server error updating user' });
+  }
+});
+
+// ── POST /api/users/:id/reset-password ───────────────────────
+router.post('/:id/reset-password', authenticateToken, authorize('admin'), [
+  body('password').isLength({ min: 5 }).withMessage('Password must be at least 5 characters'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg });
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.password = req.body.password;
+    await user.save();
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error resetting password' });
   }
 });
 

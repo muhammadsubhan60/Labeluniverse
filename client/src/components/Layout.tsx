@@ -222,9 +222,7 @@ const Layout: React.FC = () => {
   ] : [];
 
   const accountNav: NavItem[] = [
-    { name: 'Topup History', href: '/topups', icon: BanknotesIcon,  current: location.pathname === '/topups' },
-    { name: 'Payment History', href: '/payments', icon: BookOpenIcon, current: location.pathname === '/payments' },
-    { name: 'Profile',     href: '/profile',  icon: UserIcon,       current: location.pathname === '/profile' },
+    { name: 'Profile', href: '/profile', icon: UserIcon, current: location.pathname === '/profile' },
   ];
 
   const sections: NavSection[] = [
@@ -368,8 +366,8 @@ const Layout: React.FC = () => {
             </div>
             {!collapsed && (
               <div style={{ overflow: 'hidden', flex: 1 }}>
-                <div className="sidebar-brand-name">Label Flow</div>
-                <div className="sidebar-brand-sub">Label Flow</div>
+                <div className="sidebar-brand-name">LABEL UNIVERSE</div>
+                <div className="sidebar-brand-sub">LABEL UNIVERSE</div>
               </div>
             )}
           </div>

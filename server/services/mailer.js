@@ -1,4 +1,4 @@
-/**
+﻿/**
  * mailer.js — Nodemailer transport wrapper.
  * All outbound email goes through this module.
  * Uses SMTP credentials from environment variables.
@@ -37,7 +37,7 @@ function getTransporter() {
 async function sendMail({ to, subject, html }) {
   const transporter = getTransporter();
   await transporter.sendMail({
-    from: `"Label Flow" <${process.env.EMAIL_USER}>`,
+    from: `"LABEL UNIVERSE" <${process.env.EMAIL_USER}>`,
     to,
     subject,
     html,

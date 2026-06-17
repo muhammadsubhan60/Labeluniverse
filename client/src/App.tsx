@@ -79,7 +79,7 @@ function App() {
                 <Route path="/blog" element={<BlogIndex />} />
                 <Route path="/blog/:slug" element={<BlogPost />} />
 
-                {/* ── Main portal (Label Flow users) ─────────────────────── */}
+                {/* ── Main portal (LABEL UNIVERSE users) ─────────────────────── */}
                 <Route element={
                   <ProtectedRoute>
                     <Layout />
@@ -97,8 +97,8 @@ function App() {
                   <Route path="/manifest/history"    element={<ManifestHistory />} />
                   <Route path="/activity"            element={<LiveActivity />} />
                   <Route path="/leaderboard"         element={<Leaderboard />} />
-                  <Route path="/topups"              element={<TopupHistory />} />
-                  <Route path="/payments"            element={<PaymentHistory />} />
+                  <Route path="/topups"              element={<Navigate to="/profile" replace />} />
+                  <Route path="/payments"            element={<Navigate to="/profile" replace />} />
 
                   {/* Admin-only routes */}
                   <Route path="/admin"                         element={<AdminOnly><AdminDashboard /></AdminOnly>} />

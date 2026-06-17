@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const crypto  = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User           = require('../models/User');
@@ -165,9 +165,9 @@ router.post('/forgot-password', [
     try {
       await sendMail({
         to:      user.email,
-        subject: 'Password Reset Request — Label Flow',
+        subject: 'Password Reset Request — LABEL UNIVERSE',
         html: `
-          <p>You requested a password reset for your Label Flow account.</p>
+          <p>You requested a password reset for your LABEL UNIVERSE account.</p>
           <p><a href="${resetUrl}">Click here to reset your password</a></p>
           <p>This link expires in <strong>10 minutes</strong>.</p>
           <p>If you did not request this, ignore this email — your password will not change.</p>

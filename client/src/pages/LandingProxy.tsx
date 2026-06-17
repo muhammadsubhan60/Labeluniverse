@@ -1,21 +1,15 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const LandingProxy: React.FC = () => {
   const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
 
-  // Already logged in → skip the landing page, go straight to the app
-  useEffect(() => {
-    if (isAuthenticated) navigate('/dashboard', { replace: true });
-  }, [isAuthenticated, navigate]);
-
-  if (isAuthenticated) return null;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   return (
     <iframe
-      title="Label Flow Landing"
+      title="LABEL UNIVERSE Landing"
       src="/landing.html"
       style={{
         width: '100%',

@@ -4,27 +4,28 @@ import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
   MagnifyingGlassIcon, TruckIcon, ArrowDownTrayIcon,
-  XMarkIcon, EyeIcon, ArrowUturnLeftIcon, FunnelIcon,
+  XMarkIcon, EyeIcon, ArrowUturnLeftIcon,
   TagIcon, CurrencyDollarIcon, CalendarDaysIcon,
   ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
-// ── Tracking status config ────────────────────────────────────
+const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+
+// ── Tracking status config ─────────────────────────────────────────────────────
 const TS_CONFIG: Record<string, { label: string; bg: string; color: string; border: string }> = {
-  not_scanned_yet:   { label: 'Not Scanned Yet',    bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' },
-  in_transit:        { label: 'In Transit',          bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
-  out_for_delivery:  { label: 'Out for Delivery',    bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
-  delivered:         { label: 'Delivered',           bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
-  exception_problem: { label: 'Exception / Problem', bg: '#FFF5F5', color: '#DC2626', border: '#FECACA' },
-  returned_to_sender:{ label: 'Returned to Sender',  bg: '#FFF1F2', color: '#BE123C', border: '#FECDD3' },
-  pending_pickup:    { label: 'Pending Pickup',      bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA' },
-  delayed:           { label: 'Delayed',             bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
+  not_scanned_yet:    { label: 'Not Scanned Yet',    bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' },
+  in_transit:         { label: 'In Transit',          bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' },
+  out_for_delivery:   { label: 'Out for Delivery',    bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
+  delivered:          { label: 'Delivered',           bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+  exception_problem:  { label: 'Exception / Problem', bg: '#FFF5F5', color: '#DC2626', border: '#FECACA' },
+  returned_to_sender: { label: 'Returned to Sender',  bg: '#FFF1F2', color: '#BE123C', border: '#FECDD3' },
+  pending_pickup:     { label: 'Pending Pickup',      bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA' },
+  delayed:            { label: 'Delayed',             bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
 };
 const TS_OPTIONS = Object.keys(TS_CONFIG);
 
-// Resolve legacy values stored in DB before enum migration
 function resolveTs(ts?: string): string {
   if (!ts || ts === 'not_scanned') return 'not_scanned_yet';
   if (ts === 'exception') return 'exception_problem';
@@ -32,7 +33,7 @@ function resolveTs(ts?: string): string {
   return TS_CONFIG[ts] ? ts : 'not_scanned_yet';
 }
 
-// ── Types ─────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────────
 interface TrackingHistoryEntry {
   status: string; note?: string; updatedAt: string;
   updatedBy?: { firstName: string; lastName: string };
@@ -56,7 +57,7 @@ interface Label {
 }
 interface Vendor { _id: string; name: string; carrier: string; }
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function getTrackUrl(carrier: string, trackingId: string): string {
   const id = encodeURIComponent(trackingId);
   if (carrier === 'UPS')   return `https://www.ups.com/track?tracknum=${id}`;
@@ -64,38 +65,32 @@ function getTrackUrl(carrier: string, trackingId: string): string {
   return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${id}`;
 }
 
-// Fetch a label PDF via our own API proxy (avoids S3 CORS / auth header issues)
 async function fetchLabelPdf(labelId: string): Promise<string | null> {
   try {
     const res = await axios.get(`/labels/${labelId}/pdf`, { responseType: 'blob' });
     return window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-  } catch (e) {
-    console.error('PDF fetch failed', e);
-    return null;
-  }
+  } catch (e) { console.error('PDF fetch failed', e); return null; }
 }
 
 async function downloadLabelPdf(labelId: string, trackingId: string) {
   const blobUrl = await fetchLabelPdf(labelId);
   if (!blobUrl) return;
   const a = document.createElement('a');
-  a.href = blobUrl;
-  a.download = `label-${trackingId || labelId}.pdf`;
+  a.href = blobUrl; a.download = `label-${trackingId || labelId}.pdf`;
   document.body.appendChild(a); a.click(); a.remove();
   window.URL.revokeObjectURL(blobUrl);
 }
 
-// ── Carrier theme ─────────────────────────────────────────────
+// ── Carrier theme ──────────────────────────────────────────────────────────────
 const CC: Record<string, { bg: string; color: string; border: string; accent: string }> = {
   USPS:  { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE', accent: '#3B82F6' },
   UPS:   { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A', accent: '#F59E0B' },
   FedEx: { bg: '#F5F3FF', color: '#5B21B6', border: '#DDD6FE', accent: '#7C3AED' },
   DHL:   { bg: '#FEF3C7', color: '#78350F', border: '#FDE68A', accent: '#D97706' },
 };
-
 const CARRIERS = ['USPS', 'UPS', 'FedEx', 'DHL'];
 
-// ── PDF modal ─────────────────────────────────────────────────
+// ── PDF Modal ──────────────────────────────────────────────────────────────────
 const PdfModal: React.FC<{ url: string; trackingId: string; onClose: () => void }> = ({ url, trackingId, onClose }) => (
   <div
     onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -107,7 +102,7 @@ const PdfModal: React.FC<{ url: string; trackingId: string; onClose: () => void 
             <EyeIcon style={{ width: 14, height: 14, color: '#fff' }} />
           </div>
           <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-900)' }}>Label Preview</div>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-900)', fontFamily: FONT }}>Label Preview</div>
             {trackingId && <div style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: 'var(--navy-500)', marginTop: 1 }}>{trackingId}</div>}
           </div>
         </div>
@@ -122,10 +117,9 @@ const PdfModal: React.FC<{ url: string; trackingId: string; onClose: () => void 
   </div>
 );
 
-// ── Status History Modal ──────────────────────────────────────
+// ── Status History Modal ───────────────────────────────────────────────────────
 const StatusHistoryModal: React.FC<{
-  label: Label;
-  isAdmin: boolean;
+  label: Label; isAdmin: boolean;
   onClose: () => void;
   onSave: (labelId: string, status: string, note: string) => Promise<void>;
 }> = ({ label, isAdmin, onClose, onSave }) => {
@@ -136,15 +130,14 @@ const StatusHistoryModal: React.FC<{
   const handleSave = async () => {
     setSaving(true);
     await onSave(label._id, selStatus, note);
-    setSaving(false);
-    onClose();
+    setSaving(false); onClose();
   };
 
   return (
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(2,6,23,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.4)' }}>
+      <div className="db-card" style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.4)' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid var(--navy-200)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -152,7 +145,7 @@ const StatusHistoryModal: React.FC<{
               <ClockIcon style={{ width: 15, height: 15, color: '#fff' }} />
             </div>
             <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy-900)' }}>Tracking Status</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy-900)', fontFamily: FONT }}>Tracking Status</div>
               {label.trackingId && <div style={{ fontSize: '0.67rem', fontFamily: 'monospace', color: 'var(--navy-400)', marginTop: 1 }}>{label.trackingId}</div>}
             </div>
           </div>
@@ -163,17 +156,14 @@ const StatusHistoryModal: React.FC<{
           </button>
         </div>
 
-        {/* Body */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-          {/* Admin update form */}
           {isAdmin && (
             <div style={{ background: 'var(--navy-50)', borderRadius: 10, padding: '0.875rem 1rem', border: '1px solid var(--navy-200)' }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Update Status</div>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT, marginBottom: 8 }}>Update Status</div>
               <select
                 value={selStatus}
                 onChange={e => setSelStatus(e.target.value)}
-                style={{ width: '100%', height: 36, paddingLeft: 10, paddingRight: 28, border: `1.5px solid ${TS_CONFIG[selStatus]?.border ?? '#E2E8F0'}`, borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, color: TS_CONFIG[selStatus]?.color ?? '#475569', backgroundColor: TS_CONFIG[selStatus]?.bg ?? '#F8FAFC', outline: 'none', marginBottom: 8, cursor: 'pointer', appearance: 'none' as const }}>
+                style={{ width: '100%', height: 36, paddingLeft: 10, paddingRight: 28, border: `1.5px solid ${TS_CONFIG[selStatus]?.border ?? '#E2E8F0'}`, borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, color: TS_CONFIG[selStatus]?.color ?? '#475569', backgroundColor: TS_CONFIG[selStatus]?.bg ?? '#F8FAFC', outline: 'none', marginBottom: 8, cursor: 'pointer', appearance: 'none' as const, fontFamily: FONT }}>
                 {TS_OPTIONS.map(k => <option key={k} value={k}>{TS_CONFIG[k].label}</option>)}
               </select>
               <textarea
@@ -182,30 +172,30 @@ const StatusHistoryModal: React.FC<{
                 placeholder="Add a note (optional)…"
                 maxLength={500}
                 rows={2}
-                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '8px 10px', border: '1.5px solid var(--navy-200)', borderRadius: 8, fontSize: '0.78rem', color: 'var(--navy-800)', outline: 'none', background: 'var(--bg-card)', fontFamily: 'inherit', lineHeight: 1.5 }}
+                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '8px 10px', border: '1.5px solid var(--navy-200)', borderRadius: 8, fontSize: '0.78rem', color: 'var(--navy-800)', outline: 'none', background: 'var(--bg-card)', fontFamily: FONT, lineHeight: 1.5 }}
                 onFocus={e => (e.target.style.borderColor = '#6366f1')}
                 onBlur={e => (e.target.style.borderColor = 'var(--navy-200)')}
               />
               <button
                 onClick={handleSave}
                 disabled={saving}
-                style={{ marginTop: 8, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px', background: saving ? '#94A3B8' : '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}>
+                style={{ marginTop: 8, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px', background: saving ? '#94A3B8' : '#6366f1', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', transition: 'background 0.15s', fontFamily: FONT }}>
                 {saving ? 'Saving…' : 'Save Status'}
               </button>
             </div>
           )}
 
-          {/* History timeline */}
+          {/* Timeline */}
           <div>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT, marginBottom: 10 }}>
               History ({(label.trackingStatusHistory?.length ?? 0)})
             </div>
             {(!label.trackingStatusHistory || label.trackingStatusHistory.length === 0) ? (
-              <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--navy-400)', fontSize: '0.8rem' }}>No history yet.</div>
+              <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--navy-400)', fontSize: '0.8rem', fontFamily: FONT }}>No history yet.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {label.trackingStatusHistory.map((entry, i) => {
-                  const ts = resolveTs(entry.status);
+                  const ts  = resolveTs(entry.status);
                   const cfg = TS_CONFIG[ts] ?? TS_CONFIG['not_scanned_yet'];
                   return (
                     <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -215,11 +205,11 @@ const StatusHistoryModal: React.FC<{
                       </div>
                       <div style={{ flex: 1, paddingBottom: 4 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700 }}>{cfg.label}</span>
-                          {i === 0 && <span style={{ fontSize: '0.62rem', background: '#EEF2FF', color: '#4F46E5', borderRadius: 10, padding: '1px 6px', fontWeight: 700 }}>Latest</span>}
+                          <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700, fontFamily: FONT }}>{cfg.label}</span>
+                          {i === 0 && <span style={{ fontSize: '0.62rem', background: '#EEF2FF', color: '#4F46E5', borderRadius: 10, padding: '1px 6px', fontWeight: 700, fontFamily: FONT }}>Latest</span>}
                         </div>
-                        {entry.note && <div style={{ fontSize: '0.73rem', color: 'var(--navy-600)', marginTop: 3, lineHeight: 1.4 }}>"{entry.note}"</div>}
-                        <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', marginTop: 3 }}>
+                        {entry.note && <div style={{ fontSize: '0.73rem', color: 'var(--navy-600)', marginTop: 3, lineHeight: 1.4, fontFamily: FONT }}>"{entry.note}"</div>}
+                        <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', marginTop: 3, fontFamily: FONT }}>
                           {new Date(entry.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           {entry.updatedBy && ` · ${entry.updatedBy.firstName} ${entry.updatedBy.lastName}`}
                         </div>
@@ -236,44 +226,45 @@ const StatusHistoryModal: React.FC<{
   );
 };
 
-// ── Skeleton row ──────────────────────────────────────────────
+// ── Skeleton row ───────────────────────────────────────────────────────────────
 const SkeletonRow = () => (
-  <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-    {[60, 180, 130, 130, 80, 80, 110, 90].map((w, i) => (
-      <td key={i} style={{ padding: '0.875rem 0.875rem' }}>
-        <div style={{ height: 10, width: w, borderRadius: 5, background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite' }} />
-        {i === 1 && <div style={{ height: 8, width: 50, borderRadius: 4, background: '#F1F5F9', marginTop: 6 }} />}
+  <tr style={{ borderBottom: '1px solid var(--navy-100)' }}>
+    {[48, 170, 150, 130, 100, 70, 90, 140].map((w, i) => (
+      <td key={i} style={{ padding: '0.9rem 0.875rem' }}>
+        <div style={{ height: 10, width: w, borderRadius: 5, background: 'linear-gradient(90deg, var(--navy-100) 25%, var(--navy-200) 50%, var(--navy-100) 75%)', backgroundSize: '200% 100%', animation: 'lh-shimmer 1.4s infinite' }} />
+        {i === 1 && <div style={{ height: 8, width: 55, borderRadius: 4, background: 'var(--navy-100)', marginTop: 6 }} />}
       </td>
     ))}
-    <td style={{ padding: '0.875rem 0.875rem' }}>
+    <td style={{ padding: '0.9rem 0.875rem' }}>
       <div style={{ display: 'flex', gap: 5 }}>
-        {[44, 56, 44].map((w, i) => <div key={i} style={{ height: 26, width: w, borderRadius: 6, background: '#F1F5F9' }} />)}
+        {[52, 44, 30].map((w, i) => <div key={i} style={{ height: 28, width: w, borderRadius: 7, background: 'var(--navy-100)' }} />)}
       </div>
     </td>
   </tr>
 );
 
-// ── Main component ────────────────────────────────────────────
+// ── Main Component ─────────────────────────────────────────────────────────────
 const LabelHistory: React.FC = () => {
-  const navigate = useNavigate();
+  const navigate    = useNavigate();
   const { user: authUser } = useAuth();
-  const isAdmin = authUser?.role === 'admin';
-  const [labels,     setLabels]     = useState<Label[]>([]);
-  const [vendors,    setVendors]    = useState<Vendor[]>([]);
-  const [total,      setTotal]      = useState(0);
-  const [page,       setPage]       = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [isLoading,  setIsLoading]  = useState(true);
-  const [viewPdf,        setViewPdf]        = useState<{ url: string; trackingId: string } | null>(null);
-  const [openAction,     setOpenAction]     = useState<string | null>(null);
-  const [historyLabel,   setHistoryLabel]   = useState<Label | null>(null);
+  const isAdmin     = authUser?.role === 'admin';
+
+  const [labels,      setLabels]      = useState<Label[]>([]);
+  const [vendors,     setVendors]     = useState<Vendor[]>([]);
+  const [total,       setTotal]       = useState(0);
+  const [page,        setPage]        = useState(1);
+  const [totalPages,  setTotalPages]  = useState(1);
+  const [isLoading,   setIsLoading]   = useState(true);
+  const [viewPdf,     setViewPdf]     = useState<{ url: string; trackingId: string } | null>(null);
+  const [openAction,  setOpenAction]  = useState<string | null>(null);
+  const [historyLabel,setHistoryLabel]= useState<Label | null>(null);
 
   // Filters
-  const [search,   setSearch]   = useState('');
-  const [carrierF, setCarrierF] = useState('');
-  const [vendorF,  setVendorF]  = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo,   setDateTo]   = useState('');
+  const [search,         setSearch]         = useState('');
+  const [carrierF,       setCarrierF]       = useState('');
+  const [vendorF,        setVendorF]        = useState('');
+  const [dateFrom,       setDateFrom]       = useState('');
+  const [dateTo,         setDateTo]         = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
 
   useEffect(() => {
@@ -298,14 +289,16 @@ const LabelHistory: React.FC = () => {
 
   useEffect(() => { fetchLabels(); }, [fetchLabels]);
 
-  // Close action menu on outside click
   useEffect(() => {
     const handler = () => setOpenAction(null);
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
   }, []);
 
-  const resetFilters = () => { setCarrierF(''); setVendorF(''); setDateFrom(''); setDateTo(''); setSearch(''); setPage(1); setShowDateFilter(false); };
+  const resetFilters = () => {
+    setCarrierF(''); setVendorF(''); setDateFrom(''); setDateTo('');
+    setSearch(''); setPage(1); setShowDateFilter(false);
+  };
 
   const vendorOptions = carrierF ? vendors.filter(v => v.carrier === carrierF) : vendors;
 
@@ -327,16 +320,16 @@ const LabelHistory: React.FC = () => {
       state: {
         prefill: {
           carrier: label.carrier, vendorId: label.vendor?._id ?? '',
-          from_name: label.to_name ?? '', from_company: label.to_company ?? '',
-          from_phone: label.to_phone ?? '', from_address1: label.to_address1 ?? '',
+          from_name: label.to_name ?? '',    from_company: label.to_company ?? '',
+          from_phone: label.to_phone ?? '',  from_address1: label.to_address1 ?? '',
           from_address2: label.to_address2 ?? '', from_city: label.to_city ?? '',
-          from_state: label.to_state ?? '', from_zip: label.to_zip ?? '',
-          to_name: label.from_name ?? '', to_company: label.from_company ?? '',
-          to_phone: label.from_phone ?? '', to_address1: label.from_address1 ?? '',
+          from_state: label.to_state ?? '',  from_zip: label.to_zip ?? '',
+          to_name: label.from_name ?? '',    to_company: label.from_company ?? '',
+          to_phone: label.from_phone ?? '',  to_address1: label.from_address1 ?? '',
           to_address2: label.from_address2 ?? '', to_city: label.from_city ?? '',
-          to_state: label.from_state ?? '', to_zip: label.from_zip ?? '',
+          to_state: label.from_state ?? '',  to_zip: label.from_zip ?? '',
           weight: String(label.weight ?? ''), length: String(label.length ?? ''),
-          width: String(label.width ?? ''), height: String(label.height ?? ''),
+          width: String(label.width ?? ''),  height: String(label.height ?? ''),
           note: label.note ?? '',
         },
       },
@@ -344,10 +337,7 @@ const LabelHistory: React.FC = () => {
   };
 
   const trackAll = () => {
-    const ids = labels
-      .filter(l => l.trackingId)
-      .map(l => encodeURIComponent(l.trackingId))
-      .join(',');
+    const ids = labels.filter(l => l.trackingId).map(l => encodeURIComponent(l.trackingId)).join(',');
     if (!ids) return;
     window.open(`https://tools.usps.com/go/TrackConfirmAction?tLabels=${ids}`, '_blank', 'noopener,noreferrer');
   };
@@ -358,29 +348,24 @@ const LabelHistory: React.FC = () => {
   };
 
   const handleUpdateTrackingStatus = async (labelId: string, trackingStatus: string, note = '') => {
-    // Optimistic update
     setLabels(prev => prev.map(l => l._id === labelId ? { ...l, trackingStatus } : l));
     try {
       const res = await axios.patch(`/labels/${labelId}/tracking-status`, { trackingStatus, note });
-      // Merge back the authoritative history from server
       setLabels(prev => prev.map(l =>
         l._id === labelId
           ? { ...l, trackingStatus: res.data.trackingStatus, trackingStatusHistory: res.data.trackingStatusHistory }
           : l
       ));
-      // If the history modal is open for this label, keep it in sync
       setHistoryLabel(prev => prev && prev._id === labelId
         ? { ...prev, trackingStatus: res.data.trackingStatus, trackingStatusHistory: res.data.trackingStatusHistory }
         : prev
       );
     } catch (e) {
       console.error('Failed to update tracking status', e);
-      // Revert optimistic update
       setLabels(prev => prev.map(l => l._id === labelId ? { ...l, trackingStatus: l.trackingStatus } : l));
     }
   };
 
-  // Pagination page numbers
   const pageNums = (() => {
     const delta = 2;
     const range: number[] = [];
@@ -390,455 +375,450 @@ const LabelHistory: React.FC = () => {
     return range;
   })();
 
+  const trackableCount = labels.filter(l => l.trackingId).length;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <>
+      <style>{`
+        @keyframes lh-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+      `}</style>
 
-      {/* ── Page header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 11, background: 'linear-gradient(135deg,#6366f1,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)', flexShrink: 0 }}>
-            <TagIcon style={{ width: 20, height: 20, color: '#fff' }} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>Single Labels</h1>
-            <p style={{ fontSize: '0.75rem', color: '#64748B', margin: '2px 0 0', fontWeight: 500 }}>
-              All individually generated shipping labels
-            </p>
-          </div>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', fontFamily: FONT }}>
 
-        {/* Summary pills + Track All */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', borderRadius: 10, padding: '6px 14px' }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#6366f1' }} />
-            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Total</span>
-            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A' }}>{total}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#F0FDF4', border: '1.5px solid #BBF7D0', borderRadius: 10, padding: '6px 14px' }}>
-            <CurrencyDollarIcon style={{ width: 13, height: 13, color: '#16A34A' }} />
-            <span style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 600 }}>Page spend</span>
-            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#15803D' }}>${totalSpent.toFixed(2)}</span>
-          </div>
-          <button
-            onClick={trackAll}
-            disabled={labels.filter(l => l.trackingId).length === 0}
-            title="Open all tracking numbers on this page in USPS multi-track"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              height: 36, padding: '0 14px',
-              background: '#EFF6FF', border: '1.5px solid #BFDBFE',
-              borderRadius: 10, color: '#1D4ED8',
-              fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-              transition: 'all 0.15s',
-              opacity: labels.filter(l => l.trackingId).length === 0 ? 0.45 : 1,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#DBEAFE'; e.currentTarget.style.borderColor = '#93C5FD'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#EFF6FF'; e.currentTarget.style.borderColor = '#BFDBFE'; }}
-          >
-            <TruckIcon style={{ width: 14, height: 14 }} />
-            Track All ({labels.filter(l => l.trackingId).length})
-          </button>
-        </div>
-      </div>
+        {/* ── Hero ─────────────────────────────────────────────────────────────── */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)',
+          borderRadius: 18, padding: '1.25rem 1.8rem',
+          position: 'relative', overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap',
+        }}>
+          <div style={{ position: 'absolute', inset: 0, opacity: 0.04, backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '22px 22px', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '-40%', right: '6%', width: 210, height: 210, background: 'radial-gradient(circle, rgba(99,102,241,0.13) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-      {/* ── Filter toolbar ── */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1.5px solid var(--navy-200)', overflow: 'hidden' }}>
-
-        {/* Top row: search + date toggle + clear */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0.625rem 0.875rem', borderBottom: '1px solid var(--navy-100)' }}>
-          <div style={{ flex: 1, position: 'relative', minWidth: 180 }}>
-            <MagnifyingGlassIcon style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--navy-400)', pointerEvents: 'none' }} />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search name, tracking ID, email…"
-              style={{ width: '100%', boxSizing: 'border-box', height: 36, paddingLeft: 32, paddingRight: 12, border: '1.5px solid var(--navy-200)', borderRadius: 8, fontSize: '0.8rem', color: 'var(--navy-800)', outline: 'none', background: 'var(--navy-50)', transition: 'border-color 0.15s' }}
-              onFocus={e => (e.target.style.borderColor = '#6366f1')}
-              onBlur={e => (e.target.style.borderColor = 'var(--navy-200)')}
-            />
-          </div>
-
-          {/* Vendor filter */}
-          {vendorOptions.length > 0 && (
-            <select
-              value={vendorF}
-              onChange={e => { setVendorF(e.target.value); setPage(1); }}
-              style={{ height: 36, paddingLeft: 10, paddingRight: 28, border: '1.5px solid var(--navy-200)', borderRadius: 8, fontSize: '0.78rem', color: 'var(--navy-800)', background: 'var(--navy-50)', cursor: 'pointer', outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394A3B8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: 16 }}>
-              <option value="">All Vendors</option>
-              {vendorOptions.map(v => <option key={v._id} value={v._id}>{v.name}</option>)}
-            </select>
-          )}
-
-          <button
-            onClick={() => setShowDateFilter(o => !o)}
-            style={{ height: 36, display: 'flex', alignItems: 'center', gap: 5, padding: '0 12px', border: `1.5px solid ${showDateFilter || dateFrom || dateTo ? '#6366f1' : 'var(--navy-200)'}`, borderRadius: 8, background: showDateFilter || dateFrom || dateTo ? '#EEF2FF' : 'var(--navy-50)', color: showDateFilter || dateFrom || dateTo ? '#4F46E5' : 'var(--navy-500)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}>
-            <CalendarDaysIcon style={{ width: 13, height: 13 }} />
-            Date
-            {(dateFrom || dateTo) && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', display: 'inline-block' }} />}
-          </button>
-
-          {hasFilters && (
-            <button onClick={resetFilters} style={{ height: 36, display: 'flex', alignItems: 'center', gap: 5, padding: '0 12px', border: '1.5px solid #FCA5A5', borderRadius: 8, background: '#FFF5F5', color: '#DC2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
-              <XMarkIcon style={{ width: 12, height: 12 }} /> Clear
-            </button>
-          )}
-        </div>
-
-        {/* Carrier tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 0, padding: '0 0.875rem', borderBottom: '1px solid var(--navy-100)', overflowX: 'auto' }}>
-          {['', ...CARRIERS].map(c => {
-            const active = carrierF === c;
-            const theme = c ? CC[c] : null;
-            return (
-              <button
-                key={c || 'all'}
-                onClick={() => { setCarrierF(c); setVendorF(''); setPage(1); }}
-                style={{
-                  padding: '0.5rem 0.875rem', border: 'none', background: 'transparent',
-                  fontSize: '0.75rem', fontWeight: active ? 700 : 500,
-                  color: active ? (theme?.color ?? '#4F46E5') : 'var(--navy-500)',
-                  borderBottom: `2px solid ${active ? (theme?.accent ?? '#6366f1') : 'transparent'}`,
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                  transition: 'all 0.15s', marginBottom: -1,
-                }}>
-                {c || 'All Carriers'}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Date range row */}
-        {showDateFilter && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0.625rem 0.875rem', background: 'var(--navy-50)' }}>
-            <CalendarDaysIcon style={{ width: 14, height: 14, color: 'var(--navy-400)', flexShrink: 0 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--navy-500)', whiteSpace: 'nowrap' }}>From</label>
-              <input type="date" value={dateFrom} max={dateTo || undefined}
-                onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-                style={{ height: 32, padding: '0 8px', border: '1.5px solid var(--navy-200)', borderRadius: 7, fontSize: '0.78rem', color: 'var(--navy-800)', background: 'var(--bg-card)', outline: 'none' }} />
-              <ArrowRightIcon style={{ width: 12, height: 12, color: 'var(--navy-300)' }} />
-              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--navy-500)', whiteSpace: 'nowrap' }}>To</label>
-              <input type="date" value={dateTo} min={dateFrom || undefined}
-                onChange={e => { setDateTo(e.target.value); setPage(1); }}
-                style={{ height: 32, padding: '0 8px', border: '1.5px solid var(--navy-200)', borderRadius: 7, fontSize: '0.78rem', color: 'var(--navy-800)', background: 'var(--bg-card)', outline: 'none' }} />
-              {(dateFrom || dateTo) && (
-                <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', display: 'flex', padding: 2 }}>
-                  <XMarkIcon style={{ width: 13, height: 13 }} />
-                </button>
-              )}
+          {/* Left */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative', zIndex: 1 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <TagIcon style={{ width: 22, height: 22, color: '#818CF8' }} />
+            </div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.1, fontFamily: FONT }}>
+                Label History
+              </h1>
+              <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: 'rgba(148,163,184,0.65)', fontFamily: FONT }}>
+                Single-label shipment records
+              </p>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* ── Table card ── */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1.5px solid var(--navy-200)', overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-            <thead>
-              <tr style={{ background: 'var(--navy-50)' }}>
-                {['#', 'Tracking & Carrier', 'Route', 'User', 'Vendor', 'Price', 'Date', 'Tracking Status', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '0.625rem 0.875rem', textAlign: 'left', fontSize: '0.63rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', borderBottom: '1.5px solid var(--navy-200)' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={9} style={{ padding: '4rem', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 52, height: 52, borderRadius: 14, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <TagIcon style={{ width: 26, height: 26, color: '#CBD5E1' }} />
-                      </div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>No labels found</div>
-                      <div style={{ fontSize: '0.78rem', color: '#94A3B8' }}>
-                        {hasFilters ? 'Try adjusting your filters or clearing them.' : 'Labels you generate will appear here.'}
-                      </div>
-                      {hasFilters && (
-                        <button onClick={resetFilters} style={{ marginTop: 4, padding: '6px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
-                          Clear Filters
-                        </button>
-                      )}
-                    </div>
-                  </td>
+          {/* Right: stat chips + Track All */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
+            {([
+              { label: 'Total Labels', value: isLoading ? '—' : total.toLocaleString(),     accent: '#818CF8' },
+              { label: 'Page Spend',   value: isLoading ? '—' : `$${totalSpent.toFixed(2)}`, accent: '#34D399' },
+              { label: 'Page',         value: isLoading ? '—' : `${page} / ${totalPages}`, accent: 'rgba(255,255,255,0.45)' },
+            ] as const).map(({ label, value, accent }) => (
+              <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 10, padding: '0.42rem 0.8rem', minWidth: 72 }}>
+                <div style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.32)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, fontFamily: FONT }}>{label}</div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: accent, letterSpacing: '-0.02em', fontFamily: FONT, marginTop: 2 }}>{value}</div>
+              </div>
+            ))}
+            <button
+              onClick={trackAll}
+              disabled={trackableCount === 0}
+              style={{
+                height: 36, display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px',
+                background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 9, color: '#fff', fontSize: '0.78rem', fontWeight: 600,
+                cursor: trackableCount === 0 ? 'not-allowed' : 'pointer', fontFamily: FONT,
+                opacity: trackableCount === 0 ? 0.4 : 1, whiteSpace: 'nowrap', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (trackableCount > 0) (e.currentTarget.style.background = 'rgba(255,255,255,0.14)'); }}
+              onMouseLeave={e => { (e.currentTarget.style.background = 'rgba(255,255,255,0.08)'); }}
+            >
+              <TruckIcon style={{ width: 14, height: 14 }} />
+              Track All ({trackableCount})
+            </button>
+          </div>
+        </div>
+
+        {/* ── Filter bar ───────────────────────────────────────────────────────── */}
+        <div className="db-card" style={{ overflow: 'hidden' }}>
+
+          {/* Search row */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0.625rem 0.875rem', borderBottom: '1px solid var(--navy-100)' }}>
+            <div style={{ flex: 1, position: 'relative', minWidth: 180 }}>
+              <MagnifyingGlassIcon style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--navy-400)', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search name, tracking ID, email…"
+                style={{ width: '100%', boxSizing: 'border-box', height: 36, paddingLeft: 32, paddingRight: 12, border: '1.5px solid var(--navy-200)', borderRadius: 8, fontSize: '0.8rem', color: 'var(--navy-800)', outline: 'none', background: 'var(--bg-card)', transition: 'border-color 0.15s', fontFamily: FONT }}
+                onFocus={e => (e.target.style.borderColor = '#6366f1')}
+                onBlur={e => (e.target.style.borderColor = 'var(--navy-200)')}
+              />
+            </div>
+
+            {vendorOptions.length > 0 && (
+              <select
+                value={vendorF}
+                onChange={e => { setVendorF(e.target.value); setPage(1); }}
+                style={{ height: 36, paddingLeft: 10, paddingRight: 28, border: '1.5px solid var(--navy-200)', borderRadius: 8, fontSize: '0.78rem', color: 'var(--navy-800)', background: 'var(--bg-card)', cursor: 'pointer', outline: 'none', appearance: 'none' as const, fontFamily: FONT, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394A3B8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: 16 }}>
+                <option value="">All Vendors</option>
+                {vendorOptions.map(v => <option key={v._id} value={v._id}>{v.name}</option>)}
+              </select>
+            )}
+
+            <button
+              onClick={() => setShowDateFilter(o => !o)}
+              style={{ height: 36, display: 'flex', alignItems: 'center', gap: 5, padding: '0 12px', border: `1.5px solid ${showDateFilter || dateFrom || dateTo ? '#6366f1' : 'var(--navy-200)'}`, borderRadius: 8, background: showDateFilter || dateFrom || dateTo ? '#EEF2FF' : 'var(--bg-card)', color: showDateFilter || dateFrom || dateTo ? '#4F46E5' : 'var(--navy-500)', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', fontFamily: FONT }}>
+              <CalendarDaysIcon style={{ width: 13, height: 13 }} />
+              Date
+              {(dateFrom || dateTo) && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', display: 'inline-block' }} />}
+            </button>
+
+            {hasFilters && (
+              <button onClick={resetFilters} style={{ height: 36, display: 'flex', alignItems: 'center', gap: 5, padding: '0 12px', border: '1.5px solid #FCA5A5', borderRadius: 8, background: '#FFF5F5', color: '#DC2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+                <XMarkIcon style={{ width: 12, height: 12 }} /> Clear
+              </button>
+            )}
+          </div>
+
+          {/* Carrier tabs */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 0.875rem', borderBottom: '1px solid var(--navy-100)', overflowX: 'auto', gap: 0 }}>
+            {['', ...CARRIERS].map(c => {
+              const active = carrierF === c;
+              const theme  = c ? CC[c] : null;
+              return (
+                <button
+                  key={c || 'all'}
+                  onClick={() => { setCarrierF(c); setVendorF(''); setPage(1); }}
+                  style={{
+                    padding: '0.5rem 0.875rem', border: 'none', background: 'transparent',
+                    fontSize: '0.75rem', fontWeight: active ? 700 : 500, fontFamily: FONT,
+                    color: active ? (theme?.color ?? '#4F46E5') : 'var(--navy-500)',
+                    borderBottom: `2px solid ${active ? (theme?.accent ?? '#6366f1') : 'transparent'}`,
+                    cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', marginBottom: -1,
+                  }}>
+                  {c || 'All Carriers'}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Date row */}
+          {showDateFilter && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0.625rem 0.875rem', background: 'var(--navy-50)' }}>
+              <CalendarDaysIcon style={{ width: 14, height: 14, color: 'var(--navy-400)', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--navy-500)', whiteSpace: 'nowrap', fontFamily: FONT }}>From</label>
+                <input type="date" value={dateFrom} max={dateTo || undefined}
+                  onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+                  style={{ height: 32, padding: '0 8px', border: '1.5px solid var(--navy-200)', borderRadius: 7, fontSize: '0.78rem', color: 'var(--navy-800)', background: 'var(--bg-card)', outline: 'none', fontFamily: FONT }} />
+                <ArrowRightIcon style={{ width: 12, height: 12, color: 'var(--navy-300)' }} />
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--navy-500)', whiteSpace: 'nowrap', fontFamily: FONT }}>To</label>
+                <input type="date" value={dateTo} min={dateFrom || undefined}
+                  onChange={e => { setDateTo(e.target.value); setPage(1); }}
+                  style={{ height: 32, padding: '0 8px', border: '1.5px solid var(--navy-200)', borderRadius: 7, fontSize: '0.78rem', color: 'var(--navy-800)', background: 'var(--bg-card)', outline: 'none', fontFamily: FONT }} />
+                {(dateFrom || dateTo) && (
+                  <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', display: 'flex', padding: 2 }}>
+                    <XMarkIcon style={{ width: 13, height: 13 }} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Table ────────────────────────────────────────────────────────────── */}
+        <div className="db-card" style={{ overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--navy-50)' }}>
+                  {['#', 'Tracking & Carrier', 'Route', 'User', 'Vendor', 'Price', 'Date', 'Tracking Status', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '0.65rem 0.875rem', textAlign: 'left', fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap', borderBottom: '1.5px solid var(--navy-200)', fontFamily: FONT }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ) : (
-                filtered.map((label, idx) => {
-                  const theme    = CC[label.carrier] ?? { bg: '#F8FAFC', color: '#475569', border: '#E2E8F0', accent: '#94A3B8' };
-                  const rowNum   = (page - 1) * 35 + idx + 1;
-                  const isMenuOpen = openAction === label._id;
-
-                  return (
-                    <tr key={label._id}
-                      style={{ borderBottom: '1px solid var(--navy-100)', transition: 'background 0.12s', position: 'relative' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-
-                      {/* # */}
-                      <td style={{ padding: '0.875rem 0.875rem 0.875rem 1rem', width: 40 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 3, height: 36, borderRadius: 2, background: theme.accent, flexShrink: 0 }} />
-                          <span style={{ fontSize: '0.7rem', color: '#CBD5E1', fontWeight: 700 }}>{String(rowNum).padStart(2, '0')}</span>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '4rem', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <TagIcon style={{ width: 26, height: 26, color: 'var(--navy-300)' }} />
                         </div>
-                      </td>
-
-                      {/* Tracking & Carrier */}
-                      <td style={{ padding: '0.875rem 0.875rem', minWidth: 170 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <span style={{ background: theme.bg, color: theme.color, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '2px 7px', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em' }}>
-                            {label.carrier}
-                          </span>
-                          {label.status === 'generated' && (
-                            <CheckCircleIcon style={{ width: 13, height: 13, color: '#22C55E', flexShrink: 0 }} />
-                          )}
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--navy-700)', fontFamily: FONT }}>No labels found</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--navy-400)', fontFamily: FONT }}>
+                          {hasFilters ? 'Try adjusting your filters or clearing them.' : 'Labels you generate will appear here.'}
                         </div>
-                        {label.trackingId ? (
-                          <a
-                            href={getTrackUrl(label.carrier, label.trackingId)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Track this shipment"
-                            style={{ fontFamily: 'monospace', fontSize: '0.73rem', color: 'var(--navy-800)', fontWeight: 600, textDecoration: 'none', display: 'block', maxWidth: 155, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                            onMouseEnter={e => (e.currentTarget.style.color = theme.color)}
-                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--navy-800)')}
-                          >
-                            {label.trackingId}
-                          </a>
-                        ) : (
-                          <span style={{ fontSize: '0.72rem', color: '#CBD5E1' }}>No tracking ID</span>
-                        )}
-                      </td>
-
-                      {/* Route: From → To */}
-                      <td style={{ padding: '0.875rem 0.875rem', minWidth: 180 }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>From</div>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{label.from_name}</div>
-                            <div style={{ fontSize: '0.68rem', color: '#94A3B8' }}>{label.from_city}, {label.from_state}</div>
-                          </div>
-                          <ArrowRightIcon style={{ width: 12, height: 12, color: '#CBD5E1', marginTop: 14, flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>To</div>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{label.to_name}</div>
-                            <div style={{ fontSize: '0.68rem', color: '#94A3B8' }}>{label.to_city}, {label.to_state}</div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* User */}
-                      <td style={{ padding: '0.875rem 0.875rem', minWidth: 130 }}>
-                        {label.user ? (
-                          <div>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1E293B' }}>{label.user.firstName} {label.user.lastName}</div>
-                            <div style={{ fontSize: '0.68rem', color: '#94A3B8', marginTop: 1, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label.user.email}</div>
-                          </div>
-                        ) : <span style={{ fontSize: '0.72rem', color: '#CBD5E1' }}>—</span>}
-                      </td>
-
-                      {/* Vendor */}
-                      <td style={{ padding: '0.875rem 0.875rem', minWidth: 110 }}>
-                        <div style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 500, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label.vendorName || '—'}</div>
-                        {label.shippingService && <div style={{ fontSize: '0.65rem', color: '#94A3B8', marginTop: 1 }}>{label.shippingService}</div>}
-                      </td>
-
-                      {/* Price */}
-                      <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap' }}>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#15803D', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
-                          ${(label.price ?? 0).toFixed(2)}
-                        </span>
-                      </td>
-
-                      {/* Date */}
-                      <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap', minWidth: 90 }}>
-                        <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#1E293B' }}>
-                          {new Date(label.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </div>
-                        <div style={{ fontSize: '0.67rem', color: '#94A3B8', marginTop: 1 }}>
-                          {new Date(label.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </td>
-
-                      {/* Tracking Status */}
-                      <td style={{ padding: '0.875rem 0.875rem', minWidth: 170 }}>
-                        {(() => {
-                          const ts = resolveTs(label.trackingStatus);
-                          const cfg = TS_CONFIG[ts];
-                          return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {isAdmin ? (
-                                <select
-                                  value={ts}
-                                  onChange={e => handleUpdateTrackingStatus(label._id, e.target.value)}
-                                  style={{
-                                    flex: 1, height: 28, paddingLeft: 7, paddingRight: 22,
-                                    border: `1.5px solid ${cfg.border}`, borderRadius: 6,
-                                    fontSize: '0.68rem', fontWeight: 700, color: cfg.color,
-                                    backgroundColor: cfg.bg, cursor: 'pointer', outline: 'none',
-                                    appearance: 'none' as const,
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394A3B8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 5px center', backgroundSize: 13,
-                                  }}>
-                                  {TS_OPTIONS.map(k => <option key={k} value={k}>{TS_CONFIG[k].label}</option>)}
-                                </select>
-                              ) : (
-                                <span
-                                  onClick={() => setHistoryLabel(label)}
-                                  style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '3px 9px', fontSize: '0.65rem', fontWeight: 700, display: 'inline-block', whiteSpace: 'nowrap', cursor: 'pointer' }}>
-                                  {cfg.label}
-                                </span>
-                              )}
-                              {/* History icon */}
-                              <button
-                                onClick={() => setHistoryLabel(label)}
-                                title="View status history"
-                                style={{ width: 26, height: 26, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--navy-200)', borderRadius: 6, background: 'var(--navy-50)', color: 'var(--navy-400)', cursor: 'pointer', transition: 'all 0.15s' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = '#EEF2FF'; e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'var(--navy-50)'; e.currentTarget.style.borderColor = 'var(--navy-200)'; e.currentTarget.style.color = 'var(--navy-400)'; }}>
-                                <ClockIcon style={{ width: 11, height: 11 }} />
-                              </button>
-                            </div>
-                          );
-                        })()}
-                      </td>
-
-                      {/* Actions */}
-                      <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-
-                          {/* Return */}
-                          <button
-                            onClick={() => handleReturn(label)}
-                            title="Return label"
-                            style={{ height: 30, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 9px', border: '1.5px solid #E0E7FF', borderRadius: 7, background: '#EEF2FF', color: '#4F46E5', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#E0E7FF'; e.currentTarget.style.borderColor = '#6366F1'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#EEF2FF'; e.currentTarget.style.borderColor = '#E0E7FF'; }}>
-                            <ArrowUturnLeftIcon style={{ width: 11, height: 11 }} />
-                            Return
+                        {hasFilters && (
+                          <button onClick={resetFilters} style={{ marginTop: 4, padding: '6px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+                            Clear Filters
                           </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((label, idx) => {
+                    const theme     = CC[label.carrier] ?? { bg: '#F8FAFC', color: '#475569', border: '#E2E8F0', accent: '#94A3B8' };
+                    const rowNum    = (page - 1) * 35 + idx + 1;
+                    const isMenuOpen = openAction === label._id;
 
-                          {/* Track */}
-                          {label.trackingId && (
+                    return (
+                      <tr
+                        key={label._id}
+                        style={{ borderBottom: '1px solid var(--navy-100)', transition: 'background 0.1s', position: 'relative' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+
+                        {/* # */}
+                        <td style={{ padding: '0.875rem 0.875rem 0.875rem 1rem', width: 40 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 3, height: 34, borderRadius: 2, background: theme.accent, flexShrink: 0 }} />
+                            <span style={{ fontSize: '0.68rem', color: 'var(--navy-300)', fontWeight: 700, fontFamily: FONT }}>{String(rowNum).padStart(2, '0')}</span>
+                          </div>
+                        </td>
+
+                        {/* Tracking & Carrier */}
+                        <td style={{ padding: '0.875rem 0.875rem', minWidth: 175 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <span style={{ background: theme.bg, color: theme.color, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '2px 7px', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em', fontFamily: FONT }}>
+                              {label.carrier}
+                            </span>
+                            {label.status === 'generated' && (
+                              <CheckCircleIcon style={{ width: 13, height: 13, color: '#22C55E', flexShrink: 0 }} />
+                            )}
+                          </div>
+                          {label.trackingId ? (
                             <a
                               href={getTrackUrl(label.carrier, label.trackingId)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={`Track on ${label.carrier}`}
-                              style={{ height: 30, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 9px', border: `1.5px solid ${theme.border}`, borderRadius: 7, background: theme.bg, color: theme.color, fontSize: '0.68rem', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'filter 0.15s', whiteSpace: 'nowrap' }}
-                              onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.93)')}
-                              onMouseLeave={e => (e.currentTarget.style.filter = 'none')}>
-                              <TruckIcon style={{ width: 11, height: 11 }} />
-                              Track
+                              target="_blank" rel="noopener noreferrer"
+                              style={{ fontFamily: 'monospace', fontSize: '0.73rem', color: 'var(--navy-800)', fontWeight: 600, textDecoration: 'none', display: 'block', maxWidth: 155, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                              onMouseEnter={e => (e.currentTarget.style.color = theme.color)}
+                              onMouseLeave={e => (e.currentTarget.style.color = 'var(--navy-800)')}>
+                              {label.trackingId}
                             </a>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--navy-300)', fontFamily: FONT }}>No tracking ID</span>
                           )}
+                        </td>
 
-                          {/* View + Download dropdown */}
-                          {label.pdfUrl && (
-                            <div style={{ position: 'relative' }}>
-                              <button
-                                onClick={e => { e.stopPropagation(); setOpenAction(isMenuOpen ? null : label._id); }}
-                                title="PDF options"
-                                style={{ height: 30, width: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--navy-200)', borderRadius: 7, background: isMenuOpen ? 'var(--navy-100)' : 'var(--bg-card)', color: 'var(--navy-500)', cursor: 'pointer', transition: 'all 0.15s' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--navy-100)'; e.currentTarget.style.borderColor = 'var(--navy-300)'; }}
-                                onMouseLeave={e => { if (!isMenuOpen) { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--navy-200)'; } }}>
-                                <FunnelIcon style={{ width: 13, height: 13 }} />
-                              </button>
-
-                              {isMenuOpen && (
-                                <div
-                                  onClick={e => e.stopPropagation()}
-                                  style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 150, overflow: 'hidden' }}>
-                                  <button
-                                    onClick={() => { openPdf(label); setOpenAction(null); }}
-                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0.625rem 0.875rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--navy-800)', fontWeight: 600, textAlign: 'left', transition: 'background 0.12s' }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                                    <EyeIcon style={{ width: 14, height: 14, color: '#64748B', flexShrink: 0 }} />
-                                    View PDF
-                                  </button>
-                                  <div style={{ height: 1, background: 'var(--navy-100)', margin: '0 0.625rem' }} />
-                                  <button
-                                    onClick={() => { downloadLabelPdf(label._id, label.trackingId); setOpenAction(null); }}
-                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0.625rem 0.875rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--navy-800)', fontWeight: 600, textAlign: 'left', transition: 'background 0.12s' }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                                    <ArrowDownTrayIcon style={{ width: 14, height: 14, color: '#64748B', flexShrink: 0 }} />
-                                    Download PDF
-                                  </button>
-                                </div>
-                              )}
+                        {/* Route */}
+                        <td style={{ padding: '0.875rem 0.875rem', minWidth: 190 }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '0.57rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2, fontFamily: FONT }}>From</div>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100, fontFamily: FONT }}>{label.from_name}</div>
+                              <div style={{ fontSize: '0.67rem', color: 'var(--navy-400)', fontFamily: FONT }}>{label.from_city}, {label.from_state}</div>
                             </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                            <ArrowRightIcon style={{ width: 12, height: 12, color: 'var(--navy-300)', marginTop: 13, flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '0.57rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2, fontFamily: FONT }}>To</div>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100, fontFamily: FONT }}>{label.to_name}</div>
+                              <div style={{ fontSize: '0.67rem', color: 'var(--navy-400)', fontFamily: FONT }}>{label.to_city}, {label.to_state}</div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* User */}
+                        <td style={{ padding: '0.875rem 0.875rem', minWidth: 130 }}>
+                          {label.user ? (
+                            <div>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-800)', fontFamily: FONT }}>{label.user.firstName} {label.user.lastName}</div>
+                              <div style={{ fontSize: '0.67rem', color: 'var(--navy-400)', marginTop: 1, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>{label.user.email}</div>
+                            </div>
+                          ) : <span style={{ fontSize: '0.72rem', color: 'var(--navy-300)', fontFamily: FONT }}>—</span>}
+                        </td>
+
+                        {/* Vendor */}
+                        <td style={{ padding: '0.875rem 0.875rem', minWidth: 110 }}>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--navy-600)', fontWeight: 500, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>{label.vendorName || '—'}</div>
+                          {label.shippingService && <div style={{ fontSize: '0.64rem', color: 'var(--navy-400)', marginTop: 1, fontFamily: FONT }}>{label.shippingService}</div>}
+                        </td>
+
+                        {/* Price */}
+                        <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#15803D', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: '3px 8px', display: 'inline-block', fontFamily: FONT }}>
+                            ${(label.price ?? 0).toFixed(2)}
+                          </span>
+                        </td>
+
+                        {/* Date */}
+                        <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap', minWidth: 90 }}>
+                          <div style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--navy-800)', fontFamily: FONT }}>
+                            {new Date(label.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--navy-400)', marginTop: 1, fontFamily: FONT }}>
+                            {new Date(label.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </td>
+
+                        {/* Tracking Status */}
+                        <td style={{ padding: '0.875rem 0.875rem', minWidth: 175 }}>
+                          {(() => {
+                            const ts  = resolveTs(label.trackingStatus);
+                            const cfg = TS_CONFIG[ts];
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                {isAdmin ? (
+                                  <select
+                                    value={ts}
+                                    onChange={e => handleUpdateTrackingStatus(label._id, e.target.value)}
+                                    style={{ flex: 1, height: 28, paddingLeft: 7, paddingRight: 22, border: `1.5px solid ${cfg.border}`, borderRadius: 6, fontSize: '0.68rem', fontWeight: 700, color: cfg.color, backgroundColor: cfg.bg, cursor: 'pointer', outline: 'none', appearance: 'none' as const, fontFamily: FONT, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394A3B8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 5px center', backgroundSize: 13 }}>
+                                    {TS_OPTIONS.map(k => <option key={k} value={k}>{TS_CONFIG[k].label}</option>)}
+                                  </select>
+                                ) : (
+                                  <span
+                                    onClick={() => setHistoryLabel(label)}
+                                    style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '3px 9px', fontSize: '0.65rem', fontWeight: 700, display: 'inline-block', whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: FONT }}>
+                                    {cfg.label}
+                                  </span>
+                                )}
+                                <button
+                                  onClick={() => setHistoryLabel(label)}
+                                  title="View status history"
+                                  style={{ width: 26, height: 26, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--navy-200)', borderRadius: 6, background: 'var(--bg-card)', color: 'var(--navy-400)', cursor: 'pointer', transition: 'all 0.15s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = '#EEF2FF'; e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#6366f1'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--navy-200)'; e.currentTarget.style.color = 'var(--navy-400)'; }}>
+                                  <ClockIcon style={{ width: 11, height: 11 }} />
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+
+                            {/* Return */}
+                            <button
+                              onClick={() => handleReturn(label)}
+                              title="Return label"
+                              style={{ height: 30, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 9px', border: '1.5px solid #E0E7FF', borderRadius: 7, background: '#EEF2FF', color: '#4F46E5', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', fontFamily: FONT }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#E0E7FF'; e.currentTarget.style.borderColor = '#6366F1'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = '#EEF2FF'; e.currentTarget.style.borderColor = '#E0E7FF'; }}>
+                              <ArrowUturnLeftIcon style={{ width: 11, height: 11 }} />
+                              Return
+                            </button>
+
+                            {/* Track */}
+                            {label.trackingId && (
+                              <a
+                                href={getTrackUrl(label.carrier, label.trackingId)}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ height: 30, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 9px', border: `1.5px solid ${theme.border}`, borderRadius: 7, background: theme.bg, color: theme.color, fontSize: '0.68rem', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'filter 0.15s', whiteSpace: 'nowrap', fontFamily: FONT }}
+                                onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.93)')}
+                                onMouseLeave={e => (e.currentTarget.style.filter = 'none')}>
+                                <TruckIcon style={{ width: 11, height: 11 }} />
+                                Track
+                              </a>
+                            )}
+
+                            {/* PDF dropdown */}
+                            {label.pdfUrl && (
+                              <div style={{ position: 'relative' }}>
+                                <button
+                                  onClick={e => { e.stopPropagation(); setOpenAction(isMenuOpen ? null : label._id); }}
+                                  title="PDF options"
+                                  style={{ height: 30, width: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--navy-200)', borderRadius: 7, background: isMenuOpen ? 'var(--navy-100)' : 'var(--bg-card)', color: 'var(--navy-500)', cursor: 'pointer', transition: 'all 0.15s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--navy-100)'; e.currentTarget.style.borderColor = 'var(--navy-300)'; }}
+                                  onMouseLeave={e => { if (!isMenuOpen) { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--navy-200)'; } }}>
+                                  <ArrowDownTrayIcon style={{ width: 13, height: 13 }} />
+                                </button>
+
+                                {isMenuOpen && (
+                                  <div
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', borderRadius: 10, boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: 150, overflow: 'hidden' }}>
+                                    <button
+                                      onClick={() => { openPdf(label); setOpenAction(null); }}
+                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0.625rem 0.875rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--navy-800)', fontWeight: 600, textAlign: 'left', transition: 'background 0.12s', fontFamily: FONT }}
+                                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                      <EyeIcon style={{ width: 14, height: 14, color: 'var(--navy-500)', flexShrink: 0 }} />
+                                      View PDF
+                                    </button>
+                                    <div style={{ height: 1, background: 'var(--navy-100)', margin: '0 0.625rem' }} />
+                                    <button
+                                      onClick={() => { downloadLabelPdf(label._id, label.trackingId); setOpenAction(null); }}
+                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0.625rem 0.875rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--navy-800)', fontWeight: 600, textAlign: 'left', transition: 'background 0.12s', fontFamily: FONT }}
+                                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                      <ArrowDownTrayIcon style={{ width: 14, height: 14, color: 'var(--navy-500)', flexShrink: 0 }} />
+                                      Download PDF
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {!isLoading && totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderTop: '1px solid var(--navy-100)', background: 'var(--navy-50)' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)', fontWeight: 500, fontFamily: FONT }}>
+                Showing {(page - 1) * 35 + 1}–{Math.min(page * 35, total)} of <strong style={{ color: 'var(--navy-600)' }}>{total}</strong> labels
+              </span>
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => p - 1)}
+                  style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--navy-200)', borderRadius: 7, background: page <= 1 ? 'var(--navy-50)' : 'var(--bg-card)', color: page <= 1 ? 'var(--navy-300)' : 'var(--navy-600)', cursor: page <= 1 ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>
+                  <ChevronLeftIcon style={{ width: 13, height: 13 }} />
+                </button>
+
+                {pageNums.map(n =>
+                  n < 0 ? (
+                    <span key={`ellipsis-${n}`} style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--navy-300)', fontFamily: FONT }}>…</span>
+                  ) : (
+                    <button
+                      key={n}
+                      onClick={() => setPage(n)}
+                      style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${n === page ? '#6366f1' : 'var(--navy-200)'}`, borderRadius: 7, background: n === page ? '#6366f1' : 'var(--bg-card)', color: n === page ? '#fff' : 'var(--navy-600)', fontSize: '0.75rem', fontWeight: n === page ? 700 : 500, cursor: 'pointer', transition: 'all 0.15s', fontFamily: FONT }}>
+                      {n}
+                    </button>
+                  )
+                )}
+
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                  style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--navy-200)', borderRadius: 7, background: page >= totalPages ? 'var(--navy-50)' : 'var(--bg-card)', color: page >= totalPages ? 'var(--navy-300)' : 'var(--navy-600)', cursor: page >= totalPages ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>
+                  <ChevronRightIcon style={{ width: 13, height: 13 }} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Pagination ── */}
-        {!isLoading && totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderTop: '1.5px solid var(--navy-100)', background: 'var(--navy-50)' }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)', fontWeight: 500 }}>
-              Showing {(page - 1) * 35 + 1}–{Math.min(page * 35, total)} of <strong style={{ color: 'var(--navy-600)' }}>{total}</strong> labels
-            </span>
-            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-                style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #E2E8F0', borderRadius: 7, background: page <= 1 ? '#F8FAFC' : '#fff', color: page <= 1 ? '#CBD5E1' : '#475569', cursor: page <= 1 ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>
-                <ChevronLeftIcon style={{ width: 13, height: 13 }} />
-              </button>
-
-              {pageNums.map((n) =>
-                n < 0 ? (
-                  <span key={`ellipsis-${n}`} style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: '#CBD5E1' }}>…</span>
-                ) : (
-                  <button
-                    key={n}
-                    onClick={() => setPage(n)}
-                    style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${n === page ? '#6366f1' : '#E2E8F0'}`, borderRadius: 7, background: n === page ? '#6366f1' : '#fff', color: n === page ? '#fff' : '#475569', fontSize: '0.75rem', fontWeight: n === page ? 700 : 500, cursor: 'pointer', transition: 'all 0.15s' }}>
-                    {n}
-                  </button>
-                )
-              )}
-
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => p + 1)}
-                style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #E2E8F0', borderRadius: 7, background: page >= totalPages ? '#F8FAFC' : '#fff', color: page >= totalPages ? '#CBD5E1' : '#475569', cursor: page >= totalPages ? 'not-allowed' : 'pointer', transition: 'all 0.15s' }}>
-                <ChevronRightIcon style={{ width: 13, height: 13 }} />
-              </button>
-            </div>
-          </div>
+        {viewPdf && <PdfModal url={viewPdf.url} trackingId={viewPdf.trackingId} onClose={() => setViewPdf(null)} />}
+        {historyLabel && (
+          <StatusHistoryModal
+            label={historyLabel}
+            isAdmin={isAdmin}
+            onClose={() => setHistoryLabel(null)}
+            onSave={handleUpdateTrackingStatus}
+          />
         )}
+
       </div>
-
-      {viewPdf && <PdfModal url={viewPdf.url} trackingId={viewPdf.trackingId} onClose={() => setViewPdf(null)} />}
-      {historyLabel && (
-        <StatusHistoryModal
-          label={historyLabel}
-          isAdmin={isAdmin}
-          onClose={() => setHistoryLabel(null)}
-          onSave={handleUpdateTrackingStatus}
-        />
-      )}
-
-      <style>{`
-        @keyframes shimmer {
-          0%   { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
-    </div>
+    </>
   );
 };
 

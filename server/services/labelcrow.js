@@ -17,6 +17,16 @@ const getKey = () => {
 function apiRequest(method, urlPath, data = null) {
   return new Promise((resolve, reject) => {
     const body = data ? JSON.stringify(data) : null;
+
+    // Log request — redact labels array to just a count
+    if (data) {
+      const logSafe = { ...data };
+      if (Array.isArray(logSafe.labels)) logSafe.labels = `[${logSafe.labels.length} labels]`;
+      console.log(`[LC] → ${method} ${urlPath}`, logSafe);
+    } else {
+      console.log(`[LC] → ${method} ${urlPath}`);
+    }
+
     const options = {
       hostname: LC_HOST,
       port:     443,
@@ -36,19 +46,28 @@ function apiRequest(method, urlPath, data = null) {
         try {
           const json = JSON.parse(raw);
           if (res.statusCode >= 200 && res.statusCode < 300) {
+            console.log(`[LC] ← ${res.statusCode} ${urlPath}`, JSON.stringify(json.data ?? json).slice(0, 300));
             resolve(json);
           } else {
             const msg = json?.error?.message || json?.message
               || `Label Crow API error ${res.statusCode}`;
+            console.error(`[LC] ← ERROR ${res.statusCode} ${urlPath}`, {
+              error: json?.error || json,
+              raw: raw.slice(0, 500),
+            });
             reject(new Error(msg));
           }
         } catch {
+          console.error(`[LC] ← Invalid JSON from ${urlPath}:`, raw.slice(0, 300));
           reject(new Error(`Invalid JSON from Label Crow: ${raw.slice(0, 200)}`));
         }
       });
     });
 
-    req.on('error', reject);
+    req.on('error', err => {
+      console.error(`[LC] Network error on ${method} ${urlPath}:`, err.message);
+      reject(err);
+    });
     if (body) req.write(body);
     req.end();
   });
@@ -80,7 +99,7 @@ function apiBinaryRequest(urlPath) {
   });
 }
 
-// ── Map our flat CSV row to Label Crow bulk label format ───────
+// ── Map our flat row to Label Crow bulk label format ──────────
 function mapRow(row) {
   return {
     fromName:   row.from_name     || '',
@@ -94,10 +113,13 @@ function mapRow(row) {
     toState:    row.to_state      || '',
     toZip:      row.to_zip        || '',
     weight:     parseFloat(row.weight) || 0,
-    ...(row.from_address2 ? { fromStreet2: row.from_address2 } : {}),
-    ...(row.to_address2   ? { toStreet2:   row.to_address2   } : {}),
-    ...(row.from_company  ? { fromCompany: row.from_company  } : {}),
-    ...(row.to_company    ? { toCompany:   row.to_company    } : {}),
+    ...(row.from_address2 ? { fromStreet2:    row.from_address2 } : {}),
+    ...(row.to_address2   ? { toStreet2:      row.to_address2   } : {}),
+    ...(row.from_company  ? { fromCompany:    row.from_company  } : {}),
+    ...(row.to_company    ? { toCompany:      row.to_company    } : {}),
+    ...(row.from_phone    ? { fromPhone:      row.from_phone    } : {}),
+    ...(row.to_phone      ? { toPhone:        row.to_phone      } : {}),
+    ...(row.note          ? { order_number:   row.note          } : {}),
   };
 }
 
@@ -106,14 +128,20 @@ function mapRow(row) {
  * Returns { jobId, orderId, totalLabels }
  */
 async function submitBulkJob({ seriesId, carrier, serviceClass, providerKey, labels }) {
+  console.log('[LC] submitBulkJob params:', { seriesId, carrier, serviceClass, providerKey, labelCount: labels.length });
+  const mappedLabels = labels.map(mapRow);
+  console.log('[LC] First mapped label:', JSON.stringify(mappedLabels[0]));
+  console.log('[LC] Last mapped label:', JSON.stringify(mappedLabels[mappedLabels.length - 1]));
+
   const res = await apiRequest('POST', '/api/v1/labels/bulk', {
     carrier,
     service_class: serviceClass,
     provider_key:  providerKey,
     series_id:     seriesId,
-    labels:        labels.map(mapRow),
+    labels:        mappedLabels,
   });
   const d = res.data;
+  console.log('[LC] submitBulkJob result:', { jobId: d.job_id, orderId: d.order_id, totalLabels: d.total_labels });
   return { jobId: d.job_id, orderId: d.order_id, totalLabels: d.total_labels };
 }
 
@@ -123,7 +151,9 @@ async function submitBulkJob({ seriesId, carrier, serviceClass, providerKey, lab
  */
 async function pollJob(jobId) {
   const res = await apiRequest('GET', `/api/v1/jobs/${jobId}`);
-  return res.data;
+  const d   = res.data;
+  console.log('[LC] pollJob result:', { jobId: d.job_id, status: d.status, generated: d.generated, failed: d.failed, total: d.total });
+  return d;
 }
 
 /**

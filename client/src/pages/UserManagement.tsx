@@ -95,6 +95,10 @@ const UserManagement: React.FC = () => {
   const [userForm,    setUserForm]    = useState(blank);
   const [submitting,  setSubmitting]  = useState(false);
 
+  // ── Reset password ───────────────────────────────────────────
+  const [resetPwd,     setResetPwd]     = useState('');
+  const [resettingPwd, setResettingPwd] = useState(false);
+
   // ── Balance tab ──────────────────────────────────────────────
   const [balance,      setBalance]      = useState<Balance | null>(null);
   const [loadingBal,   setLoadingBal]   = useState(false);
@@ -273,6 +277,7 @@ const UserManagement: React.FC = () => {
     setIsCreating(false);
     setActiveTab('edit');
     setBalAction('');
+    setResetPwd('');
     setShowPayForm(false);
     setBalance(null);   // clear stale balance so old user's data doesn't flash
     setShowAllTx(false);
@@ -390,6 +395,18 @@ const UserManagement: React.FC = () => {
       await axios.delete(`/vendors/${vendorId}`);
       if (selectedUser) fetchTiers(selectedUser.id);
     } catch (err: any) { setError(err.response?.data?.message || 'Failed to delete vendor'); }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || !resetPwd) return;
+    setResettingPwd(true);
+    try {
+      await axios.post(`/users/${selectedUser.id}/reset-password`, { password: resetPwd });
+      setMessage('Password reset successfully');
+      setResetPwd('');
+    } catch (err: any) { setError(err.response?.data?.message || 'Failed to reset password'); }
+    finally { setResettingPwd(false); }
   };
 
   const filtered = users.filter(u =>
@@ -626,9 +643,20 @@ const UserManagement: React.FC = () => {
                     {isCreating && (
                       <div>
                         <label className="form-label">Password</label>
-                        <input type="password" required minLength={12} className="form-input" value={userForm.password}
-                          onChange={e => setUserForm({ ...userForm, password: e.target.value })} />
-                        <p style={{ fontSize: '0.72rem', color: 'var(--navy-400)', marginTop: 3 }}>Minimum 12 characters</p>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input type="text" required minLength={5} maxLength={5} className="form-input" value={userForm.password}
+                            onChange={e => setUserForm({ ...userForm, password: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+                            style={{ letterSpacing: '0.25em', fontWeight: 600 }} />
+                          <button type="button" className="btn btn-secondary" style={{ whiteSpace: 'nowrap', padding: '6px 10px', fontSize: '0.78rem' }}
+                            onClick={() => setUserForm({ ...userForm, password: String(Math.floor(10000 + Math.random() * 90000)) })}>
+                            Generate
+                          </button>
+                          <button type="button" className="btn btn-secondary" style={{ whiteSpace: 'nowrap', padding: '6px 10px', fontSize: '0.78rem' }}
+                            onClick={() => userForm.password && navigator.clipboard.writeText(userForm.password)}>
+                            Copy
+                          </button>
+                        </div>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--navy-400)', marginTop: 3 }}>5-digit numeric password</p>
                       </div>
                     )}
                     <div>
@@ -655,6 +683,43 @@ const UserManagement: React.FC = () => {
                       )}
                       <button type="submit" disabled={submitting} className="btn btn-primary btn-sm">
                         {submitting ? (isCreating ? 'Creating…' : 'Saving…') : (isCreating ? 'Create User' : 'Save Changes')}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* ── Reset Password (existing users only) ── */}
+                {activeTab === 'edit' && !isCreating && selectedUser && (
+                  <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', maxWidth: 480, marginTop: '0.25rem', paddingTop: '1rem', borderTop: '1px solid var(--navy-100)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy-700)' }}>Reset Password</div>
+                    <div>
+                      <label className="form-label">New Password</label>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          required
+                          minLength={5}
+                          maxLength={5}
+                          className="form-input"
+                          value={resetPwd}
+                          onChange={e => setResetPwd(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                          placeholder="5-digit PIN"
+                          style={{ letterSpacing: '0.25em', fontWeight: 600 }}
+                        />
+                        <button type="button" className="btn btn-secondary" style={{ whiteSpace: 'nowrap', padding: '6px 10px', fontSize: '0.78rem' }}
+                          onClick={() => setResetPwd(String(Math.floor(10000 + Math.random() * 90000)))}>
+                          Generate
+                        </button>
+                        <button type="button" className="btn btn-secondary" style={{ whiteSpace: 'nowrap', padding: '6px 10px', fontSize: '0.78rem' }}
+                          onClick={() => resetPwd && navigator.clipboard.writeText(resetPwd)}>
+                          Copy
+                        </button>
+                      </div>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--navy-400)', marginTop: 3 }}>5-digit numeric password</p>
+                    </div>
+                    <div>
+                      <button type="submit" disabled={resettingPwd || resetPwd.length !== 5} className="btn btn-danger btn-sm">
+                        {resettingPwd ? 'Resetting…' : 'Reset Password'}
                       </button>
                     </div>
                   </form>

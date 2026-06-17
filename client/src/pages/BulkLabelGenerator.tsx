@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import uspsLogo  from '../Logos/United_States_Postal_Service-Logo.wine.png';
 import upsLogo   from '../Logos/United_Parcel_Service-Logo.wine.png';
 import fedexLogo from '../Logos/FedEx_Express-Logo.wine.png';
@@ -177,6 +178,8 @@ const CARRIER_LOGOS: Record<string, string> = {
   USPS: uspsLogo, UPS: upsLogo, FedEx: fedexLogo, DHL: dhlLogo,
 };
 
+const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+
 const PORTALS = [
   { id: 'shippershub' as const, label: 'ShippersHub', accentColor: '#1D4ED8', selectedBg: '#EFF6FF', selectedBorder: '#1D4ED8' },
   { id: 'labelcrow'   as const, label: 'Label Crow',  accentColor: '#7C3AED', selectedBg: '#F5F3FF', selectedBorder: '#7C3AED' },
@@ -217,6 +220,142 @@ function downloadTemplate(carrier: string) {
   URL.revokeObjectURL(url);
 }
 
+// ── Label Crow XLSX format ────────────────────────────────────────────────────
+
+// ── Label Crow XLSX column map ────────────────────────────────────────────────
+const LC_XLSX_COL_MAP: Record<string, string> = {
+  fromName:    'from_name',
+  fromStreet:  'from_address1',
+  fromStreet2: 'from_address2',
+  fromCity:    'from_city',
+  fromState:   'from_state',
+  fromZip:     'from_zip',
+  fromPhone:   'from_phone',
+  toName:      'to_name',
+  toStreet:    'to_address1',
+  toStreet2:   'to_address2',
+  toCity:      'to_city',
+  toState:     'to_state',
+  toZip:       'to_zip',
+  toPhone:     'to_phone',
+  weight:      'weight',
+  length:      'length',
+  width:       'width',
+  height:      'height',
+  orderNum:    'note',
+};
+const LC_XLSX_HEADERS = Object.keys(LC_XLSX_COL_MAP);
+
+// ── ShipLabel XLSX column map ─────────────────────────────────────────────────
+const SL_XLSX_COL_MAP: Record<string, string> = {
+  No:           '__skip__',   // row number — ignored
+  FromName:     'from_name',
+  PhoneFrom:    'from_phone',
+  Street1From:  'from_address1',
+  CompanyFrom:  'from_company',
+  Street2From:  'from_address2',
+  CityFrom:     'from_city',
+  StateFrom:    'from_state',
+  PostalCodeFrom: 'from_zip',
+  ToName:       'to_name',
+  PhoneTo:      'to_phone',
+  Street1To:    'to_address1',
+  CompanyTo:    'to_company',
+  Street2To:    'to_address2',
+  CityTo:       'to_city',
+  ZipTo:        'to_zip',
+  StateTo:      'to_state',
+  Weight:       'weight',
+  length:       'length',
+  width:        'width',
+  height:       'height',
+  description:  'note',
+};
+const SL_XLSX_HEADERS = Object.keys(SL_XLSX_COL_MAP).filter(h => h !== 'No');
+
+// ── Shared: convert an Excel cell value to a clean string ─────────────────────
+// Handles scientific-notation phone numbers (e.g. 1.48E+10 → "14800000000")
+function xlsxCellToStr(val: any): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'number') {
+    // Round to avoid floating-point noise, then stringify
+    return String(Math.round(val));
+  }
+  return String(val).trim();
+}
+
+// ── Shared XLSX parser ────────────────────────────────────────────────────────
+function parseXLSXWithMap(
+  buffer: ArrayBuffer,
+  colMap: Record<string, string>,
+): { headers: string[]; rows: LabelRow[]; rawHeaders: string[] } {
+  const wb   = XLSX.read(buffer, { type: 'array' });
+  const ws   = wb.Sheets[wb.SheetNames[0]];
+  const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (data.length < 2) return { headers: [], rows: [], rawHeaders: [] };
+
+  // Normalized fallback: lowercase + no-spaces so "Postal Code" still matches "PostalCode"
+  const normMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(colMap)) {
+    normMap[k.toLowerCase().replace(/\s+/g, '')] = v;
+  }
+  const resolveCol = (h: string): string => {
+    if (colMap[h] !== undefined) return colMap[h];
+    const norm = h.toLowerCase().replace(/\s+/g, '');
+    if (normMap[norm] !== undefined) return normMap[norm];
+    return h.toLowerCase().replace(/\s+/g, '_');
+  };
+
+  const rawHeaders: string[] = data[0].map((h: any) => String(h).trim());
+  const internalHeaders = rawHeaders
+    .map(h => resolveCol(h))
+    .filter(h => h !== '__skip__');
+
+  const rows = data.slice(1)
+    .filter(r => r.some((c: any) => xlsxCellToStr(c)))
+    .map(r => {
+      const obj: LabelRow = {};
+      rawHeaders.forEach((h, i) => {
+        const key = resolveCol(h);
+        if (key === '__skip__') return;
+        obj[key] = xlsxCellToStr(r[i]);
+      });
+      return obj;
+    });
+
+  return { headers: internalHeaders, rows, rawHeaders };
+}
+
+function downloadLcXlsxTemplate() {
+  const sampleRow = [
+    'John Doe', '123 Main St', 'Suite 100', 'New York', 'NY', '10001', '555-123-4567',
+    'Jane Smith', '456 Oak Ave', '', 'Los Angeles', 'CA', '90001', '555-987-6543',
+    '5', '12', '10', '8', 'ORD-001',
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([LC_XLSX_HEADERS, sampleRow]);
+  ws['!cols'] = LC_XLSX_HEADERS.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Labels');
+  XLSX.writeFile(wb, 'labelcrow_bulk_template.xlsx');
+}
+
+function downloadSlXlsxTemplate() {
+  const headers   = ['No', ...SL_XLSX_HEADERS];
+  const sampleRow = [
+    '1', 'John Doe', '5551234567', '123 Main St', 'Acme Corp', 'Suite 100',
+    'New York', 'NY', '10001',
+    'Jane Smith', '5559876543', '456 Oak Ave', '', '',
+    'Los Angeles', '90001', 'CA',
+    '5', '12', '10', '8', 'Sample shipment',
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+  ws['!cols'] = headers.map((h, i) => ({ wch: i === 0 ? 5 : 16 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Labels');
+  XLSX.writeFile(wb, 'shiplabel_bulk_template.xlsx');
+}
+
+// ── CSV format ────────────────────────────────────────────────────────────────
 function parseCSV(text: string): { headers: string[]; rows: LabelRow[] } {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return { headers: [], rows: [] };
@@ -338,10 +477,14 @@ const BulkLabelGenerator: React.FC = () => {
   // ── Label Crow async state ───────────────────────────────────
   const [lcAsyncJob,    setLcAsyncJob]    = useState<LcAsyncJob | null>(null);
   const [lcJobProgress, setLcJobProgress] = useState<LcJobProgress | null>(null);
+  const [lcDebugLog,    setLcDebugLog]    = useState<string[]>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(true);
 
   // ── ShipLabel async state ────────────────────────────────────
-  const [slAsyncJob,    setSlAsyncJob]    = useState<SlAsyncJob | null>(null);
-  const [slJobProgress, setSlJobProgress] = useState<SlJobProgress | null>(null);
+  const [slAsyncJob,       setSlAsyncJob]       = useState<SlAsyncJob | null>(null);
+  const [slJobProgress,    setSlJobProgress]    = useState<SlJobProgress | null>(null);
+  const [slDebugLog,       setSlDebugLog]       = useState<string[]>([]);
+  const [showSlDebugPanel, setShowSlDebugPanel] = useState(true);
 
   const fileRef              = useRef<HTMLInputElement>(null);
   const isAutoModeRef        = useRef(false);
@@ -350,6 +493,24 @@ const BulkLabelGenerator: React.FC = () => {
   const slPollRef            = useRef<ReturnType<typeof setInterval> | null>(null);
 
   isAutoModeRef.current = isAutoMode;
+
+  // ── LC debug logger — appends to visible panel + browser console ─────────────
+  const lcLog = useCallback((msg: string, level: 'info' | 'warn' | 'error' = 'info') => {
+    const ts   = new Date().toISOString().replace('T', ' ').replace('Z', '').split('.')[0];
+    const line = `[${ts}] ${msg}`;
+    const fn   = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    fn(`[LC-DEBUG] ${msg}`);
+    setLcDebugLog(prev => [...prev.slice(-199), line]);
+  }, []);
+
+  // ── SL debug logger ────────────────────────────────────────────────────────────
+  const slLog = useCallback((msg: string, level: 'info' | 'warn' | 'error' = 'info') => {
+    const ts   = new Date().toISOString().replace('T', ' ').replace('Z', '').split('.')[0];
+    const line = `[${ts}] ${msg}`;
+    const fn   = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    fn(`[SL-DEBUG] ${msg}`);
+    setSlDebugLog(prev => [...prev.slice(-199), line]);
+  }, []);
 
   useEffect(() => {
     axios.get('/access/me')
@@ -521,13 +682,48 @@ const BulkLabelGenerator: React.FC = () => {
   };
 
   const processFile = (file: File) => {
-    if (!file.name.endsWith('.csv')) { setHeaderMissing(['Please upload a .csv file']); return; }
+    const isXlsx = /\.(xlsx|xls)$/i.test(file.name);
+    const isCsv  = /\.csv$/i.test(file.name);
+
+    const xlsxPortal = selectedPortal === 'labelcrow' || selectedPortal === 'shiplabel';
+    if (xlsxPortal) {
+      if (!isXlsx && !isCsv) { setHeaderMissing(['Please upload a .xlsx or .csv file']); return; }
+    } else {
+      if (!isCsv) { setHeaderMissing(['Please upload a .csv file']); return; }
+    }
+
     setFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const { headers, rows: parsedRows } = parseCSV(text);
+
+    const handleParsed = (headers: string[], parsedRows: LabelRow[], src: string, rawHdrs?: string[]) => {
       const missing = REQUIRED_COLS.filter(c => !headers.includes(c));
+      if (selectedPortal === 'labelcrow') {
+        console.group('[LC] File parsed');
+        console.log('Source:', src, '| rows:', parsedRows.length);
+        console.log('Headers (internal):', headers);
+        if (missing.length) console.warn('Missing required cols:', missing);
+        if (parsedRows[0]) console.log('Row 0 sample:', parsedRows[0]);
+        console.groupEnd();
+        lcLog(`File parsed — ${parsedRows.length} rows | format: ${src}${missing.length ? ` | MISSING: ${missing.join(', ')}` : ' | all required cols present'}`);
+      } else if (selectedPortal === 'shiplabel') {
+        console.group('[SL] File parsed');
+        console.log('Source:', src, '| rows:', parsedRows.length);
+        if (rawHdrs) console.log('Raw XLSX headers:', rawHdrs);
+        console.log('Mapped internal headers:', headers);
+        if (missing.length) console.warn('MISSING required cols:', missing);
+        if (parsedRows[0]) console.log('Row 0 sample:', parsedRows[0]);
+        console.groupEnd();
+        setSlDebugLog([]);  // clear on new upload
+        slLog(`File: ${src} | ${parsedRows.length} rows`);
+        if (rawHdrs) slLog(`Raw headers (${rawHdrs.length}): ${rawHdrs.join(' · ')}`);
+        slLog(`Mapped headers (${headers.length}): ${headers.join(' · ')}`);
+        if (missing.length) {
+          slLog(`MISSING required cols: ${missing.join(', ')}`, 'error');
+        } else {
+          slLog('All required columns present ✓');
+        }
+        if (parsedRows[0]) slLog(`Row 0: ${JSON.stringify(parsedRows[0])}`);
+      }
       setHeaderMissing(missing);
       if (missing.length === 0) {
         setRows(parsedRows);
@@ -538,7 +734,26 @@ const BulkLabelGenerator: React.FC = () => {
         setRowAssignments([]);
       }
     };
-    reader.readAsText(file);
+
+    if (isXlsx && selectedPortal === 'labelcrow') {
+      reader.onload = (e) => {
+        const { headers, rows: parsedRows, rawHeaders } = parseXLSXWithMap(e.target?.result as ArrayBuffer, LC_XLSX_COL_MAP);
+        handleParsed(headers, parsedRows, 'XLSX (LC camelCase)', rawHeaders);
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (isXlsx && selectedPortal === 'shiplabel') {
+      reader.onload = (e) => {
+        const { headers, rows: parsedRows, rawHeaders } = parseXLSXWithMap(e.target?.result as ArrayBuffer, SL_XLSX_COL_MAP);
+        handleParsed(headers, parsedRows, 'XLSX (SL format)', rawHeaders);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = (e) => {
+        const { headers, rows: parsedRows } = parseCSV(e.target?.result as string);
+        handleParsed(headers, parsedRows, 'CSV');
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleFileDrop  = (e: React.DragEvent) => {
@@ -556,23 +771,68 @@ const BulkLabelGenerator: React.FC = () => {
   const handleGenerateNormal = async () => {
     if (!selectedVendor || hasErrors || rows.length === 0) return;
     setIsGenerating(true); setGenError('');
+
+    const isLC = selectedPortal === 'labelcrow';
+    if (isLC) {
+      setLcDebugLog([]);
+      console.group('[LC] ── Bulk Submit ──');
+      console.log('Vendor:', selectedVendor.vendorName, '| id:', selectedVendor.vendorId);
+      console.log('Portal:', selectedPortal, '| carrier:', selectedVendor.carrier, '| service:', selectedVendor.shippingService);
+      console.log('Label count:', rows.length);
+      console.log('Row #1 (internal):', rows[0]);
+      console.groupEnd();
+      lcLog(`Submitting ${rows.length} labels → vendor: "${selectedVendor.vendorName}" (${selectedVendor.vendorId}) | ${selectedVendor.carrier} ${selectedVendor.shippingService}`);
+    }
+
     try {
       const res = await axios.post('/labels/bulk', { vendorId: selectedVendor.vendorId, labels: rows });
+
+      if (isLC) {
+        console.group('[LC] Submit response');
+        console.log('HTTP status:', res.status);
+        console.log('Response type:', res.data.type);
+        console.log('Full response:', res.data);
+        console.groupEnd();
+        lcLog(`Response ${res.status} — type: ${res.data.type}`);
+      }
+
       if (res.data.type === 'manifest') {
         setManifestResult(res.data as ManifestResult);
       } else if (res.data.type === 'labelcrow-async') {
+        if (isLC) lcLog(`Job accepted — LC jobId: ${res.data.lcJobId} | orderId: ${res.data.lcOrderId} | total: ${res.data.total}`);
         setLcAsyncJob(res.data as LcAsyncJob);
         startLcPoll(res.data.lcJobId);
       } else if (res.data.type === 'shiplabel-async') {
+        slLog(`Job accepted — bulkJobId: ${res.data.bulkJobId} | total: ${res.data.total}`);
         setSlAsyncJob(res.data as SlAsyncJob);
         startSlPoll(res.data.bulkJobId);
       } else {
         setApiResult(res.data as ApiResult);
       }
     } catch (err: any) {
-      const data = err.response?.data;
+      const data    = err.response?.data;
+      const status  = err.response?.status;
+      const errCode = data?.error?.code || data?.code || '';
+      const errMsg  = data?.error?.message || data?.message || err.message || 'Failed to generate labels';
+
+      if (isLC) {
+        console.group('[LC] Submit ERROR');
+        console.error('HTTP status:', status);
+        console.error('Error code:', errCode || '(none)');
+        console.error('Error message:', errMsg);
+        console.error('Full response data:', data);
+        console.error('Raw error:', err);
+        console.groupEnd();
+        lcLog(`ERROR ${status} ${errCode ? `[${errCode}]` : ''}: ${errMsg}`, 'error');
+        if (data?.error) lcLog(`API error detail: ${JSON.stringify(data.error)}`, 'error');
+      }
+      if (selectedPortal === 'shiplabel') {
+        slLog(`Submit ERROR ${status || ''}: ${errMsg}`, 'error');
+        if (data?.message) slLog(`Server: ${data.message}`, 'error');
+      }
+
       if (data?.errors?.length) setGenError(data.errors.map((e: any) => e.msg).join(' · '));
-      else setGenError(data?.message || 'Failed to generate labels');
+      else setGenError(errCode ? `[${errCode}] ${errMsg}` : errMsg);
     } finally {
       setIsGenerating(false);
     }
@@ -713,13 +973,26 @@ const BulkLabelGenerator: React.FC = () => {
 
   const startLcPoll = (jobId: string) => {
     stopLcPoll();
+    let tick = 0;
+    lcLog(`Poll started for job ${jobId} — interval: 2500ms`);
     lcPollRef.current = setInterval(async () => {
+      tick++;
       try {
         const res = await axios.get(`/labels/labelcrow-job/${jobId}`);
-        setLcJobProgress(res.data);
-        if (res.data.status === 'completed' || res.data.status === 'failed') stopLcPoll();
-      } catch (e) {
-        console.error('[LcPoll]', e);
+        const d   = res.data;
+        console.log(`[LC Poll #${tick}]`, { status: d.status, generated: d.generated, failed: d.failed, total: d.total, progress: d.progress });
+        lcLog(`Poll #${tick} — status: ${d.status} | ${d.generated ?? '?'}/${d.total ?? '?'} done | ${d.failed ?? 0} failed | ${d.progress ?? 0}%`);
+        setLcJobProgress(d);
+        if (d.status === 'completed' || d.status === 'failed') {
+          lcLog(`Job ${d.status.toUpperCase()} after ${tick} polls — generated: ${d.generated}, failed: ${d.failed}`, d.status === 'failed' ? 'error' : 'info');
+          if (d.zipUrl) lcLog(`ZIP available at: ${d.zipUrl}`);
+          stopLcPoll();
+        }
+      } catch (e: any) {
+        const status = e.response?.status;
+        const msg    = e.response?.data?.message || e.message || 'unknown';
+        console.error(`[LC Poll #${tick}] ERROR`, e);
+        lcLog(`Poll #${tick} ERROR — HTTP ${status ?? 'n/a'}: ${msg}`, 'error');
       }
     }, 2500);
   };
@@ -730,12 +1003,19 @@ const BulkLabelGenerator: React.FC = () => {
 
   const startSlPoll = (bulkJobId: string) => {
     stopSlPoll();
+    let tick = 0;
+    slLog(`Poll started — jobId: ${bulkJobId}`);
     slPollRef.current = setInterval(async () => {
+      tick++;
       try {
         const res = await axios.get(`/labels/shiplabel-job/${bulkJobId}`);
+        const { total, generated, failed, pending, done } = res.data;
+        slLog(`Tick ${tick}: ${generated}/${total} generated · ${failed} failed · ${pending} pending${done ? ' · DONE' : ''}`);
+        if (failed > 0 && tick <= 3) slLog(`Some labels failed — check server logs for details`, 'warn');
         setSlJobProgress(res.data);
-        if (res.data.done) stopSlPoll();
-      } catch (e) {
+        if (done) { stopSlPoll(); slLog(`Job complete — ${generated} generated, ${failed} failed`, failed > 0 ? 'warn' : 'info'); }
+      } catch (e: any) {
+        slLog(`Poll tick ${tick} ERROR: ${e?.message || e}`, 'error');
         console.error('[SlPoll]', e);
       }
     }, 2000);
@@ -746,8 +1026,8 @@ const BulkLabelGenerator: React.FC = () => {
     setSelectedPortal(''); setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false);
     setFileName(''); setRows([]); setRowErrors({}); setHeaderMissing([]);
     setApiResult(null); setManifestResult(null); setMultiApiResult(null);
-    setLcAsyncJob(null); setLcJobProgress(null);
-    setSlAsyncJob(null); setSlJobProgress(null);
+    setLcAsyncJob(null); setLcJobProgress(null); setLcDebugLog([]);
+    setSlAsyncJob(null); setSlJobProgress(null); setSlDebugLog([]);
     setGenError(''); setRowAssignments([]);
   };
 
@@ -1024,7 +1304,46 @@ const BulkLabelGenerator: React.FC = () => {
               {prog!.failed} failed so far
             </div>
           )}
+          {/* Job IDs row */}
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 20, fontSize: '0.72rem', color: '#94A3B8' }}>
+            <span>LC Job: <code style={{ color: '#7C3AED' }}>{lcAsyncJob.lcJobId}</code></span>
+            <span>Order: <code style={{ color: '#7C3AED' }}>{lcAsyncJob.lcOrderId}</code></span>
+            <span>Bulk DB: <code style={{ color: '#7C3AED' }}>{lcAsyncJob.bulkJobId}</code></span>
+          </div>
         </div>
+
+        {/* ── Debug log panel ── */}
+        <div style={{ borderRadius: 10, border: '1.5px solid #E2E8F0', overflow: 'hidden', background: '#0F172A' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.875rem', background: '#1E293B', cursor: 'pointer' }}
+            onClick={() => setShowDebugPanel(o => !o)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', animation: 'lcPulse 1.2s ease-in-out infinite' }} />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Debug Log — {lcDebugLog.length} events
+              </span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: '#475569' }}>{showDebugPanel ? '▲ collapse' : '▼ expand'}</span>
+          </div>
+          {showDebugPanel && (
+            <div style={{ padding: '0.75rem', maxHeight: 280, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.72rem', lineHeight: 1.6 }}>
+              {lcDebugLog.length === 0
+                ? <div style={{ color: '#475569' }}>Waiting for events…</div>
+                : lcDebugLog.map((line, i) => {
+                    const isErr  = line.includes('ERROR');
+                    const isWarn = line.includes('WARN') || line.includes('MISSING');
+                    const isDone = line.includes('COMPLETED') || line.includes('FAILED');
+                    return (
+                      <div key={i} style={{ color: isErr ? '#F87171' : isWarn ? '#FBBF24' : isDone ? '#34D399' : '#94A3B8', marginBottom: 2 }}>
+                        {line}
+                      </div>
+                    );
+                  })}
+            </div>
+          )}
+        </div>
+        <style>{`@keyframes lcPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
       </div>
     );
   }
@@ -1033,7 +1352,9 @@ const BulkLabelGenerator: React.FC = () => {
   // RESULT — Label Crow complete / failed
   // ══════════════════════════════════════════════════════════════════════════════
   if (lcAsyncJob && lcJobProgress && (lcJobProgress.status === 'completed' || lcJobProgress.status === 'failed')) {
-    const prog = lcJobProgress;
+    const prog       = lcJobProgress;
+    const allFailed  = prog.failed > 0 && prog.failed >= prog.total;
+    const isRealFail = prog.status === 'failed' || allFailed;
     return (
       <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1042,14 +1363,34 @@ const BulkLabelGenerator: React.FC = () => {
           </button>
           <div className="page-header" style={{ margin: 0 }}>
             <h1 className="page-title">
-              {prog.status === 'completed' ? 'Label Crow Bulk Complete' : 'Label Crow Bulk Failed'}
+              {isRealFail ? 'Label Crow Bulk Failed' : 'Label Crow Bulk Complete'}
             </h1>
             <p className="page-subtitle">{prog.generated} generated · {prog.failed} failed</p>
           </div>
         </div>
+
+        {/* All-failed diagnostic banner */}
+        {allFailed && (
+          <div style={{ background: '#FFF5F5', border: '1.5px solid #FECACA', borderRadius: 10, padding: '1rem 1.25rem', display: 'flex', gap: 12 }}>
+            <ExclamationCircleIcon style={{ width: 20, height: 20, color: '#DC2626', flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div style={{ fontWeight: 700, color: '#DC2626', fontSize: '0.875rem', marginBottom: 4 }}>
+                All {prog.total} labels failed PDF generation — tracking numbers were created but no PDFs produced
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#7F1D1D', lineHeight: 1.6 }}>
+                <strong>Most likely cause:</strong> this vendor has no Label Crow <code>provider_key</code> configured (no label template).
+                Credits should be automatically refunded by Label Crow.
+              </div>
+              <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#991B1B' }}>
+                <strong>Fix:</strong> Admin → Vendors → <em>Sync Label Crow</em> to re-import vendors with valid provider keys, then retry with a vendor that has a provider key in its name (e.g. "9401 · Priority · <strong>Basic</strong>").
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: '1rem' }}>
           {[
-            { val: prog.generated, label: 'Generated', color: 'var(--success-600)' },
+            { val: prog.generated, label: 'Generated', color: isRealFail ? 'var(--navy-500)' : 'var(--success-600)' },
             { val: prog.failed,    label: 'Failed',    color: prog.failed > 0 ? 'var(--danger-600)' : 'var(--navy-500)' },
             { val: `$${(prog.newBalance ?? 0).toFixed(2)}`, label: 'Balance', color: 'var(--accent-600)' },
           ].map(({ val, label, color }) => (
@@ -1061,7 +1402,7 @@ const BulkLabelGenerator: React.FC = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button className="btn btn-ghost" onClick={reset}>Generate Another Batch</button>
-          {prog.status === 'completed' && prog.zipUrl && (
+          {!isRealFail && prog.zipUrl && (
             <button className="btn btn-primary" onClick={async () => {
               try {
                 const r = await axios.get(prog.zipUrl!, { responseType: 'blob' });
@@ -1077,6 +1418,35 @@ const BulkLabelGenerator: React.FC = () => {
           )}
           <button className="btn btn-ghost" onClick={() => navigate('/labels/history')}>View History</button>
         </div>
+
+        {/* ── Debug log (collapsed by default on result screen) ── */}
+        {lcDebugLog.length > 0 && (
+          <div style={{ borderRadius: 10, border: '1.5px solid #E2E8F0', overflow: 'hidden', background: '#0F172A' }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.875rem', background: '#1E293B', cursor: 'pointer' }}
+              onClick={() => setShowDebugPanel(o => !o)}
+            >
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Debug Log — {lcDebugLog.length} events
+              </span>
+              <span style={{ fontSize: '0.7rem', color: '#475569' }}>{showDebugPanel ? '▲ collapse' : '▼ expand'}</span>
+            </div>
+            {showDebugPanel && (
+              <div style={{ padding: '0.75rem', maxHeight: 240, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.72rem', lineHeight: 1.6 }}>
+                {lcDebugLog.map((line, i) => {
+                  const isErr  = line.includes('ERROR');
+                  const isWarn = line.includes('WARN') || line.includes('MISSING');
+                  const isDone = line.includes('COMPLETED') || line.includes('COMPLETED');
+                  return (
+                    <div key={i} style={{ color: isErr ? '#F87171' : isWarn ? '#FBBF24' : isDone ? '#34D399' : '#94A3B8', marginBottom: 2 }}>
+                      {line}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -1136,6 +1506,37 @@ const BulkLabelGenerator: React.FC = () => {
             </div>
           </div>
         )}
+        {/* ── Debug log panel ── */}
+        {slDebugLog.length > 0 && (
+          <div style={{ borderRadius: 10, border: '1.5px solid #E2E8F0', overflow: 'hidden', background: '#0F172A' }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.875rem', background: '#1E293B', cursor: 'pointer' }}
+              onClick={() => setShowSlDebugPanel(o => !o)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', animation: 'lcPulse 1.2s ease-in-out infinite' }} />
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  SL Debug Log — {slDebugLog.length} events
+                </span>
+              </div>
+              <span style={{ fontSize: '0.7rem', color: '#475569' }}>{showSlDebugPanel ? '▲ collapse' : '▼ expand'}</span>
+            </div>
+            {showSlDebugPanel && (
+              <div style={{ padding: '0.75rem', maxHeight: 280, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.72rem', lineHeight: 1.6 }}>
+                {slDebugLog.map((line, i) => {
+                  const isErr  = line.includes('ERROR') || line.includes('MISSING');
+                  const isWarn = line.includes('WARN') || line.includes('failed');
+                  const isDone = line.includes('✓') || line.includes('complete');
+                  return (
+                    <div key={i} style={{ color: isErr ? '#F87171' : isWarn ? '#FBBF24' : isDone ? '#34D399' : '#94A3B8', marginBottom: 2 }}>
+                      {line}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -1152,6 +1553,38 @@ const BulkLabelGenerator: React.FC = () => {
           <div className="spinner" style={{ width: 40, height: 40, borderWidth: 4, borderColor: '#059669', margin: '0 auto 16px' }} />
           <div style={{ fontSize: '0.875rem', color: 'var(--navy-500)' }}>Starting… 0 / {slAsyncJob.total}</div>
         </div>
+        {/* ── Debug log panel ── */}
+        <div style={{ borderRadius: 10, border: '1.5px solid #E2E8F0', overflow: 'hidden', background: '#0F172A' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.875rem', background: '#1E293B', cursor: 'pointer' }}
+            onClick={() => setShowSlDebugPanel(o => !o)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', animation: 'lcPulse 1.2s ease-in-out infinite' }} />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                SL Debug Log — {slDebugLog.length} events
+              </span>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: '#475569' }}>{showSlDebugPanel ? '▲ collapse' : '▼ expand'}</span>
+          </div>
+          {showSlDebugPanel && (
+            <div style={{ padding: '0.75rem', maxHeight: 280, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.72rem', lineHeight: 1.6 }}>
+              {slDebugLog.length === 0
+                ? <div style={{ color: '#475569' }}>Waiting for events…</div>
+                : slDebugLog.map((line, i) => {
+                    const isErr  = line.includes('ERROR') || line.includes('MISSING');
+                    const isWarn = line.includes('WARN') || line.includes('failed');
+                    const isDone = line.includes('✓') || line.includes('complete');
+                    return (
+                      <div key={i} style={{ color: isErr ? '#F87171' : isWarn ? '#FBBF24' : isDone ? '#34D399' : '#94A3B8', marginBottom: 2 }}>
+                        {line}
+                      </div>
+                    );
+                  })}
+            </div>
+          )}
+        </div>
+        <style>{`@keyframes lcPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
       </div>
     );
   }
@@ -1217,9 +1650,48 @@ const BulkLabelGenerator: React.FC = () => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {generated > 0 && (
+            <a
+              href={`/api/labels/zip/bulk/${slAsyncJob.bulkJobId}`}
+              download
+              className="btn btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <ArrowDownTrayIcon style={{ width: 15, height: 15 }} />
+              Download ZIP ({generated} label{generated !== 1 ? 's' : ''})
+            </a>
+          )}
           <button className="btn btn-ghost" onClick={reset}>Generate Another Batch</button>
           <button className="btn btn-ghost" onClick={() => navigate('/labels/history')}>View History</button>
         </div>
+        {/* ── Debug log (collapsed by default on result screen) ── */}
+        {slDebugLog.length > 0 && (
+          <div style={{ borderRadius: 10, border: '1.5px solid #E2E8F0', overflow: 'hidden', background: '#0F172A' }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.875rem', background: '#1E293B', cursor: 'pointer' }}
+              onClick={() => setShowSlDebugPanel(o => !o)}
+            >
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                SL Debug Log — {slDebugLog.length} events
+              </span>
+              <span style={{ fontSize: '0.7rem', color: '#475569' }}>{showSlDebugPanel ? '▲ collapse' : '▼ expand'}</span>
+            </div>
+            {showSlDebugPanel && (
+              <div style={{ padding: '0.75rem', maxHeight: 240, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.72rem', lineHeight: 1.6 }}>
+                {slDebugLog.map((line, i) => {
+                  const isErr  = line.includes('ERROR') || line.includes('MISSING');
+                  const isWarn = line.includes('WARN') || line.includes('failed');
+                  const isDone = line.includes('✓') || line.includes('complete');
+                  return (
+                    <div key={i} style={{ color: isErr ? '#F87171' : isWarn ? '#FBBF24' : isDone ? '#34D399' : '#94A3B8', marginBottom: 2 }}>
+                      {line}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -1227,13 +1699,54 @@ const BulkLabelGenerator: React.FC = () => {
   // ══════════════════════════════════════════════════════════════════════════════
   // MAIN VIEW
   // ══════════════════════════════════════════════════════════════════════════════
+  const currentStep = !selectedPortal ? 1 : !selectedCarrier ? 2 : (!selectedVendor && !isAutoMode) ? 3 : !fileName ? 4 : 5;
   const uploadEnabled = !!(selectedVendor || isAutoMode);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', paddingBottom: rows.length > 0 && uploadEnabled ? 80 : 0 }} className="animate-fadeIn">
 
+      {/* ── Step wizard ──────────────────────────────────────── */}
+      <div className="db-card" style={{ padding: '0.9rem 1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+          {([
+            { n: 1, label: 'Portal'   },
+            { n: 2, label: 'Carrier'  },
+            { n: 3, label: 'Vendor'   },
+            { n: 4, label: 'Upload'   },
+            { n: 5, label: 'Generate' },
+          ] as const).map((s, i) => {
+            const done = currentStep > s.n;
+            const act  = currentStep === s.n;
+            return (
+              <React.Fragment key={s.n}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    background: done ? '#10B981' : act ? '#6366F1' : 'var(--navy-100)',
+                    border: `2px solid ${done ? '#10B981' : act ? '#6366F1' : 'var(--navy-200)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.25s ease',
+                    boxShadow: act ? '0 0 0 4px rgba(99,102,241,0.12)' : 'none',
+                  }}>
+                    {done
+                      ? <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      : <span style={{ fontSize: '0.65rem', fontWeight: 800, color: act ? '#fff' : 'var(--navy-400)', lineHeight: 1, fontFamily: FONT }}>{s.n}</span>}
+                  </div>
+                  <span style={{ fontSize: '0.58rem', fontWeight: done || act ? 700 : 500, color: done ? '#059669' : act ? '#6366F1' : 'var(--navy-400)', whiteSpace: 'nowrap', fontFamily: FONT, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    {s.label}
+                  </span>
+                </div>
+                {i < 4 && (
+                  <div style={{ flex: 1, height: 2, background: done ? '#10B981' : 'var(--navy-150, #E2E8F0)', margin: '0 8px', marginBottom: 18, transition: 'background 0.35s ease', borderRadius: 99 }} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── Combined service card ─────────────────────────────── */}
-      <div className="sh-card" style={{ overflow: 'hidden' }}>
+      <div className="db-card" style={{ overflow: 'hidden' }}>
 
         {/* Row 0 — Portal pills */}
         {availablePortals.length > 0 && (
@@ -1252,7 +1765,7 @@ const BulkLabelGenerator: React.FC = () => {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     height: 34, padding: '0 14px', borderRadius: 8, cursor: 'pointer',
                     border: isSel ? `2px solid ${p.accentColor}` : '1.5px solid #e2e8f0',
-                    background: isSel ? p.selectedBg : '#fff',
+                    background: isSel ? p.selectedBg : 'var(--bg-card)',
                     boxShadow: isSel ? `0 0 0 3px ${p.accentColor}18` : 'none',
                     transition: 'all 0.15s',
                   }}
@@ -1288,7 +1801,7 @@ const BulkLabelGenerator: React.FC = () => {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     height: 46, minWidth: 80, padding: '4px 12px', borderRadius: 10,
                     border: isSelected ? `2px solid ${c.accentColor}` : '1.5px solid #e2e8f0',
-                    background: isSelected ? c.selectedBg : '#fff',
+                    background: isSelected ? c.selectedBg : 'var(--bg-card)',
                     cursor: isEnabled ? 'pointer' : 'not-allowed',
                     opacity: isEnabled ? 1 : 0.35,
                     boxShadow: isSelected ? `0 0 0 3px ${c.accentColor}18, 0 2px 8px ${c.accentColor}20` : 'none',
@@ -1359,8 +1872,17 @@ const BulkLabelGenerator: React.FC = () => {
           <div style={{ flex: 1 }} />
 
           {selectedCarrier && (
-            <button className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap', fontSize: '0.78rem', flexShrink: 0 }} onClick={() => downloadTemplate(selectedCarrier)}>
-              <ArrowDownTrayIcon style={{ width: 13, height: 13 }} /> Template
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ whiteSpace: 'nowrap', fontSize: '0.78rem', flexShrink: 0 }}
+              onClick={() =>
+                selectedPortal === 'labelcrow' ? downloadLcXlsxTemplate()
+                : selectedPortal === 'shiplabel' ? downloadSlXlsxTemplate()
+                : downloadTemplate(selectedCarrier)
+              }
+            >
+              <ArrowDownTrayIcon style={{ width: 13, height: 13 }} />
+              {selectedPortal === 'labelcrow' || selectedPortal === 'shiplabel' ? 'Template (.xlsx)' : 'Template (.csv)'}
             </button>
           )}
         </div>
@@ -1388,7 +1910,14 @@ const BulkLabelGenerator: React.FC = () => {
               {headerMissing.length > 0 && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--danger-600)' }}>
                   Missing: {headerMissing.join(', ')} —{' '}
-                  <button style={{ background: 'none', border: 'none', color: 'var(--accent-600)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 'inherit' }} onClick={() => downloadTemplate(selectedCarrier)}>
+                  <button
+                    style={{ background: 'none', border: 'none', color: 'var(--accent-600)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}
+                    onClick={() =>
+                      selectedPortal === 'labelcrow' ? downloadLcXlsxTemplate()
+                      : selectedPortal === 'shiplabel' ? downloadSlXlsxTemplate()
+                      : downloadTemplate(selectedCarrier)
+                    }
+                  >
                     get template
                   </button>
                 </span>
@@ -1418,13 +1947,23 @@ const BulkLabelGenerator: React.FC = () => {
                 {!uploadEnabled
                   ? !selectedPortal ? 'Select a portal above to get started'
                     : !selectedCarrier ? 'Select a carrier above'
+                    : selectedPortal === 'labelcrow' ? 'Select a vendor above to upload XLSX'
                     : 'Select a vendor above to upload CSV'
                   : isDragging ? 'Drop it!'
                   : isAutoMode ? 'Drop CSV here — vendor will be auto-assigned per state'
+                  : (selectedPortal === 'labelcrow' || selectedPortal === 'shiplabel') ? 'Drop .xlsx here or click to browse'
                   : 'Drop CSV here or click to browse'}
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--navy-500)', marginLeft: 4 }}>.csv only</span>
-              <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileInput} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--navy-500)', marginLeft: 4 }}>
+                {(selectedPortal === 'labelcrow' || selectedPortal === 'shiplabel') ? '.xlsx / .csv' : '.csv only'}
+              </span>
+              <input
+                ref={fileRef}
+                type="file"
+                accept={(selectedPortal === 'labelcrow' || selectedPortal === 'shiplabel') ? '.xlsx,.xls,.csv' : '.csv'}
+                style={{ display: 'none' }}
+                onChange={handleFileInput}
+              />
             </div>
           )}
         </div>
@@ -1432,7 +1971,7 @@ const BulkLabelGenerator: React.FC = () => {
 
       {/* ── Data table ───────────────────────────────────────────── */}
       {rows.length > 0 && headerMissing.length === 0 && (
-        <div className="sh-card" style={{ overflow: 'hidden' }}>
+        <div className="db-card" style={{ overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.625rem 1rem', borderBottom: '1px solid var(--navy-100)' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy-600)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Review & Edit
@@ -1503,7 +2042,7 @@ const BulkLabelGenerator: React.FC = () => {
                                 border: cellError ? '1.5px solid var(--danger-400)' : '1.5px solid var(--navy-200)',
                                 borderRadius: 6, fontSize: '0.8rem',
                                 fontFamily: 'var(--font-sans)', color: 'var(--navy-900)',
-                                background: cellError ? 'rgba(239,68,68,0.04)' : '#fff',
+                                background: cellError ? 'rgba(239,68,68,0.04)' : 'var(--bg-card)',
                                 outline: 'none', transition: 'border-color 0.15s',
                               }}
                               onFocus={e => { if (!cellError) e.target.style.borderColor = 'var(--accent-400)'; }}
@@ -1579,8 +2118,8 @@ const BulkLabelGenerator: React.FC = () => {
           style={{
             position: 'fixed', bottom: 0,
             left: 'var(--sidebar-w, 256px)', right: 0,
-            background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(10px)',
-            borderTop: '1px solid var(--navy-100)', boxShadow: '0 -4px 20px rgba(0,0,0,0.07)',
+            background: 'var(--bg-card)', backdropFilter: 'blur(12px)',
+            borderTop: '1px solid var(--navy-150, #e2e8f0)', boxShadow: '0 -8px 32px rgba(0,0,0,0.09)',
             padding: '0.75rem 1.5rem', zIndex: 30,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
           }}

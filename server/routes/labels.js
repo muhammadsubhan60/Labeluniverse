@@ -1,6 +1,8 @@
 const express  = require('express');
 const fs       = require('fs');
 const path     = require('path');
+const https    = require('https');
+const http     = require('http');
 const archiver = require('archiver');
 const { body, validationResult } = require('express-validator');
 const Label            = require('../models/Label');
@@ -36,6 +38,23 @@ function createZip(pdfPaths, zipFilename) {
       }
     });
     archive.finalize();
+  });
+}
+
+// Fetch a remote PDF URL and return a Buffer (handles http + https)
+function fetchRemotePdf(url) {
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https') ? https : http;
+    lib.get(url, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchRemotePdf(res.headers.location).then(resolve).catch(reject);
+      }
+      if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end',  ()  => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
   });
 }
 
@@ -124,9 +143,15 @@ router.post('/single', authenticateToken, [
       });
     }
 
-    // Call ShippersHub to generate label
+    // Label Crow does not support single-label generation (bulk-only API)
+    if (vendor.source === 'labelcrow') {
+      return res.status(400).json({ message: 'Label Crow only supports bulk label generation. Use /labels/bulk instead.' });
+    }
+
+    // Call the appropriate service to generate the label
     let shippershubResult = null;
     let trackingId = '';
+    let pdfUrl     = null;
 
     if (vendor.source === 'shippershub' && vendor.shippershubCarrierId && vendor.shippershubVendorId) {
       shippershubResult = await shippershub.createSingleLabel({
@@ -157,6 +182,37 @@ router.post('/single', authenticateToken, [
         height: parseFloat(labelFields.height) || 1,
       });
       trackingId = shippershubResult?.trackingID || shippershubResult?.trackingId || '';
+      pdfUrl     = shippershubResult?.awsPath || shippershubResult?.pdfUrl || null;
+
+    } else if (vendor.source === 'shiplabel') {
+      const slSvc    = require('../services/shiplabel');
+      const slResult = await slSvc.createOrder({
+        label_id:     vendor.shiplabelServiceId,
+        fromName:     labelFields.from_name     || '',
+        fromCompany:  labelFields.from_company  || '',
+        fromAddress:  labelFields.from_address1 || '',
+        fromAddress2: labelFields.from_address2 || '',
+        fromZip:      labelFields.from_zip      || '',
+        fromState:    labelFields.from_state    || '',
+        fromCity:     labelFields.from_city     || '',
+        fromCountry:  'US',
+        toName:       labelFields.to_name       || '',
+        toCompany:    labelFields.to_company    || '',
+        toAddress:    labelFields.to_address1   || '',
+        toAddress2:   labelFields.to_address2   || '',
+        toZip:        labelFields.to_zip        || '',
+        toState:      labelFields.to_state      || '',
+        toCity:       labelFields.to_city       || '',
+        toCountry:    'US',
+        weight: parseFloat(labelFields.weight) || 0,
+        length: parseFloat(labelFields.length) || 0,
+        height: parseFloat(labelFields.height) || 0,
+        width:  parseFloat(labelFields.width)  || 0,
+        ...(vendor.shiplabelLabelSeries ? { label_series: vendor.shiplabelLabelSeries } : {}),
+        ...(vendor.shiplabelLabelFormat ? { label_format: vendor.shiplabelLabelFormat } : {}),
+      });
+      trackingId = slResult.tracking_id || '';
+      pdfUrl     = slResult.pdf         || null;
     }
 
     // Deduct balance
@@ -177,7 +233,7 @@ router.post('/single', authenticateToken, [
       shippershubLabelId: shippershubResult?._id || null,
       trackingId,
       price:      effectiveRate,
-      pdfUrl:     shippershubResult?.awsPath || shippershubResult?.pdfUrl || null,
+      pdfUrl,
       awsKey:     shippershubResult?.awsKey  || null,
       awsPath:    shippershubResult?.awsPath || null,
       isBulk:     false,
@@ -350,6 +406,28 @@ router.post('/bulk', authenticateToken, [
     if (vendor.source === 'labelcrow') {
       const labelcrow = require('../services/labelcrow');
 
+      // Guard: providerKey must be a non-empty string — empty string causes TEMPLATE_NOT_FOUND
+      if (!vendor.labelcrowProviderKey) {
+        console.error('[LC Route] Blocked — labelcrowProviderKey is empty on vendor', vendor._id, vendor.name);
+        return res.status(400).json({
+          message: `Vendor "${vendor.name}" has no Label Crow provider key configured. Re-sync vendors from the admin panel (Admin → Vendors → Sync Label Crow) to populate provider keys, then retry.`,
+        });
+      }
+
+      console.log('[LC Route] Bulk submit start', {
+        vendorId:     vendor._id,
+        vendorName:   vendor.name,
+        source:       vendor.source,
+        carrier:      vendor.carrier,
+        seriesId:     vendor.labelcrowSeriesId,
+        serviceClass: vendor.labelcrowServiceClass,
+        providerKey:  vendor.labelcrowProviderKey,
+        labelCount:   labelRows.length,
+        totalCost:    totalCost.toFixed(2),
+        userId:       req.user._id,
+      });
+      console.log('[LC Route] First label row (raw):', JSON.stringify(labelRows[0]));
+
       // Deduct balance upfront (job is async — held like a manifest)
       await balance.addTransaction({
         type:        'deduction',
@@ -359,13 +437,20 @@ router.post('/bulk', authenticateToken, [
       });
 
       // Submit to Label Crow API
-      const { jobId, orderId, totalLabels } = await labelcrow.submitBulkJob({
-        seriesId:     vendor.labelcrowSeriesId,
-        carrier:      vendor.carrier.toLowerCase(),
-        serviceClass: vendor.labelcrowServiceClass,
-        providerKey:  vendor.labelcrowProviderKey,
-        labels:       labelRows,
-      });
+      let jobId, orderId, totalLabels;
+      try {
+        ({ jobId, orderId, totalLabels } = await labelcrow.submitBulkJob({
+          seriesId:     vendor.labelcrowSeriesId,
+          carrier:      vendor.carrier.toLowerCase(),
+          serviceClass: vendor.labelcrowServiceClass,
+          providerKey:  vendor.labelcrowProviderKey,
+          labels:       labelRows,
+        }));
+        console.log('[LC Route] submitBulkJob success:', { jobId, orderId, totalLabels });
+      } catch (lcErr) {
+        console.error('[LC Route] submitBulkJob FAILED:', lcErr.message, lcErr.stack?.split('\n').slice(0, 3).join(' | '));
+        throw lcErr;
+      }
 
       // Create pending Label records for history/audit trail
       const mongooseLc = require('mongoose');
@@ -386,6 +471,7 @@ router.post('/bulk', authenticateToken, [
         weight: parseFloat(row.weight) || 0,
       })));
 
+      console.log('[LC Route] Labels inserted, responding 202', { lcBulkJobId, jobId, orderId, totalLabels });
       return res.status(202).json({
         type:       'labelcrow-async',
         lcJobId:    jobId,
@@ -478,6 +564,7 @@ router.post('/bulk', authenticateToken, [
                   type:        'adjustment',
                   amount:      labelDoc.price,
                   description: `ShipLabel refund — label failed (${err.message.slice(0, 60)})`,
+                  performedBy: userId,
                 });
               } catch (refundErr) {
                 console.error('[ShipLabel] refund failed:', refundErr.message);
@@ -1013,7 +1100,7 @@ router.get('/zip/bulk/:bulkJobId', authenticateToken, async (req, res) => {
       }
     }
 
-    // ── Fallback: build on-the-fly from local PDFs ────────────
+    // ── Fallback: build on-the-fly (local files or remote URLs) ──
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
 
@@ -1021,16 +1108,26 @@ router.get('/zip/bulk/:bulkJobId', authenticateToken, async (req, res) => {
     archive.on('error', err => { console.error('ZIP stream error:', err); res.end(); });
     archive.pipe(res);
 
-    labels.forEach((label, i) => {
-      if (label.pdfUrl) {
-        const filename  = path.basename(label.pdfUrl);
-        const localPath = path.join(labelsDir, filename);
+    for (let i = 0; i < labels.length; i++) {
+      const label = labels[i];
+      if (!label.pdfUrl) continue;
+      const entry = `label-${i + 1}${label.trackingId ? '-' + label.trackingId : ''}.pdf`;
+      if (/^https?:\/\//i.test(label.pdfUrl)) {
+        // Remote URL (e.g. ShipLabel CDN) — fetch and stream into archive
+        try {
+          const buf = await fetchRemotePdf(label.pdfUrl);
+          archive.append(buf, { name: entry });
+        } catch (fetchErr) {
+          console.error(`[ZIP] Failed to fetch remote PDF for label ${i + 1}:`, fetchErr.message);
+        }
+      } else {
+        // Local file
+        const localPath = path.join(labelsDir, path.basename(label.pdfUrl));
         if (fs.existsSync(localPath)) {
-          const entry = `label-${i + 1}${label.trackingId ? '-' + label.trackingId : ''}.pdf`;
           archive.file(localPath, { name: entry });
         }
       }
-    });
+    }
 
     await archive.finalize();
   } catch (error) {
@@ -1051,16 +1148,26 @@ router.get('/labelcrow-job/:jobId', authenticateToken, async (req, res) => {
       ...(req.user.role !== 'admin' ? { user: req.user._id } : {}),
     }).select('labelcrowOrderId user');
 
-    if (!sample) return res.status(404).json({ message: 'Job not found or access denied' });
+    if (!sample) {
+      console.warn('[LC Poll Route] Job not found or access denied:', { jobId, userId: req.user._id });
+      return res.status(404).json({ message: 'Job not found or access denied' });
+    }
 
     const progress = await labelcrow.pollJob(jobId);
     const orderId  = sample.labelcrowOrderId;
 
+    console.log('[LC Poll Route]', { jobId, status: progress.status, generated: progress.generated, failed: progress.failed, total: progress.total, orderId });
+
     if (progress.status === 'completed' || progress.status === 'failed') {
-      const newStatus = progress.status === 'completed' ? 'generated' : 'failed';
-      const zipUrl    = progress.status === 'completed' && orderId
+      // A "completed" job where all labels failed is effectively failed
+      const allFailed  = progress.failed > 0 && progress.failed >= progress.total;
+      const newStatus  = (progress.status === 'completed' && !allFailed) ? 'generated' : 'failed';
+      const hasSuccess = progress.generated > progress.failed;
+      const zipUrl     = hasSuccess && orderId
         ? `/labels/labelcrow-order/${orderId}/zip`
         : null;
+
+      console.log(`[LC Poll Route] Job ${progress.status.toUpperCase()} — allFailed:${allFailed} | newStatus:${newStatus} | zipUrl:${zipUrl || 'none'}`);
 
       await Label.updateMany(
         { labelcrowJobId: jobId },
@@ -1073,7 +1180,7 @@ router.get('/labelcrow-job/:jobId', authenticateToken, async (req, res) => {
 
     return res.json(progress);
   } catch (err) {
-    console.error('[LC poll]', err);
+    console.error('[LC Poll Route] ERROR:', err.message, err.stack?.split('\n').slice(0, 3).join(' | '));
     res.status(500).json({ message: err.message || 'Polling error' });
   }
 });

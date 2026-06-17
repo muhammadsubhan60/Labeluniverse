@@ -184,7 +184,7 @@ const Signup: React.FC = () => {
               <span style={{ color: '#67e8f9' }}>shipping flow.</span>
             </h2>
             <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.48)', lineHeight: 1.75, marginBottom: 40, fontWeight: 400, maxWidth: 360 }}>
-              Create your Label Flow account and move from order sync to bulk label printing in one clean workspace.
+              Create your LABEL UNIVERSE account and move from order sync to bulk label printing in one clean workspace.
             </p>
 
             {sideFeatures.map(({ icon: Icon, text }) => (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { DocumentTextIcon } from '@heroicons/react/24/outline';
+import { CreditCardIcon } from '@heroicons/react/24/outline';
 
 interface PaymentLog {
   _id: string;
@@ -11,6 +11,11 @@ interface PaymentLog {
   wallet?: { _id: string; name: string } | null;
   loggedBy?: { firstName?: string; lastName?: string } | null;
 }
+
+const sectionLabel: React.CSSProperties = {
+  fontSize: '0.68rem', fontWeight: 700, color: 'var(--navy-400)',
+  letterSpacing: '0.09em', textTransform: 'uppercase',
+};
 
 const PaymentHistory: React.FC = () => {
   const [logs, setLogs] = useState<PaymentLog[]>([]);
@@ -36,30 +41,49 @@ const PaymentHistory: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div className="page-header" style={{ marginBottom: 0 }}>
-        <h1 className="page-title">Payment History</h1>
-        <p className="page-subtitle">Recorded payments and uploaded payment proofs.</p>
+    <div style={{ maxWidth: 740, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+         className="animate-fadeIn">
+
+      {/* Identity header */}
+      <div className="sh-card" style={{ padding: '0.875rem 1.1rem', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+          background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <CreditCardIcon style={{ width: 17, height: 17, color: '#2563EB' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--navy-900)' }}>Payment History</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--navy-500)', marginTop: 2 }}>
+            Recorded payments and uploaded payment proofs
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--navy-400)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+            Total paid
+          </div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2563EB', marginTop: 1 }}>
+            ${totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
       </div>
 
-      <div className="sh-card" style={{ padding: '1rem 1.1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <DocumentTextIcon style={{ width: 16, height: 16, color: 'var(--accent-600)' }} />
-        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-700)' }}>
-          Total paid: ${totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      </div>
-
+      {/* Table card */}
       <div className="sh-card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '0.65rem 1rem', borderBottom: '1px solid var(--navy-100)' }}>
+          <span style={sectionLabel}>Records</span>
+        </div>
+
         {loading ? (
           <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center' }}>
             <div className="spinner" />
           </div>
         ) : error ? (
-          <div style={{ padding: '1rem 1.1rem', color: 'var(--danger-600)', fontSize: '0.82rem', fontWeight: 600 }}>
+          <div style={{ padding: '1rem', color: 'var(--danger-600)', fontSize: '0.8rem', fontWeight: 600 }}>
             {error}
           </div>
         ) : logs.length === 0 ? (
-          <div style={{ padding: '1.2rem 1.1rem', color: 'var(--navy-500)', fontSize: '0.82rem' }}>
+          <div style={{ padding: '1.2rem 1rem', color: 'var(--navy-500)', fontSize: '0.8rem' }}>
             No payment records found.
           </div>
         ) : (
@@ -77,30 +101,27 @@ const PaymentHistory: React.FC = () => {
               <tbody>
                 {logs.map((log) => (
                   <tr key={log._id}>
-                    <td style={{ whiteSpace: 'nowrap' }}>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: '0.78rem' }}>
                       {new Date(log.date).toLocaleString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
                       })}
                     </td>
-                    <td>{log.wallet?.name || '—'}</td>
-                    <td style={{ maxWidth: 380 }}>{log.note || '—'}</td>
+                    <td style={{ fontSize: '0.78rem' }}>{log.wallet?.name || '—'}</td>
+                    <td style={{ maxWidth: 280, fontSize: '0.78rem' }}>{log.note || '—'}</td>
                     <td>
                       {log.screenshots?.length ? (
                         <a
                           href={log.screenshots[0]}
                           target="_blank"
                           rel="noreferrer"
-                          style={{ color: 'var(--accent-600)', fontWeight: 700, fontSize: '0.78rem', textDecoration: 'none' }}
+                          style={{ color: 'var(--accent-600)', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none' }}
                         >
                           View proof
                         </a>
                       ) : '—'}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 700, color: '#059669' }}>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 700, fontSize: '0.8rem', color: '#059669' }}>
                       ${Number(log.amount || 0).toFixed(2)}
                     </td>
                   </tr>

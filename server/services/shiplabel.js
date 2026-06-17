@@ -107,7 +107,10 @@ async function getServices() {
  */
 async function createOrder(payload) {
   const res = await apiRequest('POST', '/api/v2/create-order', payload);
-  return res.data;
+  // SL API returns { success: { tracking_id, pdf, ... } } — same shape as /services
+  const result = res.success || res.data || res;
+  console.log('[SL] createOrder result:', JSON.stringify(result).slice(0, 300));
+  return result;
 }
 
 module.exports = { getServices, createOrder, parseSeriesFromName, inferFormatFromName };

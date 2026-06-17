@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, authorize } = require('../middleware/auth');
 
@@ -92,8 +92,8 @@ router.post('/test', authenticateToken, authorize('admin'), async (req, res) => 
   try {
     await sendDummyEmail({
       to: req.user.email,
-      subject: 'Test Email - Label Flow',
-      html: 'This is a test email from the Label Flow system.'
+      subject: 'Test Email - LABEL UNIVERSE',
+      html: 'This is a test email from the LABEL UNIVERSE system.'
     });
 
     res.json({

@@ -70,6 +70,9 @@ Thumbs.db
 .claude/
 master-security-analysis-prompt.md
 
+# Playwright MCP browser sessions
+.playwright-mcp/
+
 # Debug files
 debug.log
 

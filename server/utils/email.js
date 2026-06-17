@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+﻿const nodemailer = require('nodemailer');
 
 // Create transporter
 const createTransporter = () => {
@@ -22,7 +22,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
     const transporter = createTransporter();
     
     const mailOptions = {
-      from: `"Label Flow" <${process.env.EMAIL_USER}>`,
+      from: `"LABEL UNIVERSE" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
@@ -41,7 +41,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
 // Email templates
 const emailTemplates = {
   fileUploaded: (userName, fileName, fileType) => ({
-    subject: `New ${fileType} File Uploaded - Label Flow`,
+    subject: `New ${fileType} File Uploaded - LABEL UNIVERSE`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #007bff;">New File Upload Notification</h2>
@@ -55,13 +55,13 @@ const emailTemplates = {
         <p>Please process this file and upload the generated labels within 1-2 hours.</p>
         <a href="${process.env.CLIENT_URL}/admin/files" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">View Files</a>
         <br><br>
-        <p>Best regards,<br>Label Flow System</p>
+        <p>Best regards,<br>LABEL UNIVERSE System</p>
       </div>
     `
   }),
 
   labelsGenerated: (userName, fileName, downloadUrl) => ({
-    subject: `Your Labels Are Ready - Label Flow`,
+    subject: `Your Labels Are Ready - LABEL UNIVERSE`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #28a745;">Labels Ready for Download</h2>
@@ -76,16 +76,16 @@ const emailTemplates = {
         <a href="${downloadUrl}" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Download Labels</a>
         <br><br>
         <p>If you have any questions, please contact the admin.</p>
-        <p>Best regards,<br>Label Flow Team</p>
+        <p>Best regards,<br>LABEL UNIVERSE Team</p>
       </div>
     `
   }),
 
   userCreated: (userName, email, password, role) => ({
-    subject: `Welcome to Label Flow - Account Created`,
+    subject: `Welcome to LABEL UNIVERSE - Account Created`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #007bff;">Welcome to Label Flow!</h2>
+        <h2 style="color: #007bff;">Welcome to LABEL UNIVERSE!</h2>
         <p>Hello ${userName},</p>
         <p>Your account has been created successfully. Here are your login credentials:</p>
         <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
@@ -96,24 +96,24 @@ const emailTemplates = {
         <p>Please login and change your password for security reasons.</p>
         <a href="${process.env.CLIENT_URL}/login" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Login Now</a>
         <br><br>
-        <p>Best regards,<br>Label Flow Team</p>
+        <p>Best regards,<br>LABEL UNIVERSE Team</p>
       </div>
     `
   }),
 
   passwordReset: (userName, resetUrl) => ({
-    subject: `Password Reset Request - Label Flow`,
+    subject: `Password Reset Request - LABEL UNIVERSE`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #dc3545;">Password Reset Request</h2>
         <p>Hello ${userName},</p>
-        <p>You requested a password reset for your Label Flow account.</p>
+        <p>You requested a password reset for your LABEL UNIVERSE account.</p>
         <p>Click the button below to reset your password:</p>
         <a href="${resetUrl}" style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Reset Password</a>
         <p style="margin-top: 20px; color: #6c757d; font-size: 14px;">This link will expire in 1 hour.</p>
         <p>If you didn't request this, please ignore this email.</p>
         <br>
-        <p>Best regards,<br>Label Flow Team</p>
+        <p>Best regards,<br>LABEL UNIVERSE Team</p>
       </div>
     `
   })

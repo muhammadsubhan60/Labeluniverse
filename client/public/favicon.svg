@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
   <style>
     .bg   { fill: #ffffff; }
     .mark { stroke: #0A0F1F; }
@@ -9,7 +9,7 @@
   </style>
   <!-- Rounded-square backing plate -->
   <rect width="40" height="40" rx="9" class="bg"/>
-  <!-- Label Flow mark: outer frame + L-bar + two horizontal strokes -->
+  <!-- LABEL UNIVERSE mark: outer frame + L-bar + two horizontal strokes -->
   <rect x="6.5" y="6.5" width="27" height="27" rx="7"
         fill="none" class="mark" stroke-width="1.9"/>
   <path d="M13 12.5 V27.5 H22.5"

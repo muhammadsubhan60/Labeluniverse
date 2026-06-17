@@ -2,18 +2,14 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Server dependencies (production only — skip devDeps like nodemon)
-COPY package*.json ./
-RUN npm install --omit=dev
-
-# Client dependencies (all — devDeps required for CRACO build)
-COPY client/package*.json ./client/
-RUN cd client && npm install
-
-# Copy all source
+# Copy everything (respects .dockerignore)
 COPY . .
 
-# Build React frontend
+# Server dependencies (production only)
+RUN npm install --omit=dev
+
+# Client dependencies + build
+RUN cd client && npm install
 RUN cd client && npm run build
 
 EXPOSE 5001

@@ -242,7 +242,6 @@ const Layout: React.FC = () => {
 
   const allNav = [...overviewNav, ...labelsNav, ...adminOpsItems, ...adminFinanceItems, ...mgmtItems, ...accountNav];
   const activePage = allNav.find(n => n.current);
-  const activeSection = sections.find(s => s.items.some(i => i.name === activePage?.name));
   const initials  = `${user?.firstName?.charAt(0) ?? ''}${user?.lastName?.charAt(0) ?? ''}`;
 
   const roleChip = user?.role === 'admin'

@@ -322,11 +322,11 @@ const Suggestions: React.FC = () => {
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/suggestions`, { headers });
+      const res = await axios.get(`${API_BASE}/suggestions`, { headers: { Authorization: `Bearer ${token}` } });
       setSuggestions(res.data.suggestions);
     } catch {}
     setLoading(false);
-  }, []);
+  }, [token]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 

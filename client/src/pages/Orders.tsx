@@ -57,7 +57,6 @@ export default function Orders() {
   const [search,    setSearch]    = useState('');
   const [loading,   setLoading]   = useState(true);
   const [syncing,   setSyncing]   = useState(false);
-  const [shopError,     setShopError]     = useState('');
   const [syncMsg,       setSyncMsg]       = useState('');
   const [disconnecting, setDisconnecting] = useState(false);
 
@@ -70,7 +69,6 @@ export default function Orders() {
       window.history.replaceState({}, '', '/orders');
     }
     if (params.get('error')) {
-      setShopError(`Connection failed: ${params.get('error')}. Please try again.`);
       window.history.replaceState({}, '', '/orders');
     }
   }, [location.search]);

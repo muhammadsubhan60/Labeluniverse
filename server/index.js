@@ -38,6 +38,7 @@ const shippershubAccountRoutes      = require('./routes/shippershubAccounts');
 const leaderboardRoutes             = require('./routes/leaderboard');
 const suggestionRoutes              = require('./routes/suggestions');
 const shopifyRoutes                 = require('./routes/shopify');
+const etsyRoutes                    = require('./routes/etsy');
 
 // ── Startup validation ────────────────────────────────────────
 // Fail fast rather than running in a broken / insecure state.
@@ -141,8 +142,9 @@ const authLimiter = rateLimit({
 });
 
 // ── Body parsing ──────────────────────────────────────────────
-// Shopify webhook needs raw body for HMAC verification — mount before json()
+// Webhook endpoints need raw body for HMAC verification — mount before json()
 app.use('/api/shopify/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/etsy/webhook',   express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -182,6 +184,7 @@ app.use('/api/shippershub-accounts',  shippershubAccountRoutes);
 app.use('/api/leaderboard',           leaderboardRoutes);
 app.use('/api/suggestions',           suggestionRoutes);
 app.use('/api/shopify',               shopifyRoutes);
+app.use('/api/etsy',                  etsyRoutes);
 
 // ── Health check ──────────────────────────────────────────────
 // Returns minimal info only — no internal state exposed publicly

@@ -39,6 +39,7 @@ import Leaderboard         from './pages/Leaderboard';
 import Suggestions        from './pages/Suggestions';
 import Orders             from './pages/Orders';
 import ShopifyCustomers  from './pages/ShopifyCustomers';
+import Integrations      from './pages/Integrations';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './App.css';
 
@@ -94,6 +95,7 @@ function App() {
                   <Route path="/activity"            element={<LiveActivity />} />
                   <Route path="/leaderboard"         element={<Leaderboard />} />
                   <Route path="/suggestions"         element={<Suggestions />} />
+                  <Route path="/integrations"        element={<Integrations />} />
                   <Route path="/orders"              element={<Orders />} />
                   <Route path="/topups"              element={<Navigate to="/profile" replace />} />
                   <Route path="/payments"            element={<Navigate to="/profile" replace />} />

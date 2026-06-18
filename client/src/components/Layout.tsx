@@ -32,6 +32,7 @@ import {
   LightBulbIcon,
   ShoppingBagIcon,
   UsersIcon,
+  PuzzlePieceIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Announcement types ────────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [collapsed, setCollapsed]       = useState(() => localStorage.getItem(COLLAPSED_KEY) === '1');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    overview: true, labels: true, operations: true, finance: true, management: true, account: true,
+    overview: true, mystore: true, labels: true, operations: true, finance: true, management: true, account: true,
   });
   const [tooltip, setTooltip] = useState<{ name: string; y: number } | null>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -193,11 +194,15 @@ const Layout: React.FC = () => {
     { name: 'Suggestions',   href: '/suggestions',   icon: LightBulbIcon,  current: location.pathname === '/suggestions' },
   ];
 
+  const storeNav: NavItem[] = [
+    { name: 'Integrations', href: '/integrations', icon: PuzzlePieceIcon,  current: location.pathname === '/integrations' },
+    { name: 'Orders',       href: '/orders',       icon: ShoppingBagIcon,  current: location.pathname === '/orders' },
+    { name: 'Customers',    href: '/customers',    icon: UsersIcon,        current: location.pathname === '/customers' },
+  ];
+
   const labelsNav: NavItem[] = [
     { name: 'Single Label',     href: '/labels/single',       icon: TagIcon,                   current: location.pathname === '/labels/single' },
     { name: 'Bulk Labels',      href: '/labels/bulk',          icon: RectangleStackIcon,        current: location.pathname === '/labels/bulk' },
-    { name: 'Orders',           href: '/orders',              icon: ShoppingBagIcon,           current: location.pathname === '/orders' },
-    { name: 'Customers',        href: '/customers',           icon: UsersIcon,                 current: location.pathname === '/customers' },
     { name: 'Leaderboard',      href: '/leaderboard',         icon: TrophyIcon,                current: location.pathname === '/leaderboard' },
     { name: 'Single History',   href: '/labels/history',      icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/history' },
     { name: 'Bulk History',     href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },
@@ -237,6 +242,7 @@ const Layout: React.FC = () => {
 
   const sections: NavSection[] = [
     { key: 'overview',    label: 'Overview',    items: overviewNav },
+    { key: 'mystore',     label: 'My Store',    items: storeNav },
     { key: 'labels',      label: 'Labels',      items: labelsNav },
     ...(adminOpsItems.length > 0     ? [{ key: 'operations', label: 'Operations',  items: adminOpsItems }]     : []),
     ...(adminFinanceItems.length > 0 ? [{ key: 'finance',    label: 'Finance',     items: adminFinanceItems }] : []),

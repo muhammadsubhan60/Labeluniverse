@@ -4,10 +4,10 @@ const crypto = require('crypto');
 const API_VERSION = '2024-10';
 
 // ── Token exchange ────────────────────────────────────────────────────────────
-async function exchangeCodeForToken(shop, code) {
+async function exchangeCodeForToken(shop, code, clientId, clientSecret) {
   const res = await axios.post(`https://${shop}/admin/oauth/access_token`, {
-    client_id:     process.env.SHOPIFY_CLIENT_ID,
-    client_secret: process.env.SHOPIFY_CLIENT_SECRET,
+    client_id:     clientId,
+    client_secret: clientSecret,
     code,
   });
   return res.data; // { access_token, scope }
@@ -72,10 +72,10 @@ async function deleteWebhook(shop, accessToken, webhookId) {
   ).catch(() => {}); // best-effort
 }
 
-// ── HMAC verification (for incoming webhooks) ─────────────────────────────────
-function verifyWebhookHmac(rawBody, hmacHeader) {
+// ── HMAC verification (per-user client secret) ────────────────────────────────
+function verifyWebhookHmac(rawBody, hmacHeader, clientSecret) {
   const digest = crypto
-    .createHmac('sha256', process.env.SHOPIFY_CLIENT_SECRET)
+    .createHmac('sha256', clientSecret)
     .update(rawBody)
     .digest('base64');
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(hmacHeader));

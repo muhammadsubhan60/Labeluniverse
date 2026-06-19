@@ -280,26 +280,29 @@ const LabelGenerator: React.FC = () => {
       return;
     }
     setSuggError('');
+    if (!MAPBOX_TOKEN) { setSuggError('Mapbox token not configured'); return; }
     try {
-      // v5 Places API — works with all Mapbox public tokens
+      // Use fetch (not axios) to avoid the global axios 401 interceptor logging the user out
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?country=US&types=address&limit=5&access_token=${MAPBOX_TOKEN}`;
-      const res = await axios.get(url);
-      const features = res.data?.features ?? [];
+      const res  = await fetch(url);
+      if (!res.ok) { setSuggError(`Address lookup error (${res.status})`); return; }
+      const data = await res.json();
+      const features = data?.features ?? [];
       const suggestions: AddressSuggestion[] = features.map((feat: any) => {
-        const streetNum = feat.address ?? '';
-        const streetName = feat.text  ?? '';
+        const streetNum  = feat.address ?? '';
+        const streetName = feat.text    ?? '';
         const address1   = streetNum ? `${streetNum} ${streetName}`.trim() : streetName;
         const ctx: any[] = feat.context ?? [];
-        const zip   = ctx.find((c: any) => c.id?.startsWith('postcode'))?.text ?? '';
-        const city  = ctx.find((c: any) => c.id?.startsWith('place'))?.text    ?? '';
+        const zip        = ctx.find((c: any) => c.id?.startsWith('postcode'))?.text ?? '';
+        const city       = ctx.find((c: any) => c.id?.startsWith('place'))?.text    ?? '';
         const regionCode = ctx.find((c: any) => c.id?.startsWith('region'))?.short_code ?? '';
-        const state = regionCode.replace('US-', '');
+        const state      = regionCode.replace('US-', '');
         return { display: feat.place_name ?? address1, address1, city, state, zip };
       });
       if (side === 'from') { setFromSugg(suggestions); setShowFromSugg(suggestions.length > 0); }
       else                 { setToSugg(suggestions);   setShowToSugg(suggestions.length > 0);   }
-    } catch (err: any) {
-      setSuggError(err?.response?.data?.message ?? 'Address lookup unavailable');
+    } catch {
+      setSuggError('Address lookup unavailable');
     }
   };
 

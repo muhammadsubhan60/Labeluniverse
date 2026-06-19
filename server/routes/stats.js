@@ -40,6 +40,7 @@ async function adminStats() {
     recentManifests,
     recentUsers,
     portalGroups,
+    trackingGroups,
   ] = await Promise.all([
     // Users by role + isActive
     User.aggregate([
@@ -80,6 +81,11 @@ async function adminStats() {
       { $lookup: { from: 'vendors', localField: 'vendor', foreignField: '_id', as: '_v' } },
       { $addFields: { portal: { $ifNull: [{ $arrayElemAt: ['$_v.source', 0] }, 'shippershub'] } } },
       { $group: { _id: '$portal', count: { $sum: 1 }, revenue: { $sum: '$price' } } },
+    ]),
+    // Tracking status breakdown (generated labels only)
+    Label.aggregate([
+      { $match: { status: 'generated' } },
+      { $group: { _id: '$trackingStatus', count: { $sum: 1 } } },
     ]),
   ]);
 
@@ -133,12 +139,22 @@ async function adminStats() {
     }
   }
 
+  // --- process tracking status groups ---
+  const trackingStatus = {
+    not_scanned_yet: 0, in_transit: 0, out_for_delivery: 0, delivered: 0,
+    exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0,
+  };
+  for (const g of trackingGroups) {
+    if (g._id in trackingStatus) trackingStatus[g._id] = g.count;
+  }
+
   return {
     users,
     labels,
     manifests,
     vendors,
     labelsByPortal,
+    trackingStatus,
     totalBalanceHeld: totalBalanceHeld[0]?.total || 0,
     totalRevenue: labels.revenue + manifests.revenue,
     recentManifests,

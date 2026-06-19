@@ -26,6 +26,10 @@ interface AdminStats {
     today: number; byCarrier: Record<string, number>;
   };
   labelsByPortal: Record<string, { count: number; revenue: number }>;
+  trackingStatus: {
+    not_scanned_yet: number; in_transit: number; out_for_delivery: number; delivered: number;
+    exception_problem: number; returned_to_sender: number; pending_pickup: number; delayed: number;
+  };
   manifests: {
     total: number; active: number; underReview: number; completed: number;
     cancelled: number; revenue: number; byStatus: Record<string, number>;
@@ -235,7 +239,7 @@ const AdminDashboard: React.FC = () => {
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}><div className="spinner" /></div>;
   if (!stats) return null;
 
-  const { users, labels, manifests, vendors, labelsByPortal, totalBalanceHeld, totalRevenue, recentManifests, recentUsers } = stats;
+  const { users, labels, manifests, vendors, labelsByPortal, trackingStatus, totalBalanceHeld, totalRevenue, recentManifests, recentUsers } = stats;
   const labelTotal = labels.total || 1;
 
   const now = new Date();
@@ -537,6 +541,56 @@ const AdminDashboard: React.FC = () => {
 
         </div>{/* /right sidebar */}
       </div>{/* /2-col */}
+
+      {/* ── Label Tracking Status ───────────────────────────────────────────── */}
+      {(() => {
+        const TRACKING = [
+          { key: 'delivered',          label: 'Delivered',           color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   icon: '✓' },
+          { key: 'in_transit',         label: 'In Transit',          color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)',  icon: '→' },
+          { key: 'out_for_delivery',   label: 'Out for Delivery',    color: '#6366f1', bg: 'rgba(99,102,241,0.08)',  icon: '⟳' },
+          { key: 'not_scanned_yet',    label: 'Not Scanned Yet',     color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', icon: '○' },
+          { key: 'pending_pickup',     label: 'Pending Pickup',      color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  icon: '⏳' },
+          { key: 'delayed',            label: 'Delayed',             color: '#f97316', bg: 'rgba(249,115,22,0.08)',  icon: '!' },
+          { key: 'exception_problem',  label: 'Exception / Problem', color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   icon: '✕' },
+          { key: 'returned_to_sender', label: 'Returned to Sender',  color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', icon: '↩' },
+        ] as const;
+
+        const ts = trackingStatus || {};
+        const tsTotal = TRACKING.reduce((s, t) => s + (ts[t.key] || 0), 0) || 1;
+
+        return (
+          <div className="db-card" style={{ padding: '1.1rem 1.3rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <SLabel text="Label Tracking Status" accent="#0ea5e9" />
+                <span style={{ fontSize: '0.67rem', color: 'var(--navy-400)', background: 'var(--navy-100)', padding: '2px 7px', borderRadius: 99, fontWeight: 600, fontFamily: FONT }}>
+                  {fmtN(tsTotal)} labels
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+              {TRACKING.map(({ key, label, color, bg, icon }) => {
+                const count = ts[key] || 0;
+                const pct   = Math.round((count / tsTotal) * 100);
+                return (
+                  <div key={key} style={{ background: bg, border: `1px solid ${color}22`, borderRadius: 12, padding: '0.85rem 1rem', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, opacity: 0.7 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: '0.67rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>{label}</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color, background: `${color}18`, border: `1px solid ${color}30`, borderRadius: 99, padding: '1px 7px', fontFamily: FONT }}>{pct}%</span>
+                    </div>
+                    <div style={{ fontSize: '1.55rem', fontWeight: 900, color: 'var(--navy-900)', letterSpacing: '-0.04em', lineHeight: 1, marginBottom: 6 }}>{fmtN(count)}</div>
+                    <div style={{ height: 4, background: `${color}20`, borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Label Generation Chart ──────────────────────────────────────────── */}
       <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>

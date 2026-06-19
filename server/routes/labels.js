@@ -41,18 +41,51 @@ function createZip(pdfPaths, zipFilename) {
   });
 }
 
-// Fetch a remote PDF URL and return a Buffer (handles http + https)
-function fetchRemotePdf(url) {
+// ShipLabel invoice/download URLs are publicly accessible by tracking number — no auth needed.
+// Only the REST API endpoints (/api/v2/*) require Bearer auth.
+function slAuthHeaders(url) {
+  if (!url || !url.includes('shiplabel.net')) return {};
+  if (/\/invoices\/|\/download\/|\/labels\//.test(url)) return {};
+  const key = process.env.SHIPLABEL_API_KEY;
+  return key ? { Authorization: `Bearer ${key}` } : {};
+}
+
+// Fetch a remote PDF URL and return a Buffer (handles http + https + redirects)
+// Pass extraHeaders (e.g. slAuthHeaders) when the remote requires auth.
+function fetchRemotePdf(url, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http;
-    lib.get(url, (res) => {
+    let u;
+    try { u = new URL(url); } catch { return reject(new Error(`Invalid URL: ${url}`)); }
+    const opts = {
+      hostname: u.hostname,
+      port:     u.port || (u.protocol === 'https:' ? 443 : 80),
+      path:     u.pathname + u.search,
+      headers:  extraHeaders,
+    };
+    lib.get(opts, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return fetchRemotePdf(res.headers.location).then(resolve).catch(reject);
+        return fetchRemotePdf(res.headers.location, extraHeaders).then(resolve).catch(reject);
       }
-      if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+      }
+      const ct = res.headers['content-type'] || '';
+      if (ct && !ct.includes('pdf') && !ct.includes('octet-stream')) {
+        res.resume();
+        return reject(new Error(`Non-PDF content-type "${ct}" from ${url}`));
+      }
       const chunks = [];
       res.on('data', c => chunks.push(c));
-      res.on('end',  ()  => resolve(Buffer.concat(chunks)));
+      res.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        // Magic bytes: real PDFs start with %PDF- (0x25 0x50 0x44 0x46 0x2D)
+        if (buf.length < 5 || buf.slice(0, 5).toString('ascii') !== '%PDF-') {
+          return reject(new Error(`Response from ${url} is not a valid PDF (magic bytes: ${buf.slice(0, 8).toString('ascii')})`));
+        }
+        resolve(buf);
+      });
       res.on('error', reject);
     }).on('error', reject);
   });
@@ -211,8 +244,18 @@ router.post('/single', authenticateToken, [
         ...(vendor.shiplabelLabelSeries ? { label_series: vendor.shiplabelLabelSeries } : {}),
         ...(vendor.shiplabelLabelFormat ? { label_format: vendor.shiplabelLabelFormat } : {}),
       });
-      trackingId = slResult.tracking_id || '';
-      pdfUrl     = slResult.pdf         || null;
+      const slKeys    = Object.keys(slResult);
+      const slTrkKey  = slKeys.find(k => /track|barcode/i.test(k) && slResult[k]);
+      const slPdfKey  = slKeys.find(k => /^(pdf|label(_url|_pdf)?|label_link|download)$/i.test(k) && slResult[k]);
+      trackingId = slResult.tracking_id || slResult.tracking_number || slResult.barcode
+        || slResult.tracking || slResult.trackingNumber || slResult.trackingId
+        || (slTrkKey ? String(slResult[slTrkKey]) : '') || '';
+      pdfUrl = slResult.pdf || slResult.label_url || slResult.label
+        || slResult.pdf_url || slResult.label_pdf
+        || (slPdfKey ? String(slResult[slPdfKey]) : '') || null;
+      if (!trackingId) {
+        console.warn('[ShipLabel single] no tracking found. keys:', slKeys, '| full result:', JSON.stringify(slResult));
+      }
     }
 
     // Deduct balance
@@ -300,7 +343,11 @@ router.post('/bulk', authenticateToken, [
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
-    const { vendorId, labels: labelRows } = req.body;
+    const { vendorId, labels: labelRows, bulkFileName: rawBulkFileName } = req.body;
+    // Sanitize the uploaded filename so it's safe in Content-Disposition headers
+    const bulkFileName = typeof rawBulkFileName === 'string'
+      ? rawBulkFileName.replace(/[^\w\s\-_.()]/g, '').slice(0, 200).trim()
+      : '';
 
     const vendor = await Vendor.findById(vendorId);
     if (!vendor || !vendor.isActive) {
@@ -464,6 +511,7 @@ router.post('/bulk', authenticateToken, [
         price:            rowCosts[i],
         isBulk:           true,
         bulkJobId:        lcBulkJobId,
+        bulkFileName,
         labelcrowJobId:   jobId,
         labelcrowOrderId: String(orderId),
         status:           'pending',
@@ -506,23 +554,27 @@ router.post('/bulk', authenticateToken, [
         price:            rowCosts[i],
         isBulk:           true,
         bulkJobId:        slBulkJobId,
+        bulkFileName,
         status:           'pending',
         ...row,
         weight: parseFloat(row.weight) || 0,
       })));
 
-      // Process labels in background — batches of 5 for speed
-      const userId = req.user._id;
+      // Process labels sequentially — ShipLabel API rejects concurrent requests with the same key
+      const userId      = req.user._id;
+      const _labelDocs  = labelDocs;
+      const _labelRows  = labelRows;
+      const _vendor     = vendor;
       setImmediate(async () => {
-        const BATCH = 5;
-        for (let i = 0; i < labelDocs.length; i += BATCH) {
-          const batch = labelDocs.slice(i, i + BATCH);
-          await Promise.all(batch.map(async (labelDoc, bi) => {
-            const row = labelRows[i + bi];
-            if (!row) return;
-            try {
+        console.log(`[SL setImmediate] starting — ${_labelDocs.length} labels`);
+        for (let i = 0; i < _labelDocs.length; i++) {
+          const labelDoc = _labelDocs[i];
+          const row      = _labelRows[i];
+          console.log(`[SL setImmediate] label ${i + 1}/${_labelDocs.length} — docId: ${labelDoc._id}`);
+          if (!row) { console.warn(`[SL setImmediate] no row for index ${i}, skipping`); continue; }
+          try {
               const payload = {
-                label_id:     vendor.shiplabelServiceId,
+                label_id:     _vendor.shiplabelServiceId,
                 fromName:     row.from_name     || '',
                 fromCompany:  row.from_company  || '',
                 fromAddress:  row.from_address1 || '',
@@ -543,16 +595,31 @@ router.post('/bulk', authenticateToken, [
                 length:       parseFloat(row.length) || 0,
                 height:       parseFloat(row.height) || 0,
                 width:        parseFloat(row.width)  || 0,
-                ...(vendor.shiplabelLabelSeries ? { label_series: vendor.shiplabelLabelSeries } : {}),
-                ...(vendor.shiplabelLabelFormat ? { label_format: vendor.shiplabelLabelFormat } : {}),
+                ...(_vendor.shiplabelLabelSeries ? { label_series: _vendor.shiplabelLabelSeries } : {}),
+                ...(_vendor.shiplabelLabelFormat ? { label_format: _vendor.shiplabelLabelFormat } : {}),
               };
               const result = await shiplabel.createOrder(payload);
+              // Auto-scan result keys for tracking number and PDF URL
+              const keys = Object.keys(result);
+              const trackKey = keys.find(k => /track|barcode/i.test(k) && result[k]);
+              const pdfKey   = keys.find(k => /^(pdf|label(_url|_pdf)?|label_link|download)$/i.test(k) && result[k]);
+              const tid = result.tracking_id || result.tracking_number
+                || result.label_tracking_number || result.shipment_tracking
+                || result.order_tracking || result.barcode || result.tracking
+                || result.track_no || result.trackingNumber || result.trackingId
+                || (trackKey ? String(result[trackKey]) : '') || '';
+              const pdfUrl = result.pdf || result.label_url || result.label
+                || result.pdf_url || result.label_pdf || result.label_link
+                || (pdfKey ? String(result[pdfKey]) : '') || null;
+              if (!tid) {
+                console.warn('[ShipLabel bulk] no tracking found. keys:', keys, '| full result:', JSON.stringify(result));
+              }
               await Label.updateOne({ _id: labelDoc._id }, {
                 $set: {
                   status:           'generated',
-                  trackingId:       result.tracking_id || '',
-                  pdfUrl:           result.pdf         || null,
-                  shiplabelOrderId: String(result.tracking_id || ''),
+                  trackingId:       tid,
+                  pdfUrl,
+                  shiplabelOrderId: tid ? String(tid) : String(result.order_id || result.id || ''),
                 },
               });
             } catch (err) {
@@ -571,8 +638,8 @@ router.post('/bulk', authenticateToken, [
               }
               await Label.updateOne({ _id: labelDoc._id }, { $set: { status: 'failed' } });
             }
-          }));
         }
+        console.log(`[SL setImmediate] all ${_labelDocs.length} labels done`);
       });
 
       return res.status(202).json({
@@ -619,6 +686,7 @@ router.post('/bulk', authenticateToken, [
           awsPath: shippershubResult?.awsPath || null,
           isBulk:      true,
           bulkJobId,
+          bulkFileName,
           ...row,
           weight: parseFloat(row.weight)
         });
@@ -815,6 +883,160 @@ router.get('/bulk-jobs', authenticateToken, async (req, res) => {
   }
 });
 
+// ── GET /api/labels/cc-all  (Command Center — admin only) ────
+// All labels (single + bulk) with full filtering for the tracking command center
+router.get('/cc-all', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { trackingStatus, carrier, vendorId, userId, dateFrom, dateTo, search } = req.query;
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(parseInt(req.query.limit) || 35, PAGE_LIMIT_MAX);
+
+    const filter = {};
+    if (carrier)                          filter.carrier        = carrier;
+    if (trackingStatus)                   filter.trackingStatus = trackingStatus;
+    if (vendorId && isValidObjectId(vendorId)) filter.vendor    = vendorId;
+    if (userId   && isValidObjectId(userId))   filter.user      = userId;
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   filter.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+    if (search && search.length <= 200) {
+      const escaped = escapeRegex(search);
+      filter.$or = [
+        { trackingId: { $regex: escaped, $options: 'i' } },
+        { from_name:  { $regex: escaped, $options: 'i' } },
+        { to_name:    { $regex: escaped, $options: 'i' } },
+        { to_city:    { $regex: escaped, $options: 'i' } },
+      ];
+    }
+
+    const total  = await Label.countDocuments(filter);
+    const labels = await Label.find(filter)
+      .populate('user',   'firstName lastName email')
+      .populate('vendor', 'name carrier rate source')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json({ labels, total, totalPages: Math.ceil(total / limit), currentPage: page });
+  } catch (err) {
+    console.error('CC all labels error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ── GET /api/labels/tracking-ids  (Command Center — admin only) ──
+// Returns just tracking ID strings for all labels matching current filters (no pagination)
+router.get('/tracking-ids', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { trackingStatus, carrier, vendorId, userId, dateFrom, dateTo, search } = req.query;
+    const filter = { trackingId: { $exists: true, $ne: '' } };
+    if (carrier)                              filter.carrier        = carrier;
+    if (trackingStatus)                       filter.trackingStatus = trackingStatus;
+    if (vendorId && isValidObjectId(vendorId)) filter.vendor        = vendorId;
+    if (userId   && isValidObjectId(userId))   filter.user          = userId;
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   filter.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+    if (search && search.length <= 200) {
+      const escaped = escapeRegex(search);
+      filter.$or = [
+        { trackingId: { $regex: escaped, $options: 'i' } },
+        { from_name:  { $regex: escaped, $options: 'i' } },
+        { to_name:    { $regex: escaped, $options: 'i' } },
+        { to_city:    { $regex: escaped, $options: 'i' } },
+      ];
+    }
+    const labels = await Label.find(filter).select('trackingId').sort({ createdAt: -1 }).lean();
+    const ids = labels.map(l => l.trackingId).filter(Boolean);
+    res.json({ ids, total: ids.length });
+  } catch (err) {
+    console.error('Tracking IDs error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ── GET /api/labels/vendor-stats  (Command Center — admin only) ──
+// Aggregated delivery stats per vendor name
+router.get('/vendor-stats', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const matchStage = {};
+    if (dateFrom || dateTo) {
+      matchStage.createdAt = {};
+      if (dateFrom) matchStage.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   matchStage.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+
+    const pipeline = [
+      ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
+      {
+        $group: {
+          _id:               '$vendorName',
+          carrier:           { $first: '$carrier' },
+          total:             { $sum: 1 },
+          delivered:         { $sum: { $cond: [{ $eq: ['$trackingStatus', 'delivered'] },          1, 0] } },
+          in_transit:        { $sum: { $cond: [{ $eq: ['$trackingStatus', 'in_transit'] },         1, 0] } },
+          out_for_delivery:  { $sum: { $cond: [{ $eq: ['$trackingStatus', 'out_for_delivery'] },   1, 0] } },
+          exception_problem: { $sum: { $cond: [{ $eq: ['$trackingStatus', 'exception_problem'] },  1, 0] } },
+          returned_to_sender:{ $sum: { $cond: [{ $eq: ['$trackingStatus', 'returned_to_sender'] }, 1, 0] } },
+          pending_pickup:    { $sum: { $cond: [{ $eq: ['$trackingStatus', 'pending_pickup'] },     1, 0] } },
+          delayed:           { $sum: { $cond: [{ $eq: ['$trackingStatus', 'delayed'] },            1, 0] } },
+          not_scanned_yet:   { $sum: { $cond: [{ $in:  ['$trackingStatus', ['not_scanned_yet', null]] }, 1, 0] } },
+        },
+      },
+      { $sort: { total: -1 } },
+    ];
+
+    const vendors = await Label.aggregate(pipeline);
+    res.json({ vendors });
+  } catch (err) {
+    console.error('Vendor stats error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ── GET /api/labels/daily-stats  (Command Center — admin only) ───
+// Labels grouped by creation date with tracking status breakdown
+router.get('/daily-stats', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const matchStage = {};
+    if (dateFrom || dateTo) {
+      matchStage.createdAt = {};
+      if (dateFrom) matchStage.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   matchStage.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+
+    const pipeline = [
+      ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          total:             { $sum: 1 },
+          delivered:         { $sum: { $cond: [{ $eq: ['$trackingStatus', 'delivered'] },          1, 0] } },
+          in_transit:        { $sum: { $cond: [{ $eq: ['$trackingStatus', 'in_transit'] },         1, 0] } },
+          out_for_delivery:  { $sum: { $cond: [{ $eq: ['$trackingStatus', 'out_for_delivery'] },   1, 0] } },
+          exception_problem: { $sum: { $cond: [{ $eq: ['$trackingStatus', 'exception_problem'] },  1, 0] } },
+          returned_to_sender:{ $sum: { $cond: [{ $eq: ['$trackingStatus', 'returned_to_sender'] }, 1, 0] } },
+          not_scanned_yet:   { $sum: { $cond: [{ $in:  ['$trackingStatus', ['not_scanned_yet', null]] }, 1, 0] } },
+        },
+      },
+      { $sort: { _id: -1 } },
+      { $limit: 90 },
+    ];
+
+    const days = await Label.aggregate(pipeline);
+    res.json({ days });
+  } catch (err) {
+    console.error('Daily stats error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ── GET /api/labels/pdf/:filename ─────────────────────────────
 // Serve a locally saved label PDF (authenticated)
 router.get('/pdf/:filename', authenticateToken, (req, res) => {
@@ -832,7 +1054,7 @@ router.get('/pdf/:filename', authenticateToken, (req, res) => {
 // ── Admin: update tracking status on a label ──────────────────────────────────
 const VALID_TRACKING_STATUSES = [
   'not_scanned_yet', 'in_transit', 'out_for_delivery', 'delivered',
-  'exception_problem', 'returned_to_sender', 'pending_pickup', 'delayed',
+  'exception_problem', 'returned_to_sender', 'pending_pickup', 'delayed', 'voided',
 ];
 
 // Normalize various ChatGPT / user-supplied formats to canonical DB keys
@@ -849,6 +1071,7 @@ function normalizeTrackingStatus(raw) {
     'returnedtosender': 'returned_to_sender',
     'pending_pickup': 'pending_pickup', 'pendingpickup': 'pending_pickup',
     'delayed': 'delayed',
+    'voided': 'voided', 'void': 'voided',
   };
   return MAP[s] || null;
 }
@@ -879,6 +1102,39 @@ router.patch('/:id/tracking-status', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error updating tracking status' });
+  }
+});
+
+// ── User: mark own label as Voided ────────────────────────────────────────────
+router.patch('/:id/void', authenticateToken, async (req, res) => {
+  try {
+    const label = await Label.findById(req.params.id).select('user trackingStatus');
+    if (!label) return res.status(404).json({ message: 'Label not found' });
+    const isOwner = label.user.toString() === req.user._id.toString();
+    if (!isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'You can only void your own labels' });
+    }
+    if (label.trackingStatus === 'voided') {
+      return res.status(400).json({ message: 'Label is already voided' });
+    }
+    const historyEntry = {
+      status:    'voided',
+      note:      'Marked as voided by user',
+      updatedAt: new Date(),
+      updatedBy: req.user._id,
+    };
+    const updated = await Label.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set:  { trackingStatus: 'voided' },
+        $push: { trackingStatusHistory: { $each: [historyEntry], $position: 0 } },
+      },
+      { new: true, select: 'trackingStatus trackingStatusHistory' }
+    );
+    res.json({ trackingStatus: updated.trackingStatus, trackingStatusHistory: updated.trackingStatusHistory });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error voiding label' });
   }
 });
 
@@ -969,15 +1225,46 @@ router.get('/:id/pdf', authenticateToken, async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${disp}; filename="${safeName}"`);
 
-    // External URL (S3 or ShippersHub CDN) — fetch server-side and pipe back
+    // External URL (S3 / ShippersHub CDN / ShipLabel CDN) — fetch server-side and pipe back
     if (src.startsWith('http://') || src.startsWith('https://')) {
-      const https = require('https');
-      const http  = require('http');
-      const mod   = src.startsWith('https') ? https : http;
-      mod.get(src, (upstream) => {
-        if (upstream.statusCode !== 200) {
-          res.status(502).end('Could not fetch PDF from storage');
+      const mod  = src.startsWith('https') ? https : http;
+      const reqH = slAuthHeaders(src);
+      let u;
+      try { u = new URL(src); } catch { return res.status(400).json({ message: 'Invalid PDF URL' }); }
+      const opts = {
+        hostname: u.hostname,
+        port:     u.port || (u.protocol === 'https:' ? 443 : 80),
+        path:     u.pathname + u.search,
+        headers:  reqH,
+      };
+      mod.get(opts, (upstream) => {
+        if (upstream.statusCode >= 300 && upstream.statusCode < 400 && upstream.headers.location) {
+          upstream.resume();
+          const loc = upstream.headers.location;
+          const mod2 = loc.startsWith('https') ? https : http;
+          let u2;
+          try { u2 = new URL(loc); } catch { return res.status(502).end(); }
+          mod2.get({ hostname: u2.hostname, port: u2.port || (u2.protocol === 'https:' ? 443 : 80), path: u2.pathname + u2.search, headers: reqH }, (up2) => {
+            if (up2.statusCode !== 200) { up2.resume(); return res.status(502).end('Could not fetch PDF'); }
+            const ct2 = up2.headers['content-type'] || '';
+            if (ct2 && !ct2.includes('pdf') && !ct2.includes('octet-stream')) {
+              up2.resume();
+              console.warn(`[PDF proxy] redirect returned content-type "${ct2}" for ${loc}`);
+              return res.status(502).json({ message: 'Remote file is not a PDF' });
+            }
+            up2.pipe(res);
+          }).on('error', () => res.status(502).json({ message: 'Could not fetch PDF' }));
           return;
+        }
+        if (upstream.statusCode !== 200) {
+          upstream.resume();
+          return res.status(502).end('Could not fetch PDF from storage');
+        }
+        const ct = upstream.headers['content-type'] || '';
+        if (ct && !ct.includes('pdf') && !ct.includes('octet-stream')) {
+          upstream.resume();
+          console.warn(`[PDF proxy] content-type "${ct}" for ${src}`);
+          return res.status(502).json({ message: 'Remote file is not a PDF — ShipLabel may require re-generation' });
         }
         upstream.pipe(res);
       }).on('error', () => res.status(502).json({ message: 'Could not fetch PDF from storage' }));
@@ -1036,21 +1323,31 @@ router.post('/zip/multi-jobs', authenticateToken, async (req, res) => {
         }
       }
 
-      // Add individual PDFs (same logic as /zip/bulk/:bulkJobId fallback)
-      labels.forEach((label, i) => {
+      // Add individual PDFs — handles both local files and remote URLs (e.g. ShipLabel CDN)
+      for (const label of labels) {
         if (!label.pdfUrl) {
           console.log(`[multi-jobs ZIP] label ${label._id} has no pdfUrl — skipping`);
-          return;
+          continue;
         }
-        const filename  = path.basename(label.pdfUrl);
-        const localPath = path.join(labelsDir, filename);
-        console.log(`[multi-jobs ZIP] checking ${localPath} → exists: ${fs.existsSync(localPath)}`);
-        if (fs.existsSync(localPath)) {
-          fileCount++;
-          const name = `${String(fileCount).padStart(4, '0')}-${label.trackingId || filename}`;
-          archive.file(localPath, { name: name.endsWith('.pdf') ? name : name + '.pdf' });
+        if (/^https?:\/\//i.test(label.pdfUrl)) {
+          try {
+            const buf = await fetchRemotePdf(label.pdfUrl, slAuthHeaders(label.pdfUrl));
+            fileCount++;
+            const name = `${String(fileCount).padStart(4, '0')}-${label.trackingId || label._id}.pdf`;
+            archive.append(buf, { name });
+          } catch (fetchErr) {
+            console.error(`[multi-jobs ZIP] failed to fetch ${label.pdfUrl}:`, fetchErr.message);
+          }
+        } else {
+          const filename  = path.basename(label.pdfUrl);
+          const localPath = path.join(labelsDir, filename);
+          if (fs.existsSync(localPath)) {
+            fileCount++;
+            const name = `${String(fileCount).padStart(4, '0')}-${label.trackingId || filename}`;
+            archive.file(localPath, { name: name.endsWith('.pdf') ? name : name + '.pdf' });
+          }
         }
-      });
+      }
     }
 
     console.log(`[multi-jobs ZIP] finalizing with ${fileCount} files`);
@@ -1080,13 +1377,18 @@ router.get('/zip/:filename', authenticateToken, (req, res) => {
 router.get('/zip/bulk/:bulkJobId', authenticateToken, async (req, res) => {
   try {
     const { bulkJobId } = req.params;
+    console.log(`[ZIP /zip/bulk/:id] request — bulkJobId: ${bulkJobId} | user: ${req.user?._id}`);
     const filter = { bulkJobId, isBulk: true };
     if (req.user.role !== 'admin') filter.user = req.user._id;
 
     const labels = await Label.find(filter);
+    console.log(`[ZIP /zip/bulk/:id] found ${labels.length} labels — pdfUrls: ${labels.map(l => l.pdfUrl || 'null').join(', ')}`);
     if (!labels.length) return res.status(404).json({ message: 'No labels found for this bulk job' });
 
-    const zipName = `bulk-labels-${bulkJobId.slice(-8)}.zip`;
+    const storedName = labels[0]?.bulkFileName;
+    const zipName = storedName
+      ? storedName.replace(/\.(xlsx?|csv)$/i, '.zip')
+      : `bulk-labels-${bulkJobId.slice(-8)}.zip`;
 
     // ── Prefer the pre-built ZIP stamped on the labels ────────
     const prebuiltUrl = labels[0]?.bulkZipUrl; // e.g. /api/labels/zip/bulk-xxxx.zip
@@ -1113,9 +1415,9 @@ router.get('/zip/bulk/:bulkJobId', authenticateToken, async (req, res) => {
       if (!label.pdfUrl) continue;
       const entry = `label-${i + 1}${label.trackingId ? '-' + label.trackingId : ''}.pdf`;
       if (/^https?:\/\//i.test(label.pdfUrl)) {
-        // Remote URL (e.g. ShipLabel CDN) — fetch and stream into archive
+        // Remote URL (e.g. ShipLabel CDN) — fetch with auth if needed and stream into archive
         try {
-          const buf = await fetchRemotePdf(label.pdfUrl);
+          const buf = await fetchRemotePdf(label.pdfUrl, slAuthHeaders(label.pdfUrl));
           archive.append(buf, { name: entry });
         } catch (fetchErr) {
           console.error(`[ZIP] Failed to fetch remote PDF for label ${i + 1}:`, fetchErr.message);
@@ -1209,6 +1511,23 @@ router.get('/labelcrow-order/:orderId/zip', authenticateToken, async (req, res) 
   } catch (err) {
     console.error('[LC zip]', err);
     res.status(500).json({ message: err.message || 'Download error' });
+  }
+});
+
+// ── GET /api/labels/bulk-detail/:bulkJobId ────────────────────
+// Per-label detail for a bulk job (used by history page drawer)
+router.get('/bulk-detail/:bulkJobId', authenticateToken, async (req, res) => {
+  try {
+    const filter = { bulkJobId: req.params.bulkJobId, isBulk: true };
+    if (req.user.role !== 'admin') filter.user = req.user._id;
+    const labels = await Label.find(filter)
+      .select('_id trackingId pdfUrl status from_name to_name to_city to_state to_zip weight price createdAt')
+      .sort({ createdAt: 1 })
+      .lean();
+    res.json({ labels });
+  } catch (err) {
+    console.error('Bulk detail error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

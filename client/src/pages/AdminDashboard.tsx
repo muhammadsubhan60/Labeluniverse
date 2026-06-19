@@ -295,124 +295,94 @@ const AdminDashboard: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontFamily: FONT }}>
 
-      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)',
-        borderRadius: 18, padding: '1.4rem 2rem',
-        position: 'relative', overflow: 'hidden',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem',
-      }}>
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.06, backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '22px 22px', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 50% 90% at 8% 50%, rgba(59,130,246,0.14) 0%, transparent 70%)', pointerEvents: 'none' }} />
-
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: '0.7rem', fontWeight: 500, margin: '0 0 4px', letterSpacing: '0.03em' }}>{dateLabel}</p>
-          <h1 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 3px', lineHeight: 1.15 }}>
-            {greeting}, <span style={{ color: '#60A5FA' }}>{user?.firstName}</span>
-          </h1>
-          <p style={{ color: '#64748B', fontSize: '0.78rem', margin: 0 }}>Platform overview — admin control center</p>
-        </div>
-
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Live stat chips */}
-          {[
-            { label: 'Users',    value: fmtN(users.total),    accent: '#818CF8' },
-            { label: 'Revenue',  value: fmt$(totalRevenue),   accent: '#34D399' },
-            { label: 'Review',   value: manifests.underReview, accent: '#F87171' },
-          ].map(({ label, value, accent }) => (
-            <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '0.5rem 0.9rem', minWidth: 70 }}>
-              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 2px' }}>{label}</p>
-              <p style={{ color: accent, fontSize: '0.85rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
-            </div>
-          ))}
-
-          <button
-            onClick={() => load(true)}
-            disabled={refreshing}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff', borderRadius: 8, padding: '0.45rem 0.85rem',
-              fontSize: '0.75rem', fontWeight: 600, cursor: refreshing ? 'not-allowed' : 'pointer',
-              transition: 'background 0.15s', opacity: refreshing ? 0.7 : 1, fontFamily: FONT,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-          >
-            <ArrowPathIcon style={{ width: 13, height: 13, animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Period filter bar ───────────────────────────────────────────────── */}
+      {/* ── Hero + Period filter ──────────────────────────────────────────────── */}
       {(() => {
         const PRESETS_PERIOD = [
-          { key: 'all',        label: 'All Time'    },
-          { key: 'this_month', label: 'This Month'  },
-          { key: 'last_month', label: 'Last Month'  },
-          { key: 'last_3m',    label: 'Last 3 Months' },
+          { key: 'all',        label: 'All Time'     },
+          { key: 'this_month', label: 'This Month'   },
+          { key: 'last_month', label: 'Last Month'   },
+          { key: 'last_3m',    label: 'Last 3 Months'},
         ] as const;
-
-        const applyPreset = (key: PeriodPreset) => {
-          setPeriodPreset(key);
-          load(false, key, periodFrom, periodTo);
-        };
-
-        const applyCustom = () => {
-          if (!periodFrom || !periodTo) return;
-          setPeriodPreset('custom');
-          load(false, 'custom', periodFrom, periodTo);
-        };
-
+        const applyPreset = (key: PeriodPreset) => { setPeriodPreset(key); load(false, key, periodFrom, periodTo); };
+        const applyCustom = () => { if (!periodFrom || !periodTo) return; setPeriodPreset('custom'); load(false, 'custom', periodFrom, periodTo); };
         const { from: activeFrom, to: activeTo } = getPeriodRange(periodPreset);
-        const showingPeriod = periodPreset !== 'all';
 
         return (
-          <div className="db-card" style={{ padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.09em', flexShrink: 0, fontFamily: FONT }}>Period</span>
+          <div style={{
+            background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)',
+            borderRadius: 18, overflow: 'hidden', position: 'relative',
+          }}>
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.06, backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '22px 22px', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 50% 90% at 8% 50%, rgba(59,130,246,0.14) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-            {/* Preset pills */}
-            <div style={{ display: 'flex', background: 'var(--navy-100)', borderRadius: 8, padding: 2, gap: 1 }}>
-              {PRESETS_PERIOD.map(p => (
-                <button
-                  key={p.key}
-                  onClick={() => applyPreset(p.key as PeriodPreset)}
-                  style={{
-                    padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                    fontSize: '0.72rem', fontWeight: 700, fontFamily: FONT, transition: 'all 0.12s',
-                    background: periodPreset === p.key ? 'var(--bg-card)' : 'transparent',
-                    color:      periodPreset === p.key ? 'var(--navy-900)' : 'var(--navy-400)',
-                    boxShadow:  periodPreset === p.key ? '0 1px 4px rgba(0,0,0,0.09)' : 'none',
-                  }}
-                >{p.label}</button>
-              ))}
+            {/* Top row: greeting + chips */}
+            <div style={{ padding: '1.4rem 2rem', position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem' }}>
+              <div>
+                <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: '0.7rem', fontWeight: 500, margin: '0 0 4px', letterSpacing: '0.03em' }}>{dateLabel}</p>
+                <h1 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 3px', lineHeight: 1.15 }}>
+                  {greeting}, <span style={{ color: '#60A5FA' }}>{user?.firstName}</span>
+                </h1>
+                <p style={{ color: '#64748B', fontSize: '0.78rem', margin: 0 }}>Platform overview — admin control center</p>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {[
+                  { label: 'Users',   value: fmtN(users.total),     accent: '#818CF8' },
+                  { label: 'Revenue', value: fmt$(totalRevenue),     accent: '#34D399' },
+                  { label: 'Review',  value: manifests.underReview,  accent: '#F87171' },
+                ].map(({ label, value, accent }) => (
+                  <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '0.5rem 0.9rem', minWidth: 70 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 2px' }}>{label}</p>
+                    <p style={{ color: accent, fontSize: '0.85rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
+                  </div>
+                ))}
+                <button onClick={() => load(true)} disabled={refreshing} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '0.45rem 0.85rem', fontSize: '0.75rem', fontWeight: 600, cursor: refreshing ? 'not-allowed' : 'pointer', opacity: refreshing ? 0.7 : 1, fontFamily: FONT }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}>
+                  <ArrowPathIcon style={{ width: 13, height: 13, animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                  {refreshing ? 'Refreshing…' : 'Refresh'}
+                </button>
+              </div>
             </div>
 
-            {/* Divider */}
-            <span style={{ width: 1, height: 18, background: 'var(--navy-200)', flexShrink: 0 }} />
+            {/* Period filter strip */}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '0.6rem 2rem', position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.63rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0, fontFamily: FONT }}>Period</span>
 
-            {/* Custom date range */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)}
-                style={{ border: '1px solid var(--navy-200)', borderRadius: 7, padding: '3px 7px', fontSize: '0.74rem', color: 'var(--navy-800)', background: 'var(--bg-card)', cursor: 'pointer', fontFamily: FONT }} />
-              <span style={{ fontSize: '0.7rem', color: 'var(--navy-400)', flexShrink: 0 }}>to</span>
-              <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)}
-                style={{ border: '1px solid var(--navy-200)', borderRadius: 7, padding: '3px 7px', fontSize: '0.74rem', color: 'var(--navy-800)', background: 'var(--bg-card)', cursor: 'pointer', fontFamily: FONT }} />
-              <button onClick={applyCustom} disabled={!periodFrom || !periodTo}
-                style={{ padding: '4px 12px', borderRadius: 7, border: 'none', background: (!periodFrom || !periodTo) ? 'var(--navy-100)' : 'linear-gradient(135deg,#6366f1,#4f46e5)', color: (!periodFrom || !periodTo) ? 'var(--navy-400)' : '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: (!periodFrom || !periodTo) ? 'not-allowed' : 'pointer', fontFamily: FONT }}>
-                Apply
-              </button>
+              {/* Preset pills */}
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: 2, gap: 1 }}>
+                {PRESETS_PERIOD.map(p => (
+                  <button key={p.key} onClick={() => applyPreset(p.key as PeriodPreset)} style={{
+                    padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    fontSize: '0.71rem', fontWeight: 700, fontFamily: FONT, transition: 'all 0.12s',
+                    background: periodPreset === p.key ? 'rgba(255,255,255,0.14)' : 'transparent',
+                    color:      periodPreset === p.key ? '#fff' : 'rgba(255,255,255,0.38)',
+                    boxShadow:  periodPreset === p.key ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                  }}>{p.label}</button>
+                ))}
+              </div>
+
+              <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+
+              {/* Custom date range */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)}
+                  style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' }} />
+                <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>to</span>
+                <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)}
+                  style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' }} />
+                <button onClick={applyCustom} disabled={!periodFrom || !periodTo} style={{ padding: '4px 12px', borderRadius: 7, border: 'none', background: (!periodFrom || !periodTo) ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.75)', color: (!periodFrom || !periodTo) ? 'rgba(255,255,255,0.25)' : '#fff', fontSize: '0.71rem', fontWeight: 700, cursor: (!periodFrom || !periodTo) ? 'not-allowed' : 'pointer', fontFamily: FONT }}>
+                  Apply
+                </button>
+              </div>
+
+              {/* Active range badge */}
+              {periodPreset !== 'all' && (
+                <span style={{ marginLeft: 'auto', fontSize: '0.68rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 99, padding: '3px 10px', fontFamily: FONT, flexShrink: 0 }}>
+                  {activeFrom} → {activeTo}
+                </span>
+              )}
             </div>
-
-            {/* Active period badge */}
-            {showingPeriod && (
-              <span style={{ marginLeft: 'auto', fontSize: '0.7rem', fontWeight: 600, color: '#6366f1', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 99, padding: '3px 10px', fontFamily: FONT, flexShrink: 0 }}>
-                {activeFrom} → {activeTo}
-              </span>
-            )}
-
-            {refreshing && <div className="spinner" style={{ width: 14, height: 14, flexShrink: 0 }} />}
           </div>
         );
       })()}

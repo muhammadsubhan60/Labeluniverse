@@ -167,6 +167,8 @@ const QAction = ({ label, sub, Icon, color, onClick }: {
   );
 };
 
+type PeriodPreset = 'all' | 'this_month' | 'last_month' | 'last_3m' | 'custom';
+
 // ── Admin Dashboard ────────────────────────────────────────────────────────────
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -175,8 +177,34 @@ const AdminDashboard: React.FC = () => {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Chart state
+  // Period filter
   const toISO = (d: Date) => d.toISOString().slice(0, 10);
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all');
+  const [periodFrom,   setPeriodFrom]   = useState('');
+  const [periodTo,     setPeriodTo]     = useState('');
+
+  const getPeriodRange = useCallback((preset: PeriodPreset, pFrom = periodFrom, pTo = periodTo) => {
+    const n = new Date();
+    if (preset === 'this_month') {
+      const f = new Date(n.getFullYear(), n.getMonth(), 1);
+      const t = new Date(n.getFullYear(), n.getMonth() + 1, 0, 23, 59, 59);
+      return { from: toISO(f), to: toISO(t) };
+    }
+    if (preset === 'last_month') {
+      const f = new Date(n.getFullYear(), n.getMonth() - 1, 1);
+      const t = new Date(n.getFullYear(), n.getMonth(), 0, 23, 59, 59);
+      return { from: toISO(f), to: toISO(t) };
+    }
+    if (preset === 'last_3m') {
+      const f = new Date(n.getFullYear(), n.getMonth() - 2, 1);
+      return { from: toISO(f), to: toISO(n) };
+    }
+    if (preset === 'custom') return { from: pFrom, to: pTo };
+    return { from: '', to: '' };
+  }, [periodFrom, periodTo]);
+
+  // Chart state
+  // (toISO already defined above)
   const nowDate = new Date();
   const [chartFrom,     setChartFrom]     = useState(toISO(new Date(nowDate.getTime() - 29 * 86400000)));
   const [chartTo,       setChartTo]       = useState(toISO(nowDate));
@@ -226,11 +254,18 @@ const AdminDashboard: React.FC = () => {
     finally { setChartLoading(false); }
   }, []);
 
-  const load = useCallback(async (showRefresh = false) => {
+  const load = useCallback(async (showRefresh = false, preset = periodPreset, pFrom = periodFrom, pTo = periodTo) => {
     if (showRefresh) setRefreshing(true);
-    try { const res = await axios.get('/stats'); setStats(res.data); }
-    catch {} finally { setLoading(false); setRefreshing(false); }
-  }, []);
+    try {
+      const { from, to } = getPeriodRange(preset, pFrom, pTo);
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to)   params.to   = to;
+      const res = await axios.get('/stats', { params });
+      setStats(res.data);
+    } catch {}
+    finally { setLoading(false); setRefreshing(false); }
+  }, [periodPreset, periodFrom, periodTo, getPeriodRange]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!dateError) loadChart(chartFrom, chartTo, chartCarrier); }, [chartFrom, chartTo, chartCarrier, loadChart, dateError]);
@@ -309,6 +344,78 @@ const AdminDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ── Period filter bar ───────────────────────────────────────────────── */}
+      {(() => {
+        const PRESETS_PERIOD = [
+          { key: 'all',        label: 'All Time'    },
+          { key: 'this_month', label: 'This Month'  },
+          { key: 'last_month', label: 'Last Month'  },
+          { key: 'last_3m',    label: 'Last 3 Months' },
+        ] as const;
+
+        const applyPreset = (key: PeriodPreset) => {
+          setPeriodPreset(key);
+          load(false, key, periodFrom, periodTo);
+        };
+
+        const applyCustom = () => {
+          if (!periodFrom || !periodTo) return;
+          setPeriodPreset('custom');
+          load(false, 'custom', periodFrom, periodTo);
+        };
+
+        const { from: activeFrom, to: activeTo } = getPeriodRange(periodPreset);
+        const showingPeriod = periodPreset !== 'all';
+
+        return (
+          <div className="db-card" style={{ padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.09em', flexShrink: 0, fontFamily: FONT }}>Period</span>
+
+            {/* Preset pills */}
+            <div style={{ display: 'flex', background: 'var(--navy-100)', borderRadius: 8, padding: 2, gap: 1 }}>
+              {PRESETS_PERIOD.map(p => (
+                <button
+                  key={p.key}
+                  onClick={() => applyPreset(p.key as PeriodPreset)}
+                  style={{
+                    padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    fontSize: '0.72rem', fontWeight: 700, fontFamily: FONT, transition: 'all 0.12s',
+                    background: periodPreset === p.key ? 'var(--bg-card)' : 'transparent',
+                    color:      periodPreset === p.key ? 'var(--navy-900)' : 'var(--navy-400)',
+                    boxShadow:  periodPreset === p.key ? '0 1px 4px rgba(0,0,0,0.09)' : 'none',
+                  }}
+                >{p.label}</button>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <span style={{ width: 1, height: 18, background: 'var(--navy-200)', flexShrink: 0 }} />
+
+            {/* Custom date range */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)}
+                style={{ border: '1px solid var(--navy-200)', borderRadius: 7, padding: '3px 7px', fontSize: '0.74rem', color: 'var(--navy-800)', background: 'var(--bg-card)', cursor: 'pointer', fontFamily: FONT }} />
+              <span style={{ fontSize: '0.7rem', color: 'var(--navy-400)', flexShrink: 0 }}>to</span>
+              <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)}
+                style={{ border: '1px solid var(--navy-200)', borderRadius: 7, padding: '3px 7px', fontSize: '0.74rem', color: 'var(--navy-800)', background: 'var(--bg-card)', cursor: 'pointer', fontFamily: FONT }} />
+              <button onClick={applyCustom} disabled={!periodFrom || !periodTo}
+                style={{ padding: '4px 12px', borderRadius: 7, border: 'none', background: (!periodFrom || !periodTo) ? 'var(--navy-100)' : 'linear-gradient(135deg,#6366f1,#4f46e5)', color: (!periodFrom || !periodTo) ? 'var(--navy-400)' : '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: (!periodFrom || !periodTo) ? 'not-allowed' : 'pointer', fontFamily: FONT }}>
+                Apply
+              </button>
+            </div>
+
+            {/* Active period badge */}
+            {showingPeriod && (
+              <span style={{ marginLeft: 'auto', fontSize: '0.7rem', fontWeight: 600, color: '#6366f1', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 99, padding: '3px 10px', fontFamily: FONT, flexShrink: 0 }}>
+                {activeFrom} → {activeTo}
+              </span>
+            )}
+
+            {refreshing && <div className="spinner" style={{ width: 14, height: 14, flexShrink: 0 }} />}
+          </div>
+        );
+      })()}
 
       {/* ── 6 KPI Cards ─────────────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.75rem' }}>

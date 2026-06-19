@@ -14,7 +14,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { role, _id: userId } = req.user;
-    if (role === 'admin')    return res.json(await adminStats());
+    if (role === 'admin')    return res.json(await adminStats({ from: req.query.from, to: req.query.to }));
     if (role === 'reseller') return res.json(await resellerStats(userId));
     return res.json(await userStats(userId));
   } catch (err) {
@@ -24,10 +24,19 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
-async function adminStats() {
-  const now           = new Date();
-  const startOfMonth  = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfToday  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+async function adminStats({ from, to } = {}) {
+  const now          = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Date filter applied to time-series data (labels, manifests)
+  const periodFilter = {};
+  if (from) periodFilter.$gte = new Date(from);
+  if (to)   periodFilter.$lte = new Date(to);
+  const hasPeriod = from || to;
+
+  const labelDateMatch  = hasPeriod ? { createdAt: periodFilter } : {};
+  const mfDateMatch     = hasPeriod ? { createdAt: periodFilter } : {};
 
   const [
     userGroups,
@@ -42,49 +51,51 @@ async function adminStats() {
     portalGroups,
     trackingGroups,
   ] = await Promise.all([
-    // Users by role + isActive
+    // Users by role + isActive (always all-time — headcount doesn't filter by period)
     User.aggregate([
       { $group: { _id: { role: '$role', active: '$isActive' }, count: { $sum: 1 } } },
     ]),
-    // New users this month
-    User.countDocuments({ createdAt: { $gte: startOfMonth } }),
-    // Labels by carrier + status
+    // New users in selected period (or this month when no filter)
+    User.countDocuments({ createdAt: hasPeriod ? periodFilter : { $gte: startOfMonth } }),
+    // Labels by carrier + status — filtered by period
     Label.aggregate([
+      ...(hasPeriod ? [{ $match: { createdAt: periodFilter } }] : []),
       { $group: { _id: { carrier: '$carrier', status: '$status' }, count: { $sum: 1 }, revenue: { $sum: '$price' } } },
     ]),
-    // Labels generated today
+    // Labels generated today (always today — ignored if period selected)
     Label.countDocuments({ createdAt: { $gte: startOfToday }, status: 'generated' }),
-    // Manifest jobs by status
+    // Manifest jobs by status — filtered by period
     ManifestJob.aggregate([
+      ...(hasPeriod ? [{ $match: { createdAt: periodFilter } }] : []),
       { $group: { _id: '$status', count: { $sum: 1 }, revenue: { $sum: '$userBilling.totalAmount' } } },
     ]),
-    // Active vendors + payables
+    // Active vendors + payables (always all-time)
     Vendor.aggregate([
       { $group: { _id: '$isActive', count: { $sum: 1 }, dueBalance: { $sum: '$dueBalance' }, totalEarnings: { $sum: '$totalEarnings' } } },
     ]),
-    // Sum all user balances
+    // Sum all user balances (always all-time)
     Balance.aggregate([
       { $group: { _id: null, total: { $sum: '$currentBalance' } } },
     ]),
-    // Manifest jobs needing admin action
+    // Manifest jobs needing admin action (always live)
     ManifestJob.find({ status: { $in: ['under_review', 'open', 'uploaded'] } })
       .populate('user', 'firstName lastName email')
       .populate('assignedVendor', 'name')
       .sort({ createdAt: -1 })
       .limit(8)
       .select('carrier status userBilling assignedVendor user createdAt'),
-    // Recent signups
+    // Recent signups (always live)
     User.find().sort({ createdAt: -1 }).limit(6).select('firstName lastName email role isActive createdAt'),
-    // Generated labels by portal (join vendor to get source)
+    // Labels by portal — filtered by period
     Label.aggregate([
-      { $match: { status: 'generated' } },
+      { $match: { status: 'generated', ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $lookup: { from: 'vendors', localField: 'vendor', foreignField: '_id', as: '_v' } },
       { $addFields: { portal: { $ifNull: [{ $arrayElemAt: ['$_v.source', 0] }, 'shippershub'] } } },
       { $group: { _id: '$portal', count: { $sum: 1 }, revenue: { $sum: '$price' } } },
     ]),
-    // Tracking status breakdown (generated labels only)
+    // Tracking status breakdown — filtered by period
     Label.aggregate([
-      { $match: { status: 'generated' } },
+      { $match: { status: 'generated', ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $group: { _id: '$trackingStatus', count: { $sum: 1 } } },
     ]),
   ]);

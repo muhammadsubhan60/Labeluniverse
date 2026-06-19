@@ -179,7 +179,7 @@ const AdminDashboard: React.FC = () => {
 
   // Period filter
   const toISO = (d: Date) => d.toISOString().slice(0, 10);
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all');
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('this_month');
   const [periodFrom,   setPeriodFrom]   = useState('');
   const [periodTo,     setPeriodTo]     = useState('');
 

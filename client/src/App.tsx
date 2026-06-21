@@ -58,9 +58,6 @@ const AdminOnly = ({ children }: { children: React.ReactNode }) => (
 const AdminOrReseller = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute roles={['admin', 'reseller']}>{children}</ProtectedRoute>
 );
-const SuperAdminOnly = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute roles={['superadmin']}>{children}</ProtectedRoute>
-);
 
 function App() {
   return (

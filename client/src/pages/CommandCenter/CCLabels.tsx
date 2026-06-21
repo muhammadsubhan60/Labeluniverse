@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   MagnifyingGlassIcon, XMarkIcon, ArrowTopRightOnSquareIcon,
   ClockIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon,
@@ -197,7 +197,6 @@ const HistoryModal = ({ label, onClose }: { label: Label; onClose: () => void })
 
 export default function CCLabels() {
   const { token }    = useAuth();
-  const navigate     = useNavigate();
   const [params] = useSearchParams();
 
   const [labels,      setLabels]      = useState<Label[]>([]);

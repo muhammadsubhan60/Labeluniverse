@@ -143,8 +143,8 @@ const authLimiter = rateLimit({
 
 // ── Body parsing ──────────────────────────────────────────────
 // Webhook endpoints need raw body for HMAC verification — mount before json()
-app.use('/api/shopify/webhook', express.raw({ type: 'application/json' }));
-app.use('/api/etsy/webhook',   express.raw({ type: 'application/json' }));
+app.use('/api/shopify/webhook',  express.raw({ type: 'application/json' }));
+app.use('/api/etsy/webhook',     express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   MagnifyingGlassIcon, ArrowDownTrayIcon, RectangleStackIcon,
@@ -27,12 +27,17 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 async function downloadFile(url: string, filename: string) {
   try {
     const res = await axios.get(url, { responseType: 'blob' });
-    const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+    const ct = res.headers['content-type'] || '';
+    if (ct.includes('text/html') || ct.includes('text/plain')) {
+      alert('Download failed: the server returned an HTML page instead of a ZIP.\n\nMake sure REACT_APP_API_URL is set to your API server URL in your environment.');
+      return;
+    }
+    const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'application/zip' }));
     const a = document.createElement('a');
     a.href = blobUrl; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     window.URL.revokeObjectURL(blobUrl);
-  } catch (e) { console.error('Download failed', e); }
+  } catch (e) { console.error('Download failed', e); alert('Download failed — see browser console for details.'); }
 }
 
 function timeAgo(dateStr: string): string {
@@ -70,6 +75,11 @@ interface BulkJob {
   trackingIds: string[];
   createdAt: string;
   user?: { _id: string; firstName: string; lastName: string; email: string };
+}
+interface LabelDetail {
+  _id: string; trackingId: string; pdfUrl?: string; status: string;
+  from_name?: string; to_name: string; to_city?: string; to_state?: string; to_zip?: string;
+  weight?: number; price?: number;
 }
 interface Vendor { _id: string; name: string; carrier: string; }
 
@@ -143,16 +153,58 @@ interface JobCardProps {
 }
 
 const JobCard: React.FC<JobCardProps> = ({ job, rowNum, isExpanded, onToggle, downloading, onDownload }) => {
-  const theme   = CC[job.carrier] ?? { bg: '#F8FAFC', color: '#475569', border: '#E2E8F0', accent: '#94A3B8' };
-  const st      = jobStatus(job);
-  const cfg     = STATUS_CFG[st];
-  const portal  = PORTALS.find(p => p.id === job.portal);
+  const theme    = CC[job.carrier] ?? { bg: '#F8FAFC', color: '#475569', border: '#E2E8F0', accent: '#94A3B8' };
+  const st       = jobStatus(job);
+  const cfg      = STATUS_CFG[st];
+  const portal   = PORTALS.find(p => p.id === job.portal);
   const validIds = job.trackingIds.filter(Boolean);
   const batches  = chunkArray(validIds, BATCH_SIZE);
   const fname    = job.bulkFileName || '—';
   const isDl     = downloading === job._id;
 
-  const [rowHov, setRowHov] = useState(false);
+  const [rowHov,       setRowHov]       = useState(false);
+  const [details,      setDetails]      = useState<LabelDetail[] | null>(null);
+  const [detailLoad,   setDetailLoad]   = useState(false);
+  const [liveGen,      setLiveGen]      = useState<number | null>(null);
+  const [liveFail,     setLiveFail]     = useState<number | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isInProgress = job.generatedCount + job.failedCount < job.totalLabels;
+  const displayGen   = liveGen  ?? job.generatedCount;
+  const displayFail  = liveFail ?? job.failedCount;
+
+  useEffect(() => {
+    if (!isExpanded) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    if (details !== null) return;
+
+    setDetailLoad(true);
+    axios.get(`labels/bulk-detail/${job._id}`)
+      .then(r => setDetails(r.data.labels || []))
+      .catch(() => setDetails([]))
+      .finally(() => setDetailLoad(false));
+
+    if (job.portal === 'shiplabel' && isInProgress) {
+      const poll = () => {
+        axios.get(`labels/shiplabel-job/${job._id}`)
+          .then(r => {
+            setLiveGen(r.data.generated);
+            setLiveFail(r.data.failed);
+            if (r.data.done) {
+              if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+              axios.get(`labels/bulk-detail/${job._id}`).then(r2 => setDetails(r2.data.labels || []));
+            }
+          })
+          .catch(() => {});
+      };
+      poll();
+      pollRef.current = setInterval(poll, 3000);
+    }
+
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [isExpanded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div
@@ -315,12 +367,109 @@ const JobCard: React.FC<JobCardProps> = ({ job, rowNum, isExpanded, onToggle, do
               </div>
             </div>
 
-            {/* Progress bar */}
+            {/* Progress bar — live for in-progress ShipLabel jobs */}
             <div style={{ background: 'var(--navy-50)', borderRadius: 10, padding: '0.75rem 0.9rem', border: '1px solid var(--navy-100)' }}>
-              <MiniBar gen={job.generatedCount} fail={job.failedCount} total={job.totalLabels} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <MiniBar gen={displayGen} fail={displayFail} total={job.totalLabels} />
+                {job.portal === 'shiplabel' && isInProgress && liveGen !== null && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.65rem', color: '#7C3AED', fontFamily: FONT, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#7C3AED', animation: 'bl-pulse 1.2s ease-in-out infinite' }} />
+                    Live
+                  </span>
+                )}
+              </div>
+              <div style={{ fontFamily: FONT, fontSize: '0.68rem', color: 'var(--navy-500)' }}>
+                {displayGen} generated · {displayFail} failed · {job.totalLabels - displayGen - displayFail} pending
+              </div>
             </div>
 
-            {/* Tracking */}
+            {/* Per-label detail table */}
+            <div>
+              <div style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT, marginBottom: 7 }}>
+                Individual Labels
+              </div>
+              {detailLoad && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: 'var(--navy-400)', fontFamily: FONT }}>
+                  <div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Loading labels…
+                </div>
+              )}
+              {!detailLoad && details && details.length > 0 && (
+                <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--navy-100)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', fontFamily: FONT }}>
+                    <thead>
+                      <tr style={{ background: 'var(--navy-50)', borderBottom: '1px solid var(--navy-100)' }}>
+                        <th style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--navy-500)', fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>#</th>
+                        <th style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--navy-500)', fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recipient</th>
+                        <th style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--navy-500)', fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Zip</th>
+                        <th style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--navy-500)', fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tracking</th>
+                        <th style={{ padding: '5px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--navy-500)', fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Status</th>
+                        <th style={{ padding: '5px 6px', width: 36 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {details.map((d, i) => {
+                        const isPending   = d.status === 'pending';
+                        const isFailed    = d.status === 'failed';
+                        const isGenerated = d.status === 'generated';
+                        const statusColor = isPending ? '#92400E' : isFailed ? '#DC2626' : '#15803D';
+                        const statusBg    = isPending ? '#FFFBEB' : isFailed ? '#FFF5F5' : '#F0FDF4';
+                        const statusBorder= isPending ? '#FDE68A' : isFailed ? '#FECACA' : '#BBF7D0';
+                        return (
+                          <tr key={d._id} style={{ borderBottom: '1px solid var(--navy-50)' }}>
+                            <td style={{ padding: '5px 10px', color: 'var(--navy-400)', fontWeight: 600 }}>{i + 1}</td>
+                            <td style={{ padding: '5px 10px', color: 'var(--navy-800)', fontWeight: 600, maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {d.to_name || '—'}
+                              {d.to_city && <span style={{ color: 'var(--navy-400)', fontWeight: 400 }}> · {d.to_city}, {d.to_state}</span>}
+                            </td>
+                            <td style={{ padding: '5px 10px', color: 'var(--navy-600)', fontFamily: 'monospace' }}>{d.to_zip || '—'}</td>
+                            <td style={{ padding: '5px 10px', fontFamily: 'monospace', fontSize: '0.7rem', color: d.trackingId ? 'var(--navy-700)' : 'var(--navy-300)' }}>
+                              {d.trackingId || (isPending ? '…' : '—')}
+                            </td>
+                            <td style={{ padding: '5px 10px' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: statusBg, color: statusColor, border: `1px solid ${statusBorder}`, borderRadius: 20, padding: '2px 7px', fontSize: '0.6rem', fontWeight: 700 }}>
+                                {isPending && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#F59E0B', animation: 'bl-pulse 1.2s ease-in-out infinite' }} />}
+                                {d.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '5px 6px' }}>
+                              <button
+                                disabled={!d.pdfUrl && !isGenerated}
+                                title={d.pdfUrl ? 'Download PDF' : 'No PDF yet'}
+                                onClick={async () => {
+                                  if (!d.pdfUrl && !isGenerated) return;
+                                  try {
+                                    const r = await axios.get(`labels/${d._id}/pdf`, { responseType: 'blob' });
+                                    const u = window.URL.createObjectURL(new Blob([r.data], { type: 'application/pdf' }));
+                                    const a = document.createElement('a');
+                                    a.href = u; a.download = `${d.trackingId || d._id}.pdf`;
+                                    document.body.appendChild(a); a.click(); a.remove();
+                                    window.URL.revokeObjectURL(u);
+                                  } catch { alert('PDF not available yet.'); }
+                                }}
+                                style={{
+                                  width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  border: `1px solid ${d.pdfUrl || isGenerated ? '#6366F1' : 'var(--navy-200)'}`,
+                                  borderRadius: 6, cursor: d.pdfUrl || isGenerated ? 'pointer' : 'not-allowed',
+                                  background: 'transparent', color: d.pdfUrl || isGenerated ? '#6366F1' : 'var(--navy-300)',
+                                  transition: 'all 0.12s', flexShrink: 0,
+                                }}
+                              >
+                                <ArrowDownTrayIcon style={{ width: 11, height: 11 }} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {!detailLoad && details && details.length === 0 && (
+                <div style={{ fontFamily: FONT, fontSize: '0.72rem', color: 'var(--navy-300)' }}>No label detail available.</div>
+              )}
+            </div>
+
+            {/* Tracking batches */}
             {validIds.length > 0 && (
               <div>
                 <div style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT, marginBottom: 7, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -356,12 +505,6 @@ const JobCard: React.FC<JobCardProps> = ({ job, rowNum, isExpanded, onToggle, do
                     );
                   })}
                 </div>
-              </div>
-            )}
-            {validIds.length === 0 && (
-              <div style={{ fontFamily: FONT, fontSize: '0.72rem', color: 'var(--navy-300)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <TruckIcon style={{ width: 13, height: 13 }} />
-                No tracking IDs available for this job
               </div>
             )}
           </div>
@@ -433,9 +576,11 @@ const BulkLabels: React.FC = () => {
     const filename = (job.bulkFileName || job._id).replace(/\.[^.]+$/, '') + '.zip';
     try {
       if (job.bulkZipUrl) {
-        await downloadFile(job.bulkZipUrl.replace(/^\/api\//, '/'), filename);
+        // Strip leading slash so Axios resolves against baseURL (/api), not window origin
+        const u = job.bulkZipUrl.replace(/^\/api\//, '').replace(/^\//, '');
+        await downloadFile(u, filename);
       } else {
-        await downloadFile(`/labels/zip/bulk/${job._id}`, filename);
+        await downloadFile(`labels/zip/bulk/${job._id}`, filename);
       }
     } finally { setDownloading(null); }
   };
@@ -470,6 +615,7 @@ const BulkLabels: React.FC = () => {
         @keyframes bl-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         @keyframes bl-spin    { to { transform: rotate(360deg); } }
         @keyframes bl-in      { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        @keyframes bl-pulse   { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .bl-card-in { animation: bl-in 0.22s ease both; }
       `}</style>
 

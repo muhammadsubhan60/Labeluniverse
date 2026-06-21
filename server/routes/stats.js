@@ -153,7 +153,7 @@ async function adminStats({ from, to } = {}) {
   // --- process tracking status groups ---
   const trackingStatus = {
     not_scanned_yet: 0, in_transit: 0, out_for_delivery: 0, delivered: 0,
-    exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0,
+    exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0, voided: 0,
   };
   for (const g of trackingGroups) {
     if (g._id in trackingStatus) trackingStatus[g._id] = g.count;
@@ -304,7 +304,7 @@ async function userStats(userId) {
     if (saving > 0) { totalSavings += saving; savingsLabels++; }
   }
 
-  const trackingCounts = { not_scanned_yet: 0, in_transit: 0, out_for_delivery: 0, delivered: 0, exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0 };
+  const trackingCounts = { not_scanned_yet: 0, in_transit: 0, out_for_delivery: 0, delivered: 0, exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0, voided: 0 };
   for (const g of trackingStatusGroups) {
     const key = g._id || 'not_scanned_yet';
     if (key in trackingCounts) trackingCounts[key] = g.count;
@@ -710,7 +710,7 @@ router.get('/tracking-status', authenticateToken, async (req, res) => {
     ]);
 
     const counts = { not_scanned_yet: 0, in_transit: 0, out_for_delivery: 0, delivered: 0,
-      exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0 };
+      exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0, voided: 0 };
     for (const g of groups) {
       const key = g._id || 'not_scanned_yet';
       if (key in counts) counts[key] = g.count;

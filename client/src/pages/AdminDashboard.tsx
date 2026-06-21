@@ -29,6 +29,7 @@ interface AdminStats {
   trackingStatus: {
     not_scanned_yet: number; in_transit: number; out_for_delivery: number; delivered: number;
     exception_problem: number; returned_to_sender: number; pending_pickup: number; delayed: number;
+    voided: number;
   };
   manifests: {
     total: number; active: number; underReview: number; completed: number;
@@ -315,8 +316,8 @@ const AdminDashboard: React.FC = () => {
             <div style={{ position: 'absolute', inset: 0, opacity: 0.06, backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '22px 22px', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 50% 90% at 8% 50%, rgba(59,130,246,0.14) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-            {/* Top row: greeting + chips */}
-            <div style={{ padding: '1.4rem 2rem', position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem' }}>
+            {/* Greeting row + period filters */}
+            <div style={{ padding: '1.4rem 2rem', position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' }}>
               <div>
                 <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: '0.7rem', fontWeight: 500, margin: '0 0 4px', letterSpacing: '0.03em' }}>{dateLabel}</p>
                 <h1 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 3px', lineHeight: 1.15 }}>
@@ -325,63 +326,49 @@ const AdminDashboard: React.FC = () => {
                 <p style={{ color: '#64748B', fontSize: '0.78rem', margin: 0 }}>Platform overview — admin control center</p>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                {[
-                  { label: 'Users',   value: fmtN(users.total),     accent: '#818CF8' },
-                  { label: 'Revenue', value: fmt$(totalRevenue),     accent: '#34D399' },
-                  { label: 'Review',  value: manifests.underReview,  accent: '#F87171' },
-                ].map(({ label, value, accent }) => (
-                  <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '0.5rem 0.9rem', minWidth: 70 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 2px' }}>{label}</p>
-                    <p style={{ color: accent, fontSize: '0.85rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.63rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0, fontFamily: FONT }}>Period</span>
+
+                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: 2, gap: 1 }}>
+                  {PRESETS_PERIOD.map(p => (
+                    <button key={p.key} onClick={() => applyPreset(p.key as PeriodPreset)} style={{
+                      padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      fontSize: '0.71rem', fontWeight: 700, fontFamily: FONT, transition: 'all 0.12s',
+                      background: periodPreset === p.key ? 'rgba(255,255,255,0.14)' : 'transparent',
+                      color:      periodPreset === p.key ? '#fff' : 'rgba(255,255,255,0.38)',
+                      boxShadow:  periodPreset === p.key ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                    }}>{p.label}</button>
+                  ))}
+                </div>
+
+                <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)}
+                    style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' }} />
+                  <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>to</span>
+                  <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)}
+                    style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' }} />
+                  <button onClick={applyCustom} disabled={!periodFrom || !periodTo} style={{ padding: '4px 12px', borderRadius: 7, border: 'none', background: (!periodFrom || !periodTo) ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.75)', color: (!periodFrom || !periodTo) ? 'rgba(255,255,255,0.25)' : '#fff', fontSize: '0.71rem', fontWeight: 700, cursor: (!periodFrom || !periodTo) ? 'not-allowed' : 'pointer', fontFamily: FONT }}>
+                    Apply
+                  </button>
+                </div>
+
+                <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+
                 <button onClick={() => load(true)} disabled={refreshing} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '0.45rem 0.85rem', fontSize: '0.75rem', fontWeight: 600, cursor: refreshing ? 'not-allowed' : 'pointer', opacity: refreshing ? 0.7 : 1, fontFamily: FONT }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}>
                   <ArrowPathIcon style={{ width: 13, height: 13, animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
                   {refreshing ? 'Refreshing…' : 'Refresh'}
                 </button>
+
+                {periodPreset !== 'all' && (
+                  <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 99, padding: '3px 10px', fontFamily: FONT, flexShrink: 0 }}>
+                    {activeFrom} → {activeTo}
+                  </span>
+                )}
               </div>
-            </div>
-
-            {/* Period filter strip */}
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '0.6rem 2rem', position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.63rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0, fontFamily: FONT }}>Period</span>
-
-              {/* Preset pills */}
-              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: 2, gap: 1 }}>
-                {PRESETS_PERIOD.map(p => (
-                  <button key={p.key} onClick={() => applyPreset(p.key as PeriodPreset)} style={{
-                    padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                    fontSize: '0.71rem', fontWeight: 700, fontFamily: FONT, transition: 'all 0.12s',
-                    background: periodPreset === p.key ? 'rgba(255,255,255,0.14)' : 'transparent',
-                    color:      periodPreset === p.key ? '#fff' : 'rgba(255,255,255,0.38)',
-                    boxShadow:  periodPreset === p.key ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
-                  }}>{p.label}</button>
-                ))}
-              </div>
-
-              <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
-
-              {/* Custom date range */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)}
-                  style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' }} />
-                <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>to</span>
-                <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)}
-                  style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' }} />
-                <button onClick={applyCustom} disabled={!periodFrom || !periodTo} style={{ padding: '4px 12px', borderRadius: 7, border: 'none', background: (!periodFrom || !periodTo) ? 'rgba(255,255,255,0.06)' : 'rgba(99,102,241,0.75)', color: (!periodFrom || !periodTo) ? 'rgba(255,255,255,0.25)' : '#fff', fontSize: '0.71rem', fontWeight: 700, cursor: (!periodFrom || !periodTo) ? 'not-allowed' : 'pointer', fontFamily: FONT }}>
-                  Apply
-                </button>
-              </div>
-
-              {/* Active range badge */}
-              {periodPreset !== 'all' && (
-                <span style={{ marginLeft: 'auto', fontSize: '0.68rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 99, padding: '3px 10px', fontFamily: FONT, flexShrink: 0 }}>
-                  {activeFrom} → {activeTo}
-                </span>
-              )}
             </div>
           </div>
         );
@@ -630,6 +617,7 @@ const AdminDashboard: React.FC = () => {
           { key: 'delayed',            label: 'Delayed',             color: '#f97316', bg: 'rgba(249,115,22,0.08)',  icon: '!' },
           { key: 'exception_problem',  label: 'Exception / Problem', color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   icon: '✕' },
           { key: 'returned_to_sender', label: 'Returned to Sender',  color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', icon: '↩' },
+          { key: 'voided',             label: 'Voided',              color: '#64748b', bg: 'rgba(100,116,139,0.08)', icon: '∅' },
         ] as const;
 
         const ts = trackingStatus || {};
@@ -646,7 +634,7 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
               {TRACKING.map(({ key, label, color, bg, icon }) => {
                 const count = ts[key] || 0;
                 const pct   = Math.round((count / tsTotal) * 100);

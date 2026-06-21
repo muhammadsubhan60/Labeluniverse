@@ -29,6 +29,13 @@ import VendorLogin from './pages/vendor/VendorLogin';
 import VendorDashboard from './pages/vendor/VendorDashboard';
 import VendorJobDetail from './pages/vendor/VendorJobDetail';
 import VendorEarnings  from './pages/vendor/VendorEarnings';
+import CCLayout             from './pages/CommandCenter/CCLayout';
+import CCDashboard          from './pages/CommandCenter/CCDashboard';
+import CCLabels             from './pages/CommandCenter/CCLabels';
+import CCBulkLabels         from './pages/CommandCenter/CCBulkLabels';
+import CCBulkTrackingUpdate from './pages/CommandCenter/CCBulkTrackingUpdate';
+import CCVendorPerformance  from './pages/CommandCenter/CCVendorPerformance';
+import CCUsers              from './pages/CommandCenter/CCUsers';
 import ManifestHistory from './pages/ManifestHistory';
 import ResellerClients from './pages/ResellerClients';
 import Finance             from './pages/Finance';
@@ -63,6 +70,17 @@ function App() {
                 {/* Public routes */}
                 <Route path="/login"  element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
+
+                {/* ── Tracking Command Center (admin-only, own layout) ──── */}
+                <Route path="/command-center" element={<AdminOnly><CCLayout /></AdminOnly>}>
+                  <Route index element={<Navigate to="/command-center/dashboard" replace />} />
+                  <Route path="dashboard"   element={<CCDashboard />} />
+                  <Route path="labels"      element={<CCLabels />} />
+                  <Route path="bulk-labels" element={<CCBulkLabels />} />
+                  <Route path="ai-status"   element={<CCBulkTrackingUpdate />} />
+                  <Route path="vendor-perf" element={<CCVendorPerformance />} />
+                  <Route path="users"       element={<CCUsers />} />
+                </Route>
 
                 {/* ── Vendor Portal (completely separate, neutral branding) ── */}
                 <Route path="/vendor-portal/login" element={<VendorLogin />} />

@@ -107,9 +107,11 @@ async function getServices() {
  */
 async function createOrder(payload) {
   const res = await apiRequest('POST', '/api/v2/create-order', payload);
-  // SL API returns { success: { tracking_id, pdf, ... } } — same shape as /services
-  const result = res.success || res.data || res;
-  console.log('[SL] createOrder result:', JSON.stringify(result).slice(0, 300));
+  // ShipLabel returns { success: { data: { tracking_id, pdf, ... } } }
+  // Unwrap outer success wrapper, then inner data wrapper.
+  const outer  = (res.success && typeof res.success === 'object') ? res.success : (res.data || res);
+  const result = (outer.data  && typeof outer.data  === 'object') ? outer.data  : outer;
+  console.log('[SL createOrder] tracking_id:', result.tracking_id, '| pdf:', result.pdf);
   return result;
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
@@ -99,6 +99,7 @@ const txDot = (t: string) =>
 
 const UserManagement: React.FC = () => {
   const { user: authUser } = useAuth();
+  const navigate = useNavigate();
 
   const fetchingForRef = React.useRef<string | null>(null);
 
@@ -455,20 +456,36 @@ const UserManagement: React.FC = () => {
             ))}
           </div>
         </div>
-        <button
-          onClick={startCreate}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
-            padding: '0.55rem 1.1rem',
-            background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
-            border: 'none', borderRadius: 9, color: '#fff',
-            fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(99,102,241,0.3)', fontFamily: FONT,
-          }}
-        >
-          <UserPlusIcon style={{ width: 15, height: 15 }} />
-          Add User
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button
+            onClick={() => navigate('/command-center/dashboard')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '0.55rem 1.1rem',
+              background: 'linear-gradient(135deg,#0f172a,#1e1b4b)',
+              border: 'none', borderRadius: 9, color: '#a5b4fc',
+              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(15,23,42,0.3)', fontFamily: FONT,
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            Command Center
+          </button>
+          <button
+            onClick={startCreate}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '0.55rem 1.1rem',
+              background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+              border: 'none', borderRadius: 9, color: '#fff',
+              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(99,102,241,0.3)', fontFamily: FONT,
+            }}
+          >
+            <UserPlusIcon style={{ width: 15, height: 15 }} />
+            Add User
+          </button>
+        </div>
       </div>
 
       {/* ── Toast ─────────────────────────────────────────────── */}

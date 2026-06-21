@@ -23,6 +23,7 @@ const TS_CONFIG: Record<string, { label: string; bg: string; color: string; bord
   returned_to_sender: { label: 'Returned to Sender',  bg: '#FFF1F2', color: '#BE123C', border: '#FECDD3' },
   pending_pickup:     { label: 'Pending Pickup',      bg: '#FFF7ED', color: '#C2410C', border: '#FED7AA' },
   delayed:            { label: 'Delayed',             bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' },
+  voided:             { label: 'Voided',              bg: '#F8FAFC', color: '#64748B', border: '#CBD5E1' },
 };
 const TS_OPTIONS = Object.keys(TS_CONFIG);
 
@@ -30,6 +31,7 @@ function resolveTs(ts?: string): string {
   if (!ts || ts === 'not_scanned') return 'not_scanned_yet';
   if (ts === 'exception') return 'exception_problem';
   if (ts === 'return_to_sender') return 'returned_to_sender';
+  if (ts === 'void') return 'voided';
   return TS_CONFIG[ts] ? ts : 'not_scanned_yet';
 }
 
@@ -366,6 +368,23 @@ const LabelHistory: React.FC = () => {
     }
   };
 
+  const [voidingId, setVoidingId] = useState<string | null>(null);
+  const handleVoidLabel = async (labelId: string) => {
+    setVoidingId(labelId);
+    try {
+      const res = await axios.patch(`/labels/${labelId}/void`);
+      setLabels(prev => prev.map(l =>
+        l._id === labelId
+          ? { ...l, trackingStatus: res.data.trackingStatus, trackingStatusHistory: res.data.trackingStatusHistory }
+          : l
+      ));
+    } catch (e) {
+      console.error('Failed to void label', e);
+    } finally {
+      setVoidingId(null);
+    }
+  };
+
   const pageNums = (() => {
     const delta = 2;
     const range: number[] = [];
@@ -697,6 +716,25 @@ const LabelHistory: React.FC = () => {
                         {/* Actions */}
                         <td style={{ padding: '0.875rem 0.875rem', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+
+                            {/* Void — available to all users, hidden once already voided */}
+                            {resolveTs(label.trackingStatus) !== 'voided' && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <button
+                                  onClick={() => handleVoidLabel(label._id)}
+                                  disabled={voidingId === label._id}
+                                  style={{ height: 30, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 9px', border: '1.5px solid #E2E8F0', borderRadius: 7, background: '#F8FAFC', color: '#64748B', fontSize: '0.68rem', fontWeight: 700, cursor: voidingId === label._id ? 'not-allowed' : 'pointer', opacity: voidingId === label._id ? 0.6 : 1, transition: 'all 0.15s', whiteSpace: 'nowrap', fontFamily: FONT }}
+                                  onMouseEnter={e => { if (voidingId !== label._id) { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#94A3B8'; e.currentTarget.style.color = '#475569'; } }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.color = '#64748B'; }}>
+                                  {voidingId === label._id ? '…' : '∅ Void'}
+                                </button>
+                                <span
+                                  title="Mark this label as Voided — use this when the label was generated but never actually shipped. Voided labels are tracked separately and do not affect your revenue stats."
+                                  style={{ width: 16, height: 16, borderRadius: '50%', background: '#E2E8F0', color: '#64748B', fontSize: '0.6rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'help', flexShrink: 0, userSelect: 'none' }}>
+                                  i
+                                </span>
+                              </div>
+                            )}
 
                             {/* Return */}
                             <button

@@ -248,28 +248,32 @@ const LC_XLSX_HEADERS = Object.keys(LC_XLSX_COL_MAP);
 
 // ── ShipLabel XLSX column map ─────────────────────────────────────────────────
 const SL_XLSX_COL_MAP: Record<string, string> = {
-  No:           '__skip__',   // row number — ignored
-  FromName:     'from_name',
-  PhoneFrom:    'from_phone',
-  Street1From:  'from_address1',
-  CompanyFrom:  'from_company',
-  Street2From:  'from_address2',
-  CityFrom:     'from_city',
-  StateFrom:    'from_state',
+  No:             '__skip__',   // row number — ignored
+  FromName:       'from_name',
+  PhoneFrom:      'from_phone',
+  Street1From:    'from_address1',
+  CompanyFrom:    'from_company',
+  Street2From:    'from_address2',
+  CityFrom:       'from_city',
+  StateFrom:      'from_state',
   PostalCodeFrom: 'from_zip',
-  ToName:       'to_name',
-  PhoneTo:      'to_phone',
-  Street1To:    'to_address1',
-  CompanyTo:    'to_company',
-  Street2To:    'to_address2',
-  CityTo:       'to_city',
-  ZipTo:        'to_zip',
-  StateTo:      'to_state',
-  Weight:       'weight',
-  length:       'length',
-  width:        'width',
-  height:       'height',
-  description:  'note',
+  PostalCode:     'from_zip',   // some SL template versions omit "From" suffix
+  ZipFrom:        'from_zip',
+  Zip:            'from_zip',
+  ToName:         'to_name',
+  PhoneTo:        'to_phone',
+  Street1To:      'to_address1',
+  CompanyTo:      'to_company',
+  Street2To:      'to_address2',
+  CityTo:         'to_city',
+  ZipTo:          'to_zip',
+  PostalCodeTo:   'to_zip',
+  StateTo:        'to_state',
+  Weight:         'weight',
+  length:         'length',
+  width:          'width',
+  height:         'height',
+  description:    'note',
 };
 const SL_XLSX_HEADERS = Object.keys(SL_XLSX_COL_MAP).filter(h => h !== 'No');
 
@@ -455,6 +459,7 @@ const BulkLabelGenerator: React.FC = () => {
   const [selectedCarrier,setSelectedCarrier]= useState('');
   const [selectedVendor, setSelectedVendor] = useState<AccessItem | null>(null);
   const [fileName,       setFileName]       = useState('');
+  const [nickName,       setNickName]       = useState('');
   const [rows,           setRows]           = useState<LabelRow[]>([]);
   const [rowErrors,      setRowErrors]      = useState<Record<number, string[]>>({});
   const [headerMissing,  setHeaderMissing]  = useState<string[]>([]);
@@ -785,7 +790,7 @@ const BulkLabelGenerator: React.FC = () => {
     }
 
     try {
-      const res = await axios.post('/labels/bulk', { vendorId: selectedVendor.vendorId, labels: rows });
+      const res = await axios.post('/labels/bulk', { vendorId: selectedVendor.vendorId, labels: rows, bulkFileName: nickName.trim() || fileName });
 
       if (isLC) {
         console.group('[LC] Submit response');
@@ -868,7 +873,7 @@ const BulkLabelGenerator: React.FC = () => {
 
     for (const group of Array.from(groups.values())) {
       try {
-        const res = await axios.post('/labels/bulk', { vendorId: group.vendor.vendorId, labels: group.rows });
+        const res = await axios.post('/labels/bulk', { vendorId: group.vendor.vendorId, labels: group.rows, bulkFileName: nickName.trim() || fileName });
         newBalance = res.data.newBalance ?? newBalance;
 
         if (res.data.type === 'manifest') {
@@ -946,12 +951,13 @@ const BulkLabelGenerator: React.FC = () => {
       if (groups.length === 0) { alert('No labels were generated — nothing to download.'); return; }
 
       for (const group of groups) {
-        const res = await axios.get(`/labels/zip/bulk/${group.bulkJobId}`, { responseType: 'blob' });
+        const res = await axios.get(`labels/zip/bulk/${group.bulkJobId}`, { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/zip' }));
-        const safeName = group.vendorName.replace(/[^a-zA-Z0-9()]/g, '-').replace(/-+/g, '-');
+        const safeName  = group.vendorName.replace(/[^a-zA-Z0-9()]/g, '-').replace(/-+/g, '-');
+        const batchBase = (nickName.trim() || fileName).replace(/\.[^.]+$/, '');
         const a = document.createElement('a');
         a.href = url;
-        a.download = `labels-${safeName}.zip`;
+        a.download = `${batchBase}-${safeName}.zip`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -1025,6 +1031,7 @@ const BulkLabelGenerator: React.FC = () => {
     stopLcPoll(); stopSlPoll();
     setSelectedPortal(''); setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false);
     setFileName(''); setRows([]); setRowErrors({}); setHeaderMissing([]);
+    setNickName('');
     setApiResult(null); setManifestResult(null); setMultiApiResult(null);
     setLcAsyncJob(null); setLcJobProgress(null); setLcDebugLog([]);
     setSlAsyncJob(null); setSlJobProgress(null); setSlDebugLog([]);
@@ -1156,10 +1163,10 @@ const BulkLabelGenerator: React.FC = () => {
         {apiResult.zipUrl && (
           <button className="btn btn-primary" onClick={async () => {
             try {
-              const res = await axios.get(apiResult.zipUrl!, { responseType: 'blob' });
+              const res = await axios.get(apiResult.zipUrl!.replace(/^\//, ''), { responseType: 'blob' });
               const url = window.URL.createObjectURL(new Blob([res.data]));
               const a = document.createElement('a');
-              a.href = url; a.download = 'bulk-labels.zip';
+              a.href = url; a.download = (nickName.trim() || fileName).replace(/\.[^.]+$/, '') + '.zip';
               document.body.appendChild(a); a.click(); a.remove();
               window.URL.revokeObjectURL(url);
             } catch { alert('Failed to download ZIP.'); }
@@ -1405,10 +1412,10 @@ const BulkLabelGenerator: React.FC = () => {
           {!isRealFail && prog.zipUrl && (
             <button className="btn btn-primary" onClick={async () => {
               try {
-                const r = await axios.get(prog.zipUrl!, { responseType: 'blob' });
+                const r = await axios.get(prog.zipUrl!.replace(/^\//, ''), { responseType: 'blob' });
                 const url = window.URL.createObjectURL(new Blob([r.data]));
                 const a = document.createElement('a');
-                a.href = url; a.download = 'labelcrow-labels.zip';
+                a.href = url; a.download = (nickName.trim() || fileName).replace(/\.[^.]+$/, '') + '.zip';
                 document.body.appendChild(a); a.click(); a.remove();
                 window.URL.revokeObjectURL(url);
               } catch { alert('Download failed. Please try again.'); }
@@ -1651,15 +1658,23 @@ const BulkLabelGenerator: React.FC = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           {generated > 0 && (
-            <a
-              href={`/api/labels/zip/bulk/${slAsyncJob.bulkJobId}`}
-              download
+            <button
               className="btn btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={async () => {
+                try {
+                  const r = await axios.get(`labels/zip/bulk/${slAsyncJob.bulkJobId}`, { responseType: 'blob' });
+                  const blobUrl = window.URL.createObjectURL(new Blob([r.data], { type: 'application/zip' }));
+                  const a = document.createElement('a');
+                  a.href = blobUrl; a.download = 'shiplabel-labels.zip';
+                  document.body.appendChild(a); a.click(); a.remove();
+                  window.URL.revokeObjectURL(blobUrl);
+                } catch { alert('Download failed. Please try again.'); }
+              }}
             >
               <ArrowDownTrayIcon style={{ width: 15, height: 15 }} />
               Download ZIP ({generated} label{generated !== 1 ? 's' : ''})
-            </a>
+            </button>
           )}
           <button className="btn btn-ghost" onClick={reset}>Generate Another Batch</button>
           <button className="btn btn-ghost" onClick={() => navigate('/labels/history')}>View History</button>
@@ -1968,6 +1983,24 @@ const BulkLabelGenerator: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ── Batch nickname ─────────────────────────────────────────── */}
+      {fileName && rows.length > 0 && headerMissing.length === 0 && (
+        <div className="db-card" style={{ padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Batch name</span>
+          <input
+            type="text"
+            value={nickName}
+            onChange={e => setNickName(e.target.value)}
+            placeholder={fileName.replace(/\.[^.]+$/, '')}
+            maxLength={200}
+            style={{ flex: 1, border: '1.5px solid var(--navy-200)', borderRadius: 8, padding: '0.3rem 0.65rem', fontSize: '0.8rem', fontFamily: 'inherit', color: 'var(--navy-800)', background: 'var(--bg-card)', outline: 'none' }}
+            onFocus={e => Object.assign(e.currentTarget.style, { borderColor: '#6366f1', boxShadow: '0 0 0 3px rgba(99,102,241,0.12)' })}
+            onBlur={e =>  Object.assign(e.currentTarget.style, { borderColor: 'var(--navy-200)', boxShadow: 'none' })}
+          />
+          <span style={{ fontSize: '0.7rem', color: 'var(--navy-400)', whiteSpace: 'nowrap' }}>ZIP will be named: <strong>{(nickName.trim() || fileName).replace(/\.[^.]+$/, '')}.zip</strong></span>
+        </div>
+      )}
 
       {/* ── Data table ───────────────────────────────────────────── */}
       {rows.length > 0 && headerMissing.length === 0 && (

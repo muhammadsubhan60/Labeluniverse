@@ -73,6 +73,13 @@ const vendorSchema = new mongoose.Schema({
     default: 'api'
   },
 
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true,
+  },
+
   // ── Vendor Portal Credentials ─────────────────────────────
   // Vendors log into a separate neutral portal (no LABEL UNIVERSE branding)
   vendorPortalEmail:    { type: String, unique: true, sparse: true, lowercase: true, trim: true },

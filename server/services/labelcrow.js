@@ -7,14 +7,35 @@ const https = require('https');
 
 const LC_HOST = 'labelcrow.com';
 
-const getKey = () => {
+// Per-tenant key cache: tenantId string → decrypted key
+const _keyCache = new Map();
+
+async function getKey(tenantId = null) {
+  const cacheKey = tenantId ? String(tenantId) : '_env';
+  if (_keyCache.has(cacheKey)) return _keyCache.get(cacheKey);
+  try {
+    const PlatformApiKey = require('../models/PlatformApiKey');
+    const query = tenantId ? { service: 'labelcrow', tenantId } : { service: 'labelcrow' };
+    const doc = await PlatformApiKey.findOne(query);
+    if (doc) {
+      const k = doc.getKey();
+      _keyCache.set(cacheKey, k);
+      return k;
+    }
+  } catch {}
   const k = process.env.LABELCROW_API_KEY;
-  if (!k) throw new Error('LABELCROW_API_KEY is not set in environment variables');
+  if (!k) throw new Error('LabelCrow API key not configured. Add it in Admin → Settings.');
   return k;
-};
+}
+
+function clearKeyCache(tenantId = null) {
+  if (tenantId) _keyCache.delete(String(tenantId));
+  else _keyCache.clear();
+}
 
 // ── JSON request helper ────────────────────────────────────────
-function apiRequest(method, urlPath, data = null) {
+async function apiRequest(method, urlPath, data = null, tenantId = null) {
+  const key = await getKey(tenantId);
   return new Promise((resolve, reject) => {
     const body = data ? JSON.stringify(data) : null;
 
@@ -33,7 +54,7 @@ function apiRequest(method, urlPath, data = null) {
       path:     urlPath,
       method,
       headers: {
-        'Authorization': `Bearer ${getKey()}`,
+        'Authorization': `Bearer ${key}`,
         'Content-Type':  'application/json',
         ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}),
       },
@@ -74,14 +95,15 @@ function apiRequest(method, urlPath, data = null) {
 }
 
 // ── Binary request helper (ZIP download) ──────────────────────
-function apiBinaryRequest(urlPath) {
+async function apiBinaryRequest(urlPath, tenantId = null) {
+  const key = await getKey(tenantId);
   return new Promise((resolve, reject) => {
     const options = {
       hostname: LC_HOST,
       port:     443,
       path:     urlPath,
       method:   'GET',
-      headers:  { 'Authorization': `Bearer ${getKey()}` },
+      headers:  { 'Authorization': `Bearer ${key}` },
     };
 
     const req = https.request(options, (res) => {
@@ -127,7 +149,7 @@ function mapRow(row) {
  * Submit a bulk label job.
  * Returns { jobId, orderId, totalLabels }
  */
-async function submitBulkJob({ seriesId, carrier, serviceClass, providerKey, labels }) {
+async function submitBulkJob({ seriesId, carrier, serviceClass, providerKey, labels }, tenantId = null) {
   console.log('[LC] submitBulkJob params:', { seriesId, carrier, serviceClass, providerKey, labelCount: labels.length });
   const mappedLabels = labels.map(mapRow);
   console.log('[LC] First mapped label:', JSON.stringify(mappedLabels[0]));
@@ -139,7 +161,7 @@ async function submitBulkJob({ seriesId, carrier, serviceClass, providerKey, lab
     provider_key:  providerKey,
     series_id:     seriesId,
     labels:        mappedLabels,
-  });
+  }, tenantId);
   const d = res.data;
   console.log('[LC] submitBulkJob result:', { jobId: d.job_id, orderId: d.order_id, totalLabels: d.total_labels });
   return { jobId: d.job_id, orderId: d.order_id, totalLabels: d.total_labels };
@@ -149,8 +171,8 @@ async function submitBulkJob({ seriesId, carrier, serviceClass, providerKey, lab
  * Poll a bulk job for status.
  * Returns { jobId, status, total, generated, failed, progress }
  */
-async function pollJob(jobId) {
-  const res = await apiRequest('GET', `/api/v1/jobs/${jobId}`);
+async function pollJob(jobId, tenantId = null) {
+  const res = await apiRequest('GET', `/api/v1/jobs/${jobId}`, null, tenantId);
   const d   = res.data;
   console.log('[LC] pollJob result:', { jobId: d.job_id, status: d.status, generated: d.generated, failed: d.failed, total: d.total });
   return d;
@@ -160,8 +182,8 @@ async function pollJob(jobId) {
  * Get order details by order ID.
  * Returns { id, status, totalLabels, files: { zip, merged_pdf } }
  */
-async function getOrder(orderId) {
-  const res = await apiRequest('GET', `/api/v1/orders/${orderId}`);
+async function getOrder(orderId, tenantId = null) {
+  const res = await apiRequest('GET', `/api/v1/orders/${orderId}`, null, tenantId);
   const d   = res.data;
   return { id: d.id, status: d.status, totalLabels: d.total_labels, files: d.files || {} };
 }
@@ -170,26 +192,24 @@ async function getOrder(orderId) {
  * Download ZIP for an order (binary).
  * Returns { buffer, statusCode, contentType }
  */
-async function downloadOrderZip(orderId) {
-  return apiBinaryRequest(`/api/v1/orders/${orderId}/download/zip`);
+async function downloadOrderZip(orderId, tenantId = null) {
+  return apiBinaryRequest(`/api/v1/orders/${orderId}/download/zip`, tenantId);
 }
 
 /**
  * Get all label series available on this account.
  * Returns array of { id, series_code, display_name, carrier, service_class, price_brackets }
  */
-async function getSeries() {
-  const res = await apiRequest('GET', '/api/v1/account/series');
+async function getSeries(tenantId = null) {
+  const res = await apiRequest('GET', '/api/v1/account/series', null, tenantId);
   return res.data || [];
 }
 
-/**
- * Get all providers available on this account.
- * Returns array of { carrier, service_classes: [{ service_class, provider_keys: [] }] }
- */
-async function getProviders() {
-  const res = await apiRequest('GET', '/api/v1/account/providers');
+async function getProviders(tenantId = null) {
+  const res = await apiRequest('GET', '/api/v1/account/providers', null, tenantId);
   return res.data || [];
 }
 
-module.exports = { submitBulkJob, pollJob, getOrder, downloadOrderZip, getSeries, getProviders };
+async function getServices(tenantId = null) { return getProviders(tenantId); }
+
+module.exports = { submitBulkJob, pollJob, getOrder, downloadOrderZip, getSeries, getProviders, getServices, clearKeyCache };

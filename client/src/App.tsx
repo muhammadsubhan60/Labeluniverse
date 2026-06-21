@@ -17,9 +17,9 @@ import LabelGenerator from './pages/LabelGenerator';
 import LabelHistory from './pages/LabelHistory';
 import BulkLabels from './pages/BulkLabels';
 import BulkLabelGenerator from './pages/BulkLabelGenerator';
-import BulkTrackingUpdate from './pages/BulkTrackingUpdate';
 import VendorManagement from './pages/VendorManagement';
 import UserVendorAccess from './pages/UserVendorAccess';
+import BulkVendorAccess from './pages/BulkVendorAccess';
 import AdminManifestOps from './pages/AdminManifestOps';
 import LiveActivity from './pages/LiveActivity';
 import AdminLiveActivity from './pages/AdminLiveActivity';
@@ -46,7 +46,8 @@ import Leaderboard         from './pages/Leaderboard';
 import Suggestions        from './pages/Suggestions';
 import Orders             from './pages/Orders';
 import ShopifyCustomers  from './pages/ShopifyCustomers';
-import Integrations      from './pages/Integrations';
+import Integrations         from './pages/Integrations';
+import SuperAdminDashboard  from './pages/SuperAdminDashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './App.css';
 
@@ -56,6 +57,9 @@ const AdminOnly = ({ children }: { children: React.ReactNode }) => (
 );
 const AdminOrReseller = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute roles={['admin', 'reseller']}>{children}</ProtectedRoute>
+);
+const SuperAdminOnly = ({ children }: { children: React.ReactNode }) => (
+  <ProtectedRoute roles={['superadmin']}>{children}</ProtectedRoute>
 );
 
 function App() {
@@ -70,6 +74,10 @@ function App() {
                 {/* Public routes */}
                 <Route path="/login"  element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
+
+                {/* ── Super Admin (standalone, no Layout) ──────────────── */}
+                {/* No auth wrapper here — the component handles setup vs. authenticated views internally */}
+                <Route path="/superadmin" element={<SuperAdminDashboard />} />
 
                 {/* ── Tracking Command Center (admin-only, own layout) ──── */}
                 <Route path="/command-center" element={<AdminOnly><CCLayout /></AdminOnly>}>
@@ -122,6 +130,7 @@ function App() {
                   <Route path="/admin"                         element={<AdminOnly><AdminDashboard /></AdminOnly>} />
                   <Route path="/admin/users"                   element={<AdminOnly><UserManagement /></AdminOnly>} />
                   <Route path="/admin/users/:userId/access"    element={<AdminOnly><UserVendorAccess /></AdminOnly>} />
+                  <Route path="/admin/bulk-vendor-access"      element={<AdminOnly><BulkVendorAccess /></AdminOnly>} />
                   <Route path="/admin/vendors"                 element={<AdminOnly><VendorManagement /></AdminOnly>} />
                   <Route path="/admin/manifest"                element={<AdminOnly><AdminManifestOps /></AdminOnly>} />
                   <Route path="/admin/finance"                 element={<AdminOnly><Finance /></AdminOnly>} />
@@ -131,7 +140,6 @@ function App() {
                   <Route path="/admin/live"                    element={<AdminOnly><AdminLiveActivity /></AdminOnly>} />
                   <Route path="/admin/warehouses"              element={<AdminOnly><AdminWarehouses /></AdminOnly>} />
                   <Route path="/admin/states"                  element={<AdminOnly><AdminStates /></AdminOnly>} />
-                  <Route path="/admin/bulk-tracking-update"   element={<AdminOnly><BulkTrackingUpdate /></AdminOnly>} />
 
                   {/* Shopify customers */}
                   <Route path="/orders/customers" element={<Orders />} />

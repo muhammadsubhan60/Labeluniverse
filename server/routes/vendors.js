@@ -10,7 +10,10 @@ const router = express.Router();
 // Admin: list all vendors | User/Reseller: their visible vendors
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const filter = req.user.role === 'admin' ? {} : { isActive: true, visibleToRoles: req.user.role };
+    const tenantId = req.user.tenantId || req.user._id;
+    const filter = req.user.role === 'admin'
+      ? { tenantId }
+      : { isActive: true, visibleToRoles: req.user.role, tenantId };
     const vendors = await Vendor.find(filter).sort({ carrier: 1, name: 1 });
     res.json({ vendors });
   } catch (error) {
@@ -40,8 +43,10 @@ router.post('/', authenticateToken, authorize('admin'), [
       vendorPortalIsActive, vendorRate, vendorType,
     } = req.body;
 
+    const tenantId = req.user.tenantId || req.user._id;
     const vendor = new Vendor({
       name, carrier, rate,
+      tenantId,
       vendorType:           vendorType || 'api',
       rateMin:              rateMin || null,
       rateMax:              rateMax || null,
@@ -74,7 +79,8 @@ router.post('/', authenticateToken, authorize('admin'), [
 // ── PUT /api/vendors/:id ──────────────────────────────────────
 router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
-    const vendor = await Vendor.findById(req.params.id);
+    const tenantId = req.user.tenantId || req.user._id;
+    const vendor = await Vendor.findOne({ _id: req.params.id, tenantId });
     if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
 
     // Apply all fields from request body
@@ -98,7 +104,8 @@ router.put('/:id', authenticateToken, authorize('admin'), async (req, res) => {
 // ── DELETE /api/vendors/:id ───────────────────────────────────
 router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) => {
   try {
-    const vendor = await Vendor.findByIdAndDelete(req.params.id);
+    const tenantId = req.user.tenantId || req.user._id;
+    const vendor = await Vendor.findOneAndDelete({ _id: req.params.id, tenantId });
     if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
     res.json({ message: 'Vendor deleted' });
   } catch (error) {
@@ -111,7 +118,8 @@ router.delete('/:id', authenticateToken, authorize('admin'), async (req, res) =>
 // Admin: full sync — creates new, updates existing, deactivates removed
 router.post('/import-from-shippershub', authenticateToken, authorize('admin'), async (req, res) => {
   try {
-    const carriers = await shippershub.getMyCarriers();
+    const tenantId = req.user.tenantId || req.user._id;
+    const carriers = await shippershub.getMyCarriers(tenantId);
 
     // Collect all vendor IDs currently available in ShippersHub
     const liveVendorIds = [];
@@ -119,7 +127,7 @@ router.post('/import-from-shippershub', authenticateToken, authorize('admin'), a
     const updated  = [];
 
     for (const carrier of carriers) {
-      const vendors = await shippershub.getMyVendors(carrier._id);
+      const vendors = await shippershub.getMyVendors(carrier._id, tenantId);
       for (const v of vendors) {
         liveVendorIds.push(v._id);
 
@@ -127,7 +135,7 @@ router.post('/import-from-shippershub', authenticateToken, authorize('admin'), a
                           : carrier.name.toUpperCase().includes('UPS')   ? 'UPS'
                           : carrier.name.toUpperCase().includes('FEDEX') ? 'FedEx' : 'DHL';
 
-        const existing = await Vendor.findOne({ shippershubVendorId: v._id });
+        const existing = await Vendor.findOne({ shippershubVendorId: v._id, tenantId });
         if (!existing) {
           await Vendor.create({
             name:                 v.name,
@@ -137,7 +145,8 @@ router.post('/import-from-shippershub', authenticateToken, authorize('admin'), a
             shippingService:      v.shippingService || '',
             rate:                 v.rate || 0,
             isActive:             v.status === 'active',
-            source:               'shippershub'
+            source:               'shippershub',
+            tenantId,
           });
           created.push(v.name);
         } else {
@@ -153,7 +162,7 @@ router.post('/import-from-shippershub', authenticateToken, authorize('admin'), a
 
     // Deactivate any ShippersHub vendor no longer returned by the API
     const deactivated = await Vendor.updateMany(
-      { source: 'shippershub', shippershubVendorId: { $nin: liveVendorIds } },
+      { source: 'shippershub', shippershubVendorId: { $nin: liveVendorIds }, tenantId },
       { isActive: false }
     );
 
@@ -171,10 +180,11 @@ router.post('/import-from-shippershub', authenticateToken, authorize('admin'), a
 // Admin: sync Label Crow series × provider_key combos as Vendor records
 router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), async (req, res) => {
   try {
+    const tenantId = req.user.tenantId || req.user._id;
     const labelcrow = require('../services/labelcrow');
     const [seriesList, providersRaw] = await Promise.all([
-      labelcrow.getSeries(),
-      labelcrow.getProviders(),
+      labelcrow.getSeries(tenantId),
+      labelcrow.getProviders(tenantId),
     ]);
 
     // ── Debug: log exactly what the LC API returned ───────────
@@ -237,6 +247,7 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
           source: 'labelcrow',
           labelcrowSeriesId:    series.id,
           labelcrowProviderKey: providerKey,
+          tenantId,
         };
 
         const existing = await Vendor.findOne(filter);
@@ -252,6 +263,7 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
             labelcrowSeriesId:     series.id,
             labelcrowProviderKey:  providerKey,
             labelcrowServiceClass: svc,
+            tenantId,
           });
           created.push(vendorName);
         } else {
@@ -270,6 +282,7 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
         labelcrowSeriesId:    { $in: [...seriesWithRealKey] },
         labelcrowProviderKey: { $in: [null, ''] },
         isActive:             true,
+        tenantId,
       }).select('_id name labelcrowSeriesId');
 
       for (const v of staleVendors) {
@@ -310,8 +323,9 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
 // Admin: sync ShipLabel services as Vendor records
 router.post('/import-from-shiplabel', authenticateToken, authorize('admin'), async (req, res) => {
   try {
+    const tenantId = req.user.tenantId || req.user._id;
     const shiplabel = require('../services/shiplabel');
-    const services  = await shiplabel.getServices();
+    const services  = await shiplabel.getServices(tenantId);
 
     const created = [];
     const updated = [];
@@ -321,7 +335,7 @@ router.post('/import-from-shiplabel', authenticateToken, authorize('admin'), asy
       const rawPrice = svc.price_ranges?.[0]?.price || '$0';
       const rateVal  = parseFloat(rawPrice.replace(/[^0-9.]/g, '')) || 0;
 
-      const filter = { source: 'shiplabel', shiplabelServiceId: String(svc.id) };
+      const filter = { source: 'shiplabel', shiplabelServiceId: String(svc.id), tenantId };
       const existing = await Vendor.findOne(filter);
 
       if (!existing) {
@@ -336,6 +350,7 @@ router.post('/import-from-shiplabel', authenticateToken, authorize('admin'), asy
           shiplabelServiceId:   String(svc.id),
           shiplabelLabelSeries: svc.inferredSeries || '',
           shiplabelLabelFormat: svc.inferredFormat || '',
+          tenantId,
         });
         created.push(svc.name);
       } else {

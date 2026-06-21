@@ -12,7 +12,8 @@ router.use(authenticateToken, authorize('admin'));
 // List all accounts (passwords never returned)
 router.get('/', async (req, res) => {
   try {
-    const accounts = await ShippersHubAccount.find().sort({ createdAt: 1 });
+    const tenantId = req.user.tenantId || req.user._id;
+    const accounts = await ShippersHubAccount.find({ tenantId }).sort({ createdAt: 1 });
     res.json({ accounts });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -28,7 +29,8 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'name, email, and password are required' });
     }
 
-    const account = new ShippersHubAccount({ name, email, encryptedPassword: '', iv: '' });
+    const tenantId = req.user.tenantId || req.user._id;
+    const account = new ShippersHubAccount({ name, email, encryptedPassword: '', iv: '', tenantId });
     account.setPassword(password);
     await account.save();
 
@@ -42,7 +44,8 @@ router.post('/', async (req, res) => {
 // Update name / email / password (any subset)
 router.put('/:id', async (req, res) => {
   try {
-    const account = await ShippersHubAccount.findById(req.params.id);
+    const tenantId = req.user.tenantId || req.user._id;
+    const account = await ShippersHubAccount.findOne({ _id: req.params.id, tenantId });
     if (!account) return res.status(404).json({ message: 'Account not found' });
 
     const { name, email, password } = req.body;
@@ -51,7 +54,7 @@ router.put('/:id', async (req, res) => {
     if (password) account.setPassword(password);
 
     // If this is the active account, clear cached token so next request re-auths
-    if (account.isActive) shippershub.clearToken();
+    if (account.isActive) shippershub.clearToken(tenantId);
 
     await account.save();
     res.json({ message: 'Account updated', account });
@@ -64,7 +67,8 @@ router.put('/:id', async (req, res) => {
 // Delete — cannot delete the active account
 router.delete('/:id', async (req, res) => {
   try {
-    const account = await ShippersHubAccount.findById(req.params.id);
+    const tenantId = req.user.tenantId || req.user._id;
+    const account = await ShippersHubAccount.findOne({ _id: req.params.id, tenantId });
     if (!account) return res.status(404).json({ message: 'Account not found' });
     if (account.isActive) {
       return res.status(400).json({ message: 'Cannot delete the active account. Activate another account first.' });
@@ -81,17 +85,18 @@ router.delete('/:id', async (req, res) => {
 // Set this account as the active one, deactivate all others
 router.post('/:id/activate', async (req, res) => {
   try {
-    const account = await ShippersHubAccount.findById(req.params.id);
+    const tenantId = req.user.tenantId || req.user._id;
+    const account = await ShippersHubAccount.findOne({ _id: req.params.id, tenantId });
     if (!account) return res.status(404).json({ message: 'Account not found' });
 
-    // Deactivate all
-    await ShippersHubAccount.updateMany({}, { isActive: false });
+    // Deactivate all accounts in this tenant only
+    await ShippersHubAccount.updateMany({ tenantId }, { isActive: false });
     // Activate this one
     account.isActive = true;
     await account.save();
 
     // Clear cached token so the new account is used immediately
-    shippershub.clearToken();
+    shippershub.clearToken(tenantId);
 
     res.json({ message: `"${account.name}" is now the active account`, account });
   } catch (err) {
@@ -103,7 +108,8 @@ router.post('/:id/activate', async (req, res) => {
 // Test credentials without saving or changing active account
 router.post('/:id/test', async (req, res) => {
   try {
-    const account = await ShippersHubAccount.findById(req.params.id);
+    const tenantId = req.user.tenantId || req.user._id;
+    const account = await ShippersHubAccount.findOne({ _id: req.params.id, tenantId });
     if (!account) return res.status(404).json({ message: 'Account not found' });
 
     const password = account.getPassword();
@@ -133,11 +139,12 @@ router.post('/:id/test', async (req, res) => {
 // values to put in VendorManagement.
 router.get('/carriers', async (req, res) => {
   try {
-    const carriers = await shippershub.getMyCarriers();
+    const tenantId = req.user.tenantId || req.user._id;
+    const carriers = await shippershub.getMyCarriers(tenantId);
     const result   = [];
     for (const c of carriers) {
       let vendors = [];
-      try { vendors = await shippershub.getMyVendors(c._id || c.id); } catch (_) {}
+      try { vendors = await shippershub.getMyVendors(c._id || c.id, tenantId); } catch (_) {}
       result.push({ ...c, vendors });
     }
     res.json({ carriers: result });

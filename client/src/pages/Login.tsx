@@ -23,7 +23,7 @@ function useViewport() {
 const Login: React.FC = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isAuthenticated, isLoading, error } = useAuth();
+  const { login, isAuthenticated, isLoading, error, user } = useAuth();
   const navigate = useNavigate();
   const vw = useViewport();
 
@@ -31,8 +31,11 @@ const Login: React.FC = () => {
   const isTablet = vw >= 640 && vw < 1024;
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/dashboard');
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated && user) {
+      if (user.role === 'superadmin') navigate('/superadmin');
+      else navigate('/dashboard');
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

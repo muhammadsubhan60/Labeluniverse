@@ -26,7 +26,9 @@ router.get('/', authenticateToken, authorize('admin'), async (req, res) => {
     const { role, isActive, page = 1, search } = req.query;
     const limit = Math.min(parseInt(req.query.limit) || 10, PAGE_LIMIT_MAX);
 
-    const filter = {};
+    // Scope to admin's tenant — admins only see their own users
+    const tenantId = req.user.tenantId || req.user._id;
+    const filter = { tenantId };
     if (role) filter.role = role;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (search && search.length <= SEARCH_MAX_LEN) {
@@ -60,8 +62,9 @@ router.get('/', authenticateToken, authorize('admin'), async (req, res) => {
 router.get('/reseller/clients', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {
   try {
     if (req.user.role === 'admin') {
-      // Admins see all role:user accounts (created via User Management)
-      const clients = await User.find({ role: 'user' }).select('-password').sort({ createdAt: -1 });
+      // Admins see only their tenant's users
+      const tenantId = req.user.tenantId || req.user._id;
+      const clients = await User.find({ tenantId, role: 'user' }).select('-password').sort({ createdAt: -1 });
       return res.json({ clients });
     }
     // Resellers see only their linked clients
@@ -93,7 +96,8 @@ router.post('/reseller/clients', authenticateToken, authorize('admin', 'reseller
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    const client = await User.create({ firstName, lastName, email, password, role: 'user' });
+    const tenantId = req.user.tenantId || req.user._id;
+    const client = await User.create({ firstName, lastName, email, password, role: 'user', tenantId });
 
     await Balance.create({ user: client._id, currentBalance: 0, transactions: [] });
     await Rate.create({ user: client._id, labelRate: 1.00, setBy: req.user._id, notes: 'Default rate set by reseller' });
@@ -161,7 +165,7 @@ router.post('/', authenticateToken, authorize('admin'), [
   body('lastName').trim().notEmpty().withMessage('Last name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('password').isLength({ min: 5 }).withMessage('Password must be at least 5 characters'),
-  body('role').isIn(['admin', 'reseller', 'user']).withMessage('Invalid role')
+  body('role').isIn(['admin', 'reseller', 'user']).withMessage('Invalid role — admins can create admin, reseller, or user accounts')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -176,7 +180,9 @@ router.post('/', authenticateToken, authorize('admin'), [
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    const user = await User.create({ firstName, lastName, email, password, role, source: source || null });
+    // New users inherit the creating admin's tenant
+    const tenantId = req.user.tenantId || req.user._id;
+    const user = await User.create({ firstName, lastName, email, password, role, source: source || null, tenantId });
 
     await Balance.create({ user: user._id, currentBalance: 0, transactions: [] });
     await Rate.create({
@@ -209,7 +215,7 @@ router.put('/:id', authenticateToken, [
     }
 
     const isSelf  = req.user._id.toString() === req.params.id;
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     let isResellerClient = false;
     if (req.user.role === 'reseller') {
       const me = await User.findById(req.user._id).select('clients');
@@ -219,12 +225,8 @@ router.put('/:id', authenticateToken, [
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Build a strict allowlist — never spread req.body directly into $set.
-    // This prevents mass assignment of sensitive fields like resetPasswordToken,
-    // clients, managedUsers, etc.
     const updates = {};
 
-    // Fields any authenticated user can edit on their own profile
     const profileFields = ['firstName', 'lastName', 'email', 'emailNotifications'];
     for (const field of profileFields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];

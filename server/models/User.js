@@ -30,8 +30,14 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'reseller', 'user'],
+    enum: ['superadmin', 'admin', 'reseller', 'user'],
     default: 'user'
+  },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true,
   },
   isActive: {
     type: Boolean,

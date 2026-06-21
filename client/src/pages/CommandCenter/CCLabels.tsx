@@ -206,7 +206,8 @@ export default function CCLabels() {
   const [loading,     setLoading]     = useState(true);
 
   const [search,      setSearch]      = useState(params.get('search') || '');
-  const [tsFilter,    setTsFilter]    = useState(params.get('trackingStatus') || '');
+  const [tsFilter,    setTsFilter]    = useState<string[]>(params.get('trackingStatus') ? params.get('trackingStatus')!.split(',') : []);
+  const [tsDropOpen,  setTsDropOpen]  = useState(false);
   const [vendorId,    setVendorId]    = useState(params.get('vendorId') || '');
   const [userId,      setUserId]      = useState(params.get('userId') || '');
   const [dateFrom,    setDateFrom]    = useState('');
@@ -241,9 +242,9 @@ export default function CCLabels() {
   const fetchLabels = useCallback(() => {
     setLoading(true);
     const p: Record<string, string> = { page: String(page), limit: String(PAGE_SIZE) };
-    if (search)   p.search          = search;
-    if (tsFilter) p.trackingStatus  = tsFilter;
-    if (vendorId) p.vendorId        = vendorId;
+    if (search)            p.search         = search;
+    if (tsFilter.length)   p.trackingStatus = tsFilter.join(',');
+    if (vendorId)          p.vendorId       = vendorId;
     if (userId)   p.userId          = userId;
     if (dateFrom) p.dateFrom        = dateFrom;
     if (dateTo)   p.dateTo          = dateTo;
@@ -257,7 +258,8 @@ export default function CCLabels() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [page, search, tsFilter, vendorId, userId, dateFrom, dateTo, authH]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, tsFilter.join(','), vendorId, userId, dateFrom, dateTo, authH]);
 
   useEffect(() => { fetchLabels(); }, [fetchLabels]);
 
@@ -302,9 +304,9 @@ export default function CCLabels() {
     setTrackMsg('');
     try {
       const p: Record<string, string> = {};
-      if (search)   p.search         = search;
-      if (tsFilter) p.trackingStatus = tsFilter;
-      if (vendorId) p.vendorId       = vendorId;
+      if (search)           p.search         = search;
+      if (tsFilter.length)  p.trackingStatus = tsFilter.join(',');
+      if (vendorId)         p.vendorId       = vendorId;
       if (userId)   p.userId         = userId;
       if (dateFrom) p.dateFrom       = dateFrom;
       if (dateTo)   p.dateTo         = dateTo;
@@ -330,9 +332,9 @@ export default function CCLabels() {
     setMasterTracking(false);
   };
 
-  const clearFilters = () => { setSearch(''); setTsFilter(''); setVendorId(''); setUserId(''); setDateFrom(''); setDateTo(''); setPage(1); };
+  const clearFilters = () => { setSearch(''); setTsFilter([]); setVendorId(''); setUserId(''); setDateFrom(''); setDateTo(''); setPage(1); };
 
-  const hasFilters = search || tsFilter || vendorId || userId || dateFrom || dateTo;
+  const hasFilters = search || tsFilter.length || vendorId || userId || dateFrom || dateTo;
 
   const inp: React.CSSProperties = { height: 34, padding: '0 0.7rem', background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', borderRadius: 8, color: 'var(--navy-900)', fontSize: '0.8rem', fontFamily: FONT, outline: 'none', boxSizing: 'border-box' };
   const sel: React.CSSProperties = { ...inp, cursor: 'pointer', paddingRight: '1.8rem', appearance: 'none' as const };
@@ -395,13 +397,45 @@ export default function CCLabels() {
             />
           </div>
 
-          {/* Status */}
+          {/* Status — multi-select */}
           <div style={{ position: 'relative' }}>
-            <select value={tsFilter} onChange={e => { setTsFilter(e.target.value); setPage(1); }} style={{ ...sel, minWidth: 160 }}>
-              <option value="">All Statuses</option>
-              {TS_KEYS.map(k => <option key={k} value={k}>{TS_CFG[k].label}</option>)}
-            </select>
-            <svg style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--navy-400)' }} width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+            {tsDropOpen && <div onClick={() => setTsDropOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />}
+            <button
+              onClick={() => setTsDropOpen(o => !o)}
+              style={{ ...inp, display: 'flex', alignItems: 'center', gap: 6, minWidth: 160, cursor: 'pointer', paddingRight: '1.8rem' }}
+            >
+              {tsFilter.length === 0
+                ? <span style={{ color: 'var(--navy-400)' }}>All Statuses</span>
+                : tsFilter.length === 1
+                  ? <span style={{ color: TS_CFG[tsFilter[0]]?.color || 'var(--navy-700)', fontWeight: 600, fontSize: '0.75rem' }}>{TS_CFG[tsFilter[0]]?.label}</span>
+                  : <span style={{ color: '#6366f1', fontWeight: 700, fontSize: '0.75rem' }}>{tsFilter.length} selected</span>
+              }
+              <svg style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--navy-400)' }} width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+            </button>
+            {tsDropOpen && (
+              <div style={{ position: 'absolute', top: '110%', left: 0, zIndex: 50, background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', borderRadius: 10, boxShadow: 'var(--shadow-lg)', minWidth: 210, padding: '6px 0', overflow: 'hidden' }}>
+                {tsFilter.length > 0 && (
+                  <button onClick={() => { setTsFilter([]); setPage(1); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 12px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, color: '#ef4444', fontFamily: FONT }}>
+                    Clear selection
+                  </button>
+                )}
+                {TS_KEYS.map(k => {
+                  const cfg = TS_CFG[k];
+                  const active = tsFilter.includes(k);
+                  return (
+                    <button key={k} onClick={() => {
+                      setTsFilter(prev => active ? prev.filter(x => x !== k) : [...prev, k]);
+                      setPage(1);
+                    }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '6px 12px', background: active ? `${cfg.bg}` : 'transparent', border: 'none', cursor: 'pointer', fontFamily: FONT }}>
+                      <span style={{ width: 14, height: 14, borderRadius: 3, border: `2px solid ${active ? cfg.color : 'var(--navy-300)'}`, background: active ? cfg.color : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {active && <svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 4l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: active ? 700 : 400, color: active ? cfg.color : 'var(--navy-700)' }}>{cfg.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Vendor */}

@@ -45,6 +45,14 @@ export default function Settings() {
   const [testMsg, setTestMsg]     = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [actionMsg, setActionMsg] = useState('');
 
+  // ── API Keys (ShipLabel / LabelCrow) ─────────────────────────────────────
+  interface ApiKeyInfo { service: string; configured: boolean; maskedKey: string | null; testedAt: string | null; testStatus: 'success' | 'failed' | null; }
+  const [apiKeys,       setApiKeys]       = useState<ApiKeyInfo[]>([]);
+  const [apiKeyInputs,  setApiKeyInputs]  = useState<Record<string, string>>({});
+  const [apiKeySaving,  setApiKeySaving]  = useState<Record<string, boolean>>({});
+  const [apiKeyTesting, setApiKeyTesting] = useState<Record<string, boolean>>({});
+  const [apiKeyMsg,     setApiKeyMsg]     = useState<Record<string, { ok: boolean; msg: string }>>({});
+
   const authHeader = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const fetchAccounts = useCallback(async () => {
@@ -59,7 +67,54 @@ export default function Settings() {
     }
   }, [authHeader]);
 
-  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+  const fetchApiKeys = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api-keys`, { headers: authHeader() });
+      setApiKeys(res.data.keys || []);
+    } catch {}
+  }, [authHeader]);
+
+  const handleApiKeySave = async (service: string) => {
+    const key = (apiKeyInputs[service] || '').trim();
+    if (!key) return;
+    setApiKeySaving(p => ({ ...p, [service]: true }));
+    setApiKeyMsg(p => ({ ...p, [service]: undefined as any }));
+    try {
+      await axios.put(`${API_BASE}/api-keys/${service}`, { apiKey: key }, { headers: authHeader() });
+      setApiKeyInputs(p => ({ ...p, [service]: '' }));
+      setActionMsg('API key saved.');
+      fetchApiKeys();
+    } catch (err: any) {
+      setApiKeyMsg(p => ({ ...p, [service]: { ok: false, msg: err.response?.data?.message || 'Failed to save' } }));
+    } finally {
+      setApiKeySaving(p => ({ ...p, [service]: false }));
+    }
+  };
+
+  const handleApiKeyTest = async (service: string) => {
+    setApiKeyTesting(p => ({ ...p, [service]: true }));
+    setApiKeyMsg(p => ({ ...p, [service]: undefined as any }));
+    try {
+      const res = await axios.post(`${API_BASE}/api-keys/${service}/test`, {}, { headers: authHeader() });
+      setApiKeyMsg(p => ({ ...p, [service]: { ok: res.data.ok, msg: res.data.message } }));
+      fetchApiKeys();
+    } catch (err: any) {
+      setApiKeyMsg(p => ({ ...p, [service]: { ok: false, msg: err.response?.data?.message || 'Test failed' } }));
+    } finally {
+      setApiKeyTesting(p => ({ ...p, [service]: false }));
+    }
+  };
+
+  const handleApiKeyDelete = async (service: string) => {
+    if (!window.confirm(`Remove the ${service} API key?`)) return;
+    try {
+      await axios.delete(`${API_BASE}/api-keys/${service}`, { headers: authHeader() });
+      setActionMsg('API key removed.');
+      fetchApiKeys();
+    } catch {}
+  };
+
+  useEffect(() => { fetchAccounts(); fetchApiKeys(); }, [fetchAccounts, fetchApiKeys]);
 
   // ── Modal helpers ─────────────────────────────────────────────────────────
   const openAdd = () => {
@@ -399,6 +454,80 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      {/* ── API Keys (ShipLabel + LabelCrow) ──────────────────────────────── */}
+      {([
+        { service: 'shiplabel',  label: 'ShipLabel',  hint: 'Found in your ShipLabel account → API Settings', accentColor: '#059669' },
+        { service: 'labelcrow',  label: 'LabelCrow',  hint: 'Found in your LabelCrow dashboard → API Keys',   accentColor: '#7C3AED' },
+      ] as const).map(({ service, label, hint, accentColor }) => {
+        const info       = apiKeys.find(k => k.service === service);
+        const keySaving  = apiKeySaving[service]  || false;
+        const keyTesting = apiKeyTesting[service] || false;
+        const msg        = apiKeyMsg[service];
+        const inputVal   = apiKeyInputs[service] || '';
+
+        return (
+          <div key={service} style={{ ...card, marginTop: 20 }}>
+            <div style={{ padding: '1.1rem 1.4rem', borderBottom: '1px solid var(--navy-100, #e8edf5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: info?.configured ? accentColor : 'var(--navy-200)', boxShadow: info?.configured ? `0 0 0 3px ${accentColor}28` : 'none' }} />
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--navy-900)' }}>{label} API Key</div>
+                  {info?.configured && (
+                    <span style={{ fontSize: '0.63rem', fontWeight: 800, letterSpacing: '0.06em', padding: '2px 8px', borderRadius: 99, textTransform: 'uppercase', background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}28` }}>
+                      {info.testStatus === 'success' ? 'Verified' : info.testStatus === 'failed' ? 'Failed' : 'Configured'}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--navy-400)', marginTop: 2 }}>
+                  {info?.configured
+                    ? <>Key: <span style={{ fontFamily: 'monospace', letterSpacing: '0.06em' }}>{info.maskedKey}</span>{info.testedAt ? ` · tested ${new Date(info.testedAt).toLocaleDateString()}` : ''}</>
+                    : 'No key configured — add one below to enable this portal.'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {info?.configured && (
+                  <>
+                    <button style={btnGhost} onClick={() => handleApiKeyTest(service)} disabled={keyTesting}>
+                      <ArrowPathIcon style={{ width: 13, height: 13, animation: keyTesting ? 'spin 1s linear infinite' : 'none' }} />
+                      {keyTesting ? 'Testing…' : 'Test'}
+                    </button>
+                    <button style={btnDanger} onClick={() => handleApiKeyDelete(service)}>
+                      <TrashIcon style={{ width: 13, height: 13 }} />
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={{ padding: '1rem 1.4rem' }}>
+              {msg && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: msg.ok ? '#F0FDF4' : '#FFF5F5', border: `1px solid ${msg.ok ? '#6EE7B7' : '#FCA5A5'}`, color: msg.ok ? '#059669' : '#DC2626', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {msg.ok ? <CheckCircleIcon style={{ width: 14, height: 14 }} /> : <XCircleIcon style={{ width: 14, height: 14 }} />}
+                  {msg.msg}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>{info?.configured ? 'Replace API Key' : 'API Key'}</label>
+                  <input
+                    style={inputStyle}
+                    type="password"
+                    placeholder={info?.configured ? 'Paste new key to replace…' : 'Paste your API key here…'}
+                    value={inputVal}
+                    onChange={e => setApiKeyInputs(p => ({ ...p, [service]: e.target.value }))}
+                  />
+                  <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 4 }}>{hint}</div>
+                </div>
+                <button style={{ ...btnPrimary, background: inputVal.trim() ? `linear-gradient(135deg,${accentColor},${accentColor}cc)` : 'var(--navy-200)', color: inputVal.trim() ? '#fff' : 'var(--navy-400)', cursor: inputVal.trim() ? 'pointer' : 'not-allowed' }} onClick={() => handleApiKeySave(service)} disabled={keySaving || !inputVal.trim()}>
+                  {keySaving ? 'Saving…' : info?.configured ? 'Update Key' : 'Save Key'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
       {/* ── Add / Edit Modal ──────────────────────────────────────────────── */}
       {modal.open && (

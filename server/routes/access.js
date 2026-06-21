@@ -56,6 +56,44 @@ async function resellerOwnsClient(resellerId, clientId) {
   return (reseller?.clients || []).map(String).includes(String(clientId));
 }
 
+// ── PUT /api/access/bulk/vendor-access ───────────────────────
+// Bulk enable/disable specific vendors for multiple users at once.
+// Preserves existing rate tiers — only flips isAllowed.
+// Body: { userIds, vendorEntries: [{ vendorId, carrier }], isAllowed }
+router.put('/bulk/vendor-access', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { userIds, vendorEntries, isAllowed } = req.body;
+    if (!Array.isArray(userIds) || !Array.isArray(vendorEntries)) {
+      return res.status(400).json({ message: 'userIds and vendorEntries must be arrays' });
+    }
+    if (typeof isAllowed !== 'boolean') {
+      return res.status(400).json({ message: 'isAllowed must be a boolean' });
+    }
+
+    const ops = [];
+    for (const userId of userIds) {
+      for (const { vendorId, carrier } of vendorEntries) {
+        ops.push({
+          updateOne: {
+            filter: { user: userId, vendor: vendorId, carrier },
+            update: {
+              $set: { isAllowed },
+              $setOnInsert: { user: userId, vendor: vendorId, carrier, rateTiers: [] },
+            },
+            upsert: true,
+          },
+        });
+      }
+    }
+
+    if (ops.length > 0) await UserVendorAccess.bulkWrite(ops);
+    res.json({ message: `Updated ${ops.length} access records` });
+  } catch (err) {
+    console.error('Bulk vendor access error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ── GET /api/access/:userId ───────────────────────────────────
 router.get('/:userId', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {
   try {

@@ -112,7 +112,16 @@ router.get('/:userId', authenticateToken, async (req, res) => {
 
 // ── Helper: check if caller can manage this userId ───────────
 async function canManageBalance(caller, userId) {
-  if (caller.role === 'admin') return true;
+  // Nobody can manage their own balance — super admin handles that via /api/superadmin/
+  if (String(caller._id) === String(userId)) return false;
+
+  if (caller.role === 'admin') {
+    // Admin can only manage users within their own tenant
+    const target = await User.findById(userId).select('tenantId');
+    if (!target) return false;
+    const callerTenantId = String(caller.tenantId || caller._id);
+    return String(target.tenantId) === callerTenantId;
+  }
   if (caller.role === 'reseller') {
     const me = await User.findById(caller._id).select('clients');
     return (me?.clients || []).map(String).includes(String(userId));

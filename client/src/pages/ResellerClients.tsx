@@ -533,10 +533,34 @@ const ResellerClients: React.FC = () => {
                     </div>
                     {isCreating && (
                       <div>
-                        <label className="form-label">Password</label>
-                        <input type="password" required minLength={12} className="form-input" value={clientForm.password}
-                          onChange={e => setClientForm({ ...clientForm, password: e.target.value })} />
-                        <p style={{ fontSize: '0.72rem', color: 'var(--navy-400)', marginTop: 3 }}>Minimum 12 characters</p>
+                        <label className="form-label">Password <span style={{ color: 'var(--navy-400)', fontWeight: 500, textTransform: 'none', fontSize: '0.65rem' }}>(5-digit PIN)</span></label>
+                        <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            required
+                            minLength={5}
+                            maxLength={5}
+                            inputMode="numeric"
+                            className="form-input"
+                            style={{ letterSpacing: '0.35em', fontWeight: 700, flex: 1 }}
+                            value={clientForm.password}
+                            onChange={e => setClientForm({ ...clientForm, password: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => setClientForm({ ...clientForm, password: String(Math.floor(10000 + Math.random() * 90000)) })}
+                          >
+                            Generate
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => clientForm.password && navigator.clipboard.writeText(clientForm.password)}
+                          >
+                            Copy
+                          </button>
+                        </div>
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 7, paddingTop: 2 }}>

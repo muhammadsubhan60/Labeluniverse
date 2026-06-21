@@ -213,7 +213,7 @@ router.post('/single', authenticateToken, [
         length: parseFloat(labelFields.length) || 1,
         width:  parseFloat(labelFields.width)  || 1,
         height: parseFloat(labelFields.height) || 1,
-      });
+      }, req.user.tenantId || req.user._id);
       trackingId = shippershubResult?.trackingID || shippershubResult?.trackingId || '';
       pdfUrl     = shippershubResult?.awsPath || shippershubResult?.pdfUrl || null;
 
@@ -269,6 +269,7 @@ router.post('/single', authenticateToken, [
     // Save label record
     const label = await Label.create({
       user:              req.user._id,
+      tenantId:          req.user.tenantId || req.user._id,
       vendor:            vendor._id,
       carrier:           vendor.carrier,
       vendorName:        vendor.name,
@@ -492,7 +493,7 @@ router.post('/bulk', authenticateToken, [
           serviceClass: vendor.labelcrowServiceClass,
           providerKey:  vendor.labelcrowProviderKey,
           labels:       labelRows,
-        }));
+        }, req.user.tenantId || req.user._id));
         console.log('[LC Route] submitBulkJob success:', { jobId, orderId, totalLabels });
       } catch (lcErr) {
         console.error('[LC Route] submitBulkJob FAILED:', lcErr.message, lcErr.stack?.split('\n').slice(0, 3).join(' | '));
@@ -504,6 +505,7 @@ router.post('/bulk', authenticateToken, [
       const lcBulkJobId = new mongooseLc.Types.ObjectId().toString();
       await Label.insertMany(labelRows.map((row, i) => ({
         user:             req.user._id,
+        tenantId:         req.user.tenantId || req.user._id,
         vendor:           vendor._id,
         carrier:          vendor.carrier,
         vendorName:       vendor.name,
@@ -547,6 +549,7 @@ router.post('/bulk', authenticateToken, [
       // Create pending Label records
       const labelDocs = await Label.insertMany(labelRows.map((row, i) => ({
         user:             req.user._id,
+        tenantId:         req.user.tenantId || req.user._id,
         vendor:           vendor._id,
         carrier:          vendor.carrier,
         vendorName:       vendor.name,
@@ -598,7 +601,7 @@ router.post('/bulk', authenticateToken, [
                 ...(_vendor.shiplabelLabelSeries ? { label_series: _vendor.shiplabelLabelSeries } : {}),
                 ...(_vendor.shiplabelLabelFormat ? { label_format: _vendor.shiplabelLabelFormat } : {}),
               };
-              const result = await shiplabel.createOrder(payload);
+              const result = await shiplabel.createOrder(payload, req.user.tenantId || req.user._id);
               // Auto-scan result keys for tracking number and PDF URL
               const keys = Object.keys(result);
               const trackKey = keys.find(k => /track|barcode/i.test(k) && result[k]);
@@ -668,12 +671,13 @@ router.post('/bulk', authenticateToken, [
             vendor:   vendor.shippershubVendorId,
             ...row,
             weight: parseFloat(row.weight)
-          });
+          }, req.user.tenantId || req.user._id);
           trackingId = shippershubResult?.trackingID || shippershubResult?.trackingId || '';
         }
 
         const label = await Label.create({
           user:              req.user._id,
+          tenantId:          req.user.tenantId || req.user._id,
           vendor:            vendor._id,
           carrier:           vendor.carrier,
           vendorName:        vendor.name,
@@ -892,8 +896,11 @@ router.get('/cc-all', authenticateToken, authorize('admin'), async (req, res) =>
     const limit = Math.min(parseInt(req.query.limit) || 35, PAGE_LIMIT_MAX);
 
     const filter = {};
-    if (carrier)                          filter.carrier        = carrier;
-    if (trackingStatus)                   filter.trackingStatus = trackingStatus;
+    if (carrier) filter.carrier = carrier;
+    if (trackingStatus) {
+      const statuses = String(trackingStatus).split(',').map(s => s.trim()).filter(Boolean);
+      filter.trackingStatus = statuses.length === 1 ? statuses[0] : { $in: statuses };
+    }
     if (vendorId && isValidObjectId(vendorId)) filter.vendor    = vendorId;
     if (userId   && isValidObjectId(userId))   filter.user      = userId;
     if (dateFrom || dateTo) {
@@ -932,8 +939,11 @@ router.get('/tracking-ids', authenticateToken, authorize('admin'), async (req, r
   try {
     const { trackingStatus, carrier, vendorId, userId, dateFrom, dateTo, search } = req.query;
     const filter = { trackingId: { $exists: true, $ne: '' } };
-    if (carrier)                              filter.carrier        = carrier;
-    if (trackingStatus)                       filter.trackingStatus = trackingStatus;
+    if (carrier) filter.carrier = carrier;
+    if (trackingStatus) {
+      const statuses = String(trackingStatus).split(',').map(s => s.trim()).filter(Boolean);
+      filter.trackingStatus = statuses.length === 1 ? statuses[0] : { $in: statuses };
+    }
     if (vendorId && isValidObjectId(vendorId)) filter.vendor        = vendorId;
     if (userId   && isValidObjectId(userId))   filter.user          = userId;
     if (dateFrom || dateTo) {
@@ -974,9 +984,20 @@ router.get('/vendor-stats', authenticateToken, authorize('admin'), async (req, r
     const pipeline = [
       ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
       {
+        $lookup: {
+          from: 'vendors', localField: 'vendor', foreignField: '_id', as: '_v',
+        },
+      },
+      {
+        $addFields: {
+          portalSource: { $ifNull: [{ $arrayElemAt: ['$_v.source', 0] }, 'shippershub'] },
+        },
+      },
+      {
         $group: {
           _id:               '$vendorName',
           carrier:           { $first: '$carrier' },
+          portal:            { $first: '$portalSource' },
           total:             { $sum: 1 },
           delivered:         { $sum: { $cond: [{ $eq: ['$trackingStatus', 'delivered'] },          1, 0] } },
           in_transit:        { $sum: { $cond: [{ $eq: ['$trackingStatus', 'in_transit'] },         1, 0] } },
@@ -986,6 +1007,7 @@ router.get('/vendor-stats', authenticateToken, authorize('admin'), async (req, r
           pending_pickup:    { $sum: { $cond: [{ $eq: ['$trackingStatus', 'pending_pickup'] },     1, 0] } },
           delayed:           { $sum: { $cond: [{ $eq: ['$trackingStatus', 'delayed'] },            1, 0] } },
           not_scanned_yet:   { $sum: { $cond: [{ $in:  ['$trackingStatus', ['not_scanned_yet', null]] }, 1, 0] } },
+          voided:            { $sum: { $cond: [{ $eq: ['$trackingStatus', 'voided'] },             1, 0] } },
         },
       },
       { $sort: { total: -1 } },
@@ -1023,6 +1045,7 @@ router.get('/daily-stats', authenticateToken, authorize('admin'), async (req, re
           exception_problem: { $sum: { $cond: [{ $eq: ['$trackingStatus', 'exception_problem'] },  1, 0] } },
           returned_to_sender:{ $sum: { $cond: [{ $eq: ['$trackingStatus', 'returned_to_sender'] }, 1, 0] } },
           not_scanned_yet:   { $sum: { $cond: [{ $in:  ['$trackingStatus', ['not_scanned_yet', null]] }, 1, 0] } },
+          voided:            { $sum: { $cond: [{ $eq: ['$trackingStatus', 'voided'] },             1, 0] } },
         },
       },
       { $sort: { _id: -1 } },
@@ -1161,7 +1184,8 @@ router.post('/bulk-status-by-tracking', authenticateToken, async (req, res) => {
     const grouped = {};   // { status -> [trackingId] }
     const invalidIds = [];
 
-    for (const { trackingId, status } of updates) {
+    for (const { tracking, trackingId: tid, status } of updates) {
+      const trackingId = tracking || tid;
       if (!trackingId) continue;
       const normalized = normalizeTrackingStatus(status);
       if (!normalized) { invalidIds.push(trackingId); continue; }
@@ -1455,7 +1479,7 @@ router.get('/labelcrow-job/:jobId', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Job not found or access denied' });
     }
 
-    const progress = await labelcrow.pollJob(jobId);
+    const progress = await labelcrow.pollJob(jobId, req.user.tenantId || req.user._id);
     const orderId  = sample.labelcrowOrderId;
 
     console.log('[LC Poll Route]', { jobId, status: progress.status, generated: progress.generated, failed: progress.failed, total: progress.total, orderId });
@@ -1500,7 +1524,7 @@ router.get('/labelcrow-order/:orderId/zip', authenticateToken, async (req, res) 
     }).select('_id');
     if (!owns) return res.status(404).json({ message: 'Order not found or access denied' });
 
-    const { buffer, statusCode } = await labelcrow.downloadOrderZip(orderId);
+    const { buffer, statusCode } = await labelcrow.downloadOrderZip(orderId, req.user.tenantId || req.user._id);
     if (statusCode < 200 || statusCode >= 300) {
       return res.status(502).json({ message: 'Failed to fetch ZIP from Label Crow' });
     }

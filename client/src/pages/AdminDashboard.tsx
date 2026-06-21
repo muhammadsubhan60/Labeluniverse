@@ -6,7 +6,8 @@ import {
   UserGroupIcon, TagIcon, ClipboardDocumentListIcon, CurrencyDollarIcon,
   BuildingStorefrontIcon, ExclamationTriangleIcon,
   ArrowPathIcon, TruckIcon, Squares2X2Icon,
-  ArrowUpRightIcon, SparklesIcon,
+  ArrowUpRightIcon, SparklesIcon, BellAlertIcon, XMarkIcon,
+  BanknotesIcon, ExclamationCircleIcon,
 } from '@heroicons/react/24/outline';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -40,6 +41,10 @@ interface AdminStats {
   totalRevenue: number;
   recentManifests: any[];
   recentUsers: any[];
+  alerts: {
+    lowBalance: { _id: string; firstName: string; lastName: string; email: string; balance: number }[];
+    exceptions: { _id: string; firstName: string; lastName: string; email: string; count: number; lastAt: string }[];
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -174,9 +179,12 @@ type PeriodPreset = 'all' | 'this_month' | 'last_month' | 'last_3m' | 'custom';
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [stats,      setStats]      = useState<AdminStats | null>(null);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [stats,           setStats]           = useState<AdminStats | null>(null);
+  const [loading,         setLoading]         = useState(true);
+  const [refreshing,      setRefreshing]      = useState(false);
+  const [topVendors,      setTopVendors]      = useState<any[]>([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
+  const dismissAlert = (id: string) => setDismissedAlerts(prev => prev.includes(id) ? prev : [...prev, id]);
 
   // Period filter
   const toISO = (d: Date) => d.toISOString().slice(0, 10);
@@ -262,8 +270,29 @@ const AdminDashboard: React.FC = () => {
       const params: Record<string, string> = {};
       if (from) params.from = from;
       if (to)   params.to   = to;
-      const res = await axios.get('/stats', { params });
-      setStats(res.data);
+      const vParams: Record<string, string> = {};
+      if (from) vParams.dateFrom = from;
+      if (to)   vParams.dateTo   = to;
+
+      const [statsRes, vendorRes] = await Promise.all([
+        axios.get('/stats', { params }),
+        axios.get('/labels/vendor-stats', { params: vParams }),
+      ]);
+      setStats(statsRes.data);
+
+      // Compute composite scores and pick top 5
+      const raw: any[] = vendorRes.data.vendors || [];
+      const scored = raw.map(v => {
+        const eff = v.total - (v.voided || 0);
+        if (!eff) return { ...v, _score: 0, _del: 0, _scn: 0, _err: 0, _eff: 0 };
+        const del = Math.round(v.delivered / eff * 100);
+        const scn = Math.round((eff - (v.not_scanned_yet || 0)) / eff * 100);
+        const err = Math.round((v.exception_problem || 0) / eff * 100);
+        const rawScore = del * (scn + (100 - err)) / 200;
+        const vol = eff / (eff + 100);
+        return { ...v, _score: Math.round(rawScore * vol * 10) / 10, _del: del, _scn: scn, _err: err, _eff: eff };
+      }).sort((a, b) => b._score - a._score).slice(0, 5);
+      setTopVendors(scored);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, [periodPreset, periodFrom, periodTo, getPeriodRange]);
@@ -275,7 +304,7 @@ const AdminDashboard: React.FC = () => {
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}><div className="spinner" /></div>;
   if (!stats) return null;
 
-  const { users, labels, manifests, vendors, labelsByPortal, trackingStatus, totalBalanceHeld, totalRevenue, recentManifests, recentUsers } = stats;
+  const { users, labels, manifests, vendors, labelsByPortal, trackingStatus, totalBalanceHeld, totalRevenue, recentManifests, recentUsers, alerts } = stats;
   const labelTotal = labels.total || 1;
 
   const now = new Date();
@@ -369,6 +398,133 @@ const AdminDashboard: React.FC = () => {
                   </span>
                 )}
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Alerts ───────────────────────────────────────────────────────────── */}
+      {(() => {
+        const visibleLow = (alerts?.lowBalance || []).filter(a => !dismissedAlerts.includes(`lb-${a._id}`));
+        const visibleExc = (alerts?.exceptions || []).filter(a => !dismissedAlerts.includes(`ex-${a._id}`));
+        const sectionHidden = dismissedAlerts.includes('__section__');
+        if (sectionHidden || (!visibleLow.length && !visibleExc.length)) return null;
+
+        const cardHeader = (accent: string, Icon: React.ElementType, title: string, sub: string, onViewAll: () => void) => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0.75rem 1rem', borderBottom: '1px solid var(--navy-100)' }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: `${accent}18`, border: `1px solid ${accent}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon style={{ width: 14, height: 14, color: accent }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--navy-900)', fontFamily: FONT }}>{title}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', fontFamily: FONT, marginTop: 1 }}>{sub}</div>
+            </div>
+            <button
+              onClick={onViewAll}
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}
+            >
+              View all
+            </button>
+          </div>
+        );
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* Section header row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 3, height: 13, borderRadius: 3, background: '#ef4444', flexShrink: 0 }} />
+                <BellAlertIcon style={{ width: 13, height: 13, color: '#ef4444' }} />
+                <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: FONT }}>
+                  Alerts · {visibleLow.length + visibleExc.length}
+                </span>
+              </div>
+              <button
+                onClick={() => dismissAlert('__section__')}
+                className="btn btn-ghost btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.7rem', color: 'var(--navy-400)' }}
+                title="Hide alerts until next refresh"
+              >
+                <XMarkIcon style={{ width: 13, height: 13 }} /> Hide
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: visibleLow.length && visibleExc.length ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+
+              {/* Low balance card */}
+              {visibleLow.length > 0 && (
+                <div className="db-card" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#f59e0b', borderRadius: '16px 16px 0 0' }} />
+                  {cardHeader('#f59e0b', BanknotesIcon, 'Low Balance Users', `${visibleLow.length} user${visibleLow.length !== 1 ? 's' : ''} below $50`, () => navigate('/admin/users'))}
+                  <div style={{ padding: '0.35rem 0.6rem 0.5rem', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {visibleLow.map(u => (
+                      <div key={u._id}
+                        onClick={() => navigate('/admin/users')}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.4rem 0.45rem', borderRadius: 8, cursor: 'pointer', transition: 'background 0.12s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#f59e0b,#d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: '0.63rem', fontWeight: 800, color: '#fff', fontFamily: FONT }}>{u.firstName?.[0]}{u.lastName?.[0]}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--navy-800)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.firstName} {u.lastName}</div>
+                          <div style={{ fontSize: '0.64rem', color: 'var(--navy-400)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+                        </div>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: u.balance <= 10 ? '#ef4444' : '#f59e0b', fontFamily: FONT, flexShrink: 0 }}>${u.balance.toFixed(2)}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); dismissAlert(`lb-${u._id}`); }}
+                          style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-400)', flexShrink: 0, transition: 'all 0.12s' }}
+                          onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-100)', color: 'var(--navy-700)' })}
+                          onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-50)', color: 'var(--navy-400)' })}
+                          title="Dismiss"
+                        >
+                          <XMarkIcon style={{ width: 10, height: 10 }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Exception users card */}
+              {visibleExc.length > 0 && (
+                <div className="db-card" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#ef4444', borderRadius: '16px 16px 0 0' }} />
+                  {cardHeader('#ef4444', ExclamationCircleIcon, 'Exception / Problem', `${visibleExc.length} user${visibleExc.length !== 1 ? 's' : ''} with problem labels`, () => navigate('/command-center/labels'))}
+                  <div style={{ padding: '0.35rem 0.6rem 0.5rem', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {visibleExc.map(ex => (
+                      <div key={ex._id}
+                        onClick={() => navigate('/command-center/labels')}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.4rem 0.45rem', borderRadius: 8, cursor: 'pointer', transition: 'background 0.12s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#ef4444,#dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: '0.63rem', fontWeight: 800, color: '#fff', fontFamily: FONT }}>{ex.firstName?.[0]}{ex.lastName?.[0]}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--navy-800)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ex.firstName} {ex.lastName}</div>
+                          <div style={{ fontSize: '0.64rem', color: 'var(--navy-400)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ex.email}</div>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#ef4444', background: 'var(--navy-50)', border: '1px solid var(--navy-200)', borderRadius: 6, padding: '2px 8px', fontFamily: FONT, flexShrink: 0 }}>
+                          {ex.count} exception{ex.count !== 1 ? 's' : ''}
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); dismissAlert(`ex-${ex._id}`); }}
+                          style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-400)', flexShrink: 0, transition: 'all 0.12s' }}
+                          onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-100)', color: 'var(--navy-700)' })}
+                          onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-50)', color: 'var(--navy-400)' })}
+                          title="Dismiss"
+                        >
+                          <XMarkIcon style={{ width: 10, height: 10 }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -764,6 +920,69 @@ const AdminDashboard: React.FC = () => {
               <span style={{ fontSize: '0.73rem', color: 'var(--navy-400)', fontFamily: FONT }}>Period Total</span>
               <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--navy-900)', fontFamily: FONT }}>{periodTotal.toLocaleString()}</span>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Top Vendors ────────────────────────────────────────────────────── */}
+      <div className="db-card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '0.85rem 1.3rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SLabel text="Top Vendors" accent="#f59e0b" />
+            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-400)', background: 'var(--navy-100)', padding: '2px 6px', borderRadius: 99 }}>by performance score</span>
+          </div>
+          <button className="btn btn-ghost btn-sm" style={{ fontSize: '0.7rem', fontFamily: FONT }} onClick={() => navigate('/command-center/vendor-perf')}>Full leaderboard →</button>
+        </div>
+        {topVendors.length === 0 ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.8rem' }}>No vendor data for this period.</div>
+        ) : (
+          <div>
+            {topVendors.map((v, i) => {
+              const rank = i + 1;
+              const rankBg = rank === 1 ? '#f59e0b' : rank === 2 ? '#94a3b8' : rank === 3 ? '#b45309' : 'var(--navy-200)';
+              const rankFg = rank <= 3 ? '#fff' : 'var(--navy-500)';
+              const PORTAL_META: Record<string, { name: string; color: string }> = {
+                shippershub: { name: 'ShippersHub', color: '#6366f1' },
+                labelcrow:   { name: 'LabelCrow',   color: '#0ea5e9' },
+                shiplabel:   { name: 'ShipLabel',   color: '#10b981' },
+                manual:      { name: 'Manual',      color: '#94a3b8' },
+              };
+              const portal = PORTAL_META[v.portal] || { name: v.portal || 'ShippersHub', color: '#6366f1' };
+              const CARR_COLOR: Record<string, string> = { USPS: '#1D4ED8', UPS: '#92400E', FedEx: '#5B21B6', DHL: '#B45309' };
+              const cColor = CARR_COLOR[v.carrier] || '#64748b';
+              const scoreColor = v._score >= 60 ? '#22c55e' : v._score >= 35 ? '#f59e0b' : '#ef4444';
+              return (
+                <div key={v._id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0.8rem 1.3rem', borderBottom: '1px solid var(--navy-50)', flexWrap: 'wrap' }}>
+                  {/* Rank */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: rankBg, color: rankFg, fontSize: '0.65rem', fontWeight: 800 }}>{rank}</span>
+                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: scoreColor, marginTop: 2 }}>{v._score} pts</span>
+                  </div>
+                  {/* Name + portal */}
+                  <div style={{ flex: 1, minWidth: 140 }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-900)', lineHeight: 1.2 }}>{v._id || '—'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, color: cColor, background: `${cColor}15`, border: `1px solid ${cColor}30`, padding: '1px 5px', borderRadius: 4 }}>{v.carrier || '—'}</span>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 700, color: portal.color }}>{portal.name}</span>
+                    </div>
+                  </div>
+                  {/* Stats */}
+                  <div style={{ display: 'flex', gap: 16, flexShrink: 0, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Labels', value: v._eff.toLocaleString(),       color: 'var(--navy-700)' },
+                      { label: 'DEL',    value: `${v._del}%`,                  color: v._del >= 80 ? '#22c55e' : v._del >= 65 ? '#f59e0b' : '#ef4444' },
+                      { label: 'SCN',    value: `${v._scn}%`,                  color: v._scn >= 80 ? '#6366f1' : v._scn >= 60 ? '#f59e0b' : '#ef4444' },
+                      { label: 'ERR',    value: `${v._err}%`,                  color: v._err === 0 ? '#22c55e' : v._err <= 5 ? '#f59e0b' : '#ef4444' },
+                    ].map(s => (
+                      <div key={s.label} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+                        <div style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -7,12 +7,13 @@ interface User {
   firstName: string;
   lastName: string;
   email: string;
-  role: 'admin' | 'reseller' | 'user';
+  role: 'superadmin' | 'admin' | 'reseller' | 'user';
   fullName: string;
   lastLogin?: string;
   isActive: boolean;
   createdAt: string;
   clients?: string[];
+  tenantId?: string;
 }
 
 interface AuthState {
@@ -37,6 +38,7 @@ interface RegisterData {
   email: string;
   password: string;
   role?: 'admin' | 'reseller' | 'user';
+  tenantId?: string;
 }
 
 // Action types

@@ -70,6 +70,12 @@ const shippersHubAccountSchema = new mongoose.Schema({
     enum: ['success', 'failed', null],
     default: null,
   },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true,
+  },
 }, {
   timestamps: true,
 });

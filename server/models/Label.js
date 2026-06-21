@@ -86,6 +86,13 @@ const labelSchema = new mongoose.Schema({
     default: 'not_scanned_yet'
   },
 
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true,
+  },
+
   trackingStatusHistory: [{
     status:    { type: String, required: true },
     note:      { type: String, default: '' },

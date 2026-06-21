@@ -14,7 +14,10 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { role, _id: userId } = req.user;
-    if (role === 'admin')    return res.json(await adminStats({ from: req.query.from, to: req.query.to }));
+    if (role === 'admin') {
+      const tenantId = req.user.tenantId || req.user._id;
+      return res.json(await adminStats(tenantId, { from: req.query.from, to: req.query.to }));
+    }
     if (role === 'reseller') return res.json(await resellerStats(userId));
     return res.json(await userStats(userId));
   } catch (err) {
@@ -24,7 +27,13 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
-async function adminStats({ from, to } = {}) {
+async function adminStats(tenantId, { from, to } = {}) {
+  const tenantOid = new mongoose.Types.ObjectId(String(tenantId));
+
+  // Fetch all user IDs belonging to this tenant (for ManifestJob/Balance joins)
+  const tenantUserDocs = await User.find({ tenantId: tenantOid }).select('_id').lean();
+  const tenantUserIds  = tenantUserDocs.map(u => u._id);
+
   const now          = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -50,53 +59,83 @@ async function adminStats({ from, to } = {}) {
     recentUsers,
     portalGroups,
     trackingGroups,
+    lowBalanceUsers,
+    exceptionLabels,
   ] = await Promise.all([
-    // Users by role + isActive (always all-time — headcount doesn't filter by period)
+    // Users by role + isActive — scoped to this tenant
     User.aggregate([
+      { $match: { tenantId: tenantOid } },
       { $group: { _id: { role: '$role', active: '$isActive' }, count: { $sum: 1 } } },
     ]),
-    // New users in selected period (or this month when no filter)
-    User.countDocuments({ createdAt: hasPeriod ? periodFilter : { $gte: startOfMonth } }),
-    // Labels by carrier + status — filtered by period
+    // New users in selected period — scoped to tenant
+    User.countDocuments({
+      tenantId: tenantOid,
+      createdAt: hasPeriod ? periodFilter : { $gte: startOfMonth },
+    }),
+    // Labels by carrier + status — scoped to tenant
     Label.aggregate([
-      ...(hasPeriod ? [{ $match: { createdAt: periodFilter } }] : []),
+      { $match: { tenantId: tenantOid, ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $group: { _id: { carrier: '$carrier', status: '$status' }, count: { $sum: 1 }, revenue: { $sum: '$price' } } },
     ]),
-    // Labels generated today (always today — ignored if period selected)
-    Label.countDocuments({ createdAt: { $gte: startOfToday }, status: 'generated' }),
-    // Manifest jobs by status — filtered by period
+    // Labels generated today — scoped to tenant
+    Label.countDocuments({ tenantId: tenantOid, createdAt: { $gte: startOfToday }, status: 'generated' }),
+    // Manifest jobs by status — scoped to tenant via user IDs
     ManifestJob.aggregate([
-      ...(hasPeriod ? [{ $match: { createdAt: periodFilter } }] : []),
+      { $match: { user: { $in: tenantUserIds }, ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $group: { _id: '$status', count: { $sum: 1 }, revenue: { $sum: '$userBilling.totalAmount' } } },
     ]),
-    // Active vendors + payables (always all-time)
+    // Active vendors + payables (global — shared across tenants)
     Vendor.aggregate([
       { $group: { _id: '$isActive', count: { $sum: 1 }, dueBalance: { $sum: '$dueBalance' }, totalEarnings: { $sum: '$totalEarnings' } } },
     ]),
-    // Sum all user balances (always all-time)
+    // Sum balances for this tenant's users
     Balance.aggregate([
+      { $match: { user: { $in: tenantUserIds } } },
       { $group: { _id: null, total: { $sum: '$currentBalance' } } },
     ]),
-    // Manifest jobs needing admin action (always live)
-    ManifestJob.find({ status: { $in: ['under_review', 'open', 'uploaded'] } })
+    // Manifest jobs needing action — scoped to tenant
+    ManifestJob.find({ user: { $in: tenantUserIds }, status: { $in: ['under_review', 'open', 'uploaded'] } })
       .populate('user', 'firstName lastName email')
       .populate('assignedVendor', 'name')
       .sort({ createdAt: -1 })
       .limit(8)
       .select('carrier status userBilling assignedVendor user createdAt'),
-    // Recent signups (always live)
-    User.find().sort({ createdAt: -1 }).limit(6).select('firstName lastName email role isActive createdAt'),
-    // Labels by portal — filtered by period
+    // Recent signups — scoped to tenant
+    User.find({ tenantId: tenantOid }).sort({ createdAt: -1 }).limit(6).select('firstName lastName email role isActive createdAt'),
+    // Labels by portal — scoped to tenant
     Label.aggregate([
-      { $match: { status: 'generated', ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
+      { $match: { tenantId: tenantOid, status: 'generated', ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $lookup: { from: 'vendors', localField: 'vendor', foreignField: '_id', as: '_v' } },
       { $addFields: { portal: { $ifNull: [{ $arrayElemAt: ['$_v.source', 0] }, 'shippershub'] } } },
       { $group: { _id: '$portal', count: { $sum: 1 }, revenue: { $sum: '$price' } } },
     ]),
-    // Tracking status breakdown — filtered by period
+    // Tracking status breakdown — scoped to tenant
     Label.aggregate([
-      { $match: { status: 'generated', ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
+      { $match: { tenantId: tenantOid, status: 'generated', ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $group: { _id: '$trackingStatus', count: { $sum: 1 } } },
+    ]),
+    // Alert: users with balance < $50 — scoped to tenant
+    Balance.aggregate([
+      { $match: { user: { $in: tenantUserIds }, currentBalance: { $lt: 50 } } },
+      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: '_u' } },
+      { $unwind: '$_u' },
+      { $match: { '_u.role': { $ne: 'admin' } } },
+      { $sort: { currentBalance: 1 } },
+      { $limit: 5 },
+      { $project: { _id: '$_u._id', firstName: '$_u.firstName', lastName: '$_u.lastName', email: '$_u.email', balance: '$currentBalance' } },
+    ]),
+    // Alert: exception labels — scoped to tenant
+    Label.aggregate([
+      { $match: { tenantId: tenantOid, trackingStatus: 'exception_problem', status: 'generated' } },
+      { $group: { _id: '$user', count: { $sum: 1 }, lastAt: { $max: '$updatedAt' } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+      { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: '_u' } },
+      { $unwind: { path: '$_u', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        _id: '$_u._id', firstName: '$_u.firstName', lastName: '$_u.lastName', email: '$_u.email',
+        count: 1, lastAt: 1,
+      }},
     ]),
   ]);
 
@@ -170,6 +209,7 @@ async function adminStats({ from, to } = {}) {
     totalRevenue: labels.revenue + manifests.revenue,
     recentManifests,
     recentUsers,
+    alerts: { lowBalance: lowBalanceUsers, exceptions: exceptionLabels },
   };
 }
 

@@ -599,13 +599,6 @@ html[data-theme='dark'] .alert-info    { background: rgba(30, 58, 138, 0.25); co
   margin: 1px 10px;
 }
 
-/* Active dot (expanded mode) */
-.nav-active-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: var(--accent-400);
-  margin-left: auto; flex-shrink: 0;
-  box-shadow: 0 0 6px rgba(96,165,250,0.7);
-}
 
 .nav-icon {
   width: 17px; height: 17px; flex-shrink: 0;

@@ -8,7 +8,7 @@ import {
   CheckCircleIcon, ExclamationCircleIcon, ScaleIcon,
   BanknotesIcon, CurrencyDollarIcon, PhotoIcon,
   ArrowUpTrayIcon, ArrowDownTrayIcon, AdjustmentsHorizontalIcon,
-  PlusIcon, ChevronDownIcon, ChevronUpIcon,
+  PlusIcon, ChevronDownIcon, ChevronUpIcon, ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
@@ -149,6 +149,7 @@ const UserManagement: React.FC = () => {
   const [loadingTiers,  setLoadingTiers] = useState(false);
   const [savingTiers,   setSavingTiers]  = useState(false);
   const [expandedCarriers, setExpandedCarriers] = useState<Record<string, boolean>>({});
+  const [expandedPortals,  setExpandedPortals]  = useState<Record<string, boolean>>({});
   const [expandedV,        setExpandedV]        = useState<Record<string, boolean>>({});
 
   const [addingForCarrier,  setAddingForCarrier]  = useState('');
@@ -457,6 +458,20 @@ const UserManagement: React.FC = () => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button
+            onClick={() => navigate('/admin/bulk-vendor-access')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '0.55rem 1.1rem',
+              background: 'rgba(99,102,241,0.08)',
+              border: '1.5px solid rgba(99,102,241,0.25)', borderRadius: 9, color: '#6366f1',
+              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+              fontFamily: FONT,
+            }}
+          >
+            <ShieldCheckIcon style={{ width: 15, height: 15 }} />
+            Bulk Access
+          </button>
           <button
             onClick={() => navigate('/command-center/dashboard')}
             style={{
@@ -1265,60 +1280,116 @@ const UserManagement: React.FC = () => {
 
                             {isCarrierOpen && (
                               <div style={{ background: 'var(--bg-card)' }}>
-                                {shVendors.length > 0 && (
-                                  <>
-                                    <div style={{ padding: '0.35rem 0.875rem', background: 'rgba(29,78,216,0.06)', borderTop: `1px solid ${cfg.border}` }}>
-                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>ShippersHub</span>
-                                    </div>
-                                    {shVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))}
-                                  </>
-                                )}
-                                {lcVendors.length > 0 && (
-                                  <>
-                                    <div style={{ padding: '0.35rem 0.875rem', background: 'rgba(124,58,237,0.06)', borderTop: `1px solid ${cfg.border}` }}>
-                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>Label Crow</span>
-                                    </div>
-                                    {lcVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))}
-                                  </>
-                                )}
-                                {slVendors.length > 0 && (
-                                  <>
-                                    <div style={{ padding: '0.35rem 0.875rem', background: 'rgba(5,150,105,0.06)', borderTop: `1px solid ${cfg.border}` }}>
-                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>ShipLabel</span>
-                                    </div>
-                                    {slVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))}
-                                  </>
-                                )}
-                                <div style={{ padding: '0.35rem 0.875rem', background: 'var(--navy-50)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>Manifest Vendors</span>
-                                  {!isAddingHere && (
-                                    <button onClick={() => { setAddingForCarrier(carrier); setNewVendorName(''); }}
-                                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', border: '1.5px solid var(--navy-200)', borderRadius: 5, background: 'transparent', color: 'var(--navy-500)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
-                                      <PlusIcon style={{ width: 9, height: 9 }} /> Add
-                                    </button>
-                                  )}
-                                </div>
-                                {isAddingHere && (
-                                  <div style={{ padding: '0.5rem 0.875rem', borderTop: '1px dashed var(--navy-100)', background: 'rgba(99,102,241,0.04)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <input autoFocus type="text" style={{ ...inp, flex: 1, padding: '0.3rem 0.5rem', fontSize: '0.78rem' }}
-                                      placeholder="e.g. USPS Veeqo Manifested"
-                                      value={newVendorName} onChange={e => setNewVendorName(e.target.value)}
-                                      onKeyDown={e => { if (e.key === 'Enter') addManifestVendor(carrier); if (e.key === 'Escape') setAddingForCarrier(''); }} />
-                                    <button onClick={() => addManifestVendor(carrier)} disabled={savingVendor || !newVendorName.trim()}
-                                      style={{ padding: '0.3rem 0.75rem', background: '#6366f1', border: 'none', borderRadius: 6, color: '#fff', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, opacity: !newVendorName.trim() ? 0.5 : 1 }}>
-                                      {savingVendor ? '…' : 'Add'}
-                                    </button>
-                                    <button onClick={() => setAddingForCarrier('')}
-                                      style={{ padding: '0.3rem 0.625rem', border: '1.5px solid var(--navy-200)', borderRadius: 6, background: 'transparent', color: 'var(--navy-500)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: FONT }}>Cancel</button>
-                                  </div>
-                                )}
-                                {manifestVendors.length === 0 && !isAddingHere ? (
-                                  <div style={{ padding: '0.6rem 1rem', fontSize: '0.72rem', color: 'var(--navy-400)', fontStyle: 'italic', fontFamily: FONT }}>
-                                    No manifest vendors yet — click Add to create one.
-                                  </div>
-                                ) : (
-                                  manifestVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))
-                                )}
+                                {shVendors.length > 0 && (() => {
+                                  const pKey = `${carrier}-sh`;
+                                  const pOpen = expandedPortals[pKey] !== false;
+                                  return (
+                                    <>
+                                      <div
+                                        onClick={() => setExpandedPortals(p => ({ ...p, [pKey]: !pOpen }))}
+                                        style={{ padding: '0.35rem 0.875rem', background: 'rgba(29,78,216,0.06)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+                                      >
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>ShippersHub</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                          <span style={{ fontSize: '0.58rem', color: '#1d4ed8', fontFamily: FONT }}>{shVendors.length} vendor{shVendors.length !== 1 ? 's' : ''}</span>
+                                          {pOpen ? <ChevronUpIcon style={{ width: 11, height: 11, color: '#1d4ed8' }} /> : <ChevronDownIcon style={{ width: 11, height: 11, color: '#1d4ed8' }} />}
+                                        </div>
+                                      </div>
+                                      {pOpen && shVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))}
+                                    </>
+                                  );
+                                })()}
+                                {lcVendors.length > 0 && (() => {
+                                  const pKey = `${carrier}-lc`;
+                                  const pOpen = expandedPortals[pKey] !== false;
+                                  return (
+                                    <>
+                                      <div
+                                        onClick={() => setExpandedPortals(p => ({ ...p, [pKey]: !pOpen }))}
+                                        style={{ padding: '0.35rem 0.875rem', background: 'rgba(124,58,237,0.06)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+                                      >
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>Label Crow</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                          <span style={{ fontSize: '0.58rem', color: '#7c3aed', fontFamily: FONT }}>{lcVendors.length} vendor{lcVendors.length !== 1 ? 's' : ''}</span>
+                                          {pOpen ? <ChevronUpIcon style={{ width: 11, height: 11, color: '#7c3aed' }} /> : <ChevronDownIcon style={{ width: 11, height: 11, color: '#7c3aed' }} />}
+                                        </div>
+                                      </div>
+                                      {pOpen && lcVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))}
+                                    </>
+                                  );
+                                })()}
+                                {slVendors.length > 0 && (() => {
+                                  const pKey = `${carrier}-sl`;
+                                  const pOpen = expandedPortals[pKey] !== false;
+                                  return (
+                                    <>
+                                      <div
+                                        onClick={() => setExpandedPortals(p => ({ ...p, [pKey]: !pOpen }))}
+                                        style={{ padding: '0.35rem 0.875rem', background: 'rgba(5,150,105,0.06)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+                                      >
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>ShipLabel</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                          <span style={{ fontSize: '0.58rem', color: '#059669', fontFamily: FONT }}>{slVendors.length} vendor{slVendors.length !== 1 ? 's' : ''}</span>
+                                          {pOpen ? <ChevronUpIcon style={{ width: 11, height: 11, color: '#059669' }} /> : <ChevronDownIcon style={{ width: 11, height: 11, color: '#059669' }} />}
+                                        </div>
+                                      </div>
+                                      {pOpen && slVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))}
+                                    </>
+                                  );
+                                })()}
+                                {(() => {
+                                  const pKey = `${carrier}-manifest`;
+                                  const pOpen = expandedPortals[pKey] !== false;
+                                  return (
+                                    <>
+                                      <div
+                                        onClick={() => setExpandedPortals(p => ({ ...p, [pKey]: !pOpen }))}
+                                        style={{ padding: '0.35rem 0.875rem', background: 'var(--navy-50)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>Manifest Vendors</span>
+                                          {manifestVendors.length > 0 && <span style={{ fontSize: '0.58rem', color: 'var(--navy-400)', fontFamily: FONT }}>{manifestVendors.length} vendor{manifestVendors.length !== 1 ? 's' : ''}</span>}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }} onClick={e => e.stopPropagation()}>
+                                          {!isAddingHere && (
+                                            <button onClick={() => { setAddingForCarrier(carrier); setNewVendorName(''); }}
+                                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px', border: '1.5px solid var(--navy-200)', borderRadius: 5, background: 'transparent', color: 'var(--navy-500)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
+                                              <PlusIcon style={{ width: 9, height: 9 }} /> Add
+                                            </button>
+                                          )}
+                                          {pOpen
+                                            ? <ChevronUpIcon style={{ width: 11, height: 11, color: 'var(--navy-400)' }} />
+                                            : <ChevronDownIcon style={{ width: 11, height: 11, color: 'var(--navy-400)' }} />}
+                                        </div>
+                                      </div>
+                                      {pOpen && (
+                                        <>
+                                          {isAddingHere && (
+                                            <div style={{ padding: '0.5rem 0.875rem', borderTop: '1px dashed var(--navy-100)', background: 'rgba(99,102,241,0.04)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                              <input autoFocus type="text" style={{ ...inp, flex: 1, padding: '0.3rem 0.5rem', fontSize: '0.78rem' }}
+                                                placeholder="e.g. USPS Veeqo Manifested"
+                                                value={newVendorName} onChange={e => setNewVendorName(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter') addManifestVendor(carrier); if (e.key === 'Escape') setAddingForCarrier(''); }} />
+                                              <button onClick={() => addManifestVendor(carrier)} disabled={savingVendor || !newVendorName.trim()}
+                                                style={{ padding: '0.3rem 0.75rem', background: '#6366f1', border: 'none', borderRadius: 6, color: '#fff', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, opacity: !newVendorName.trim() ? 0.5 : 1 }}>
+                                                {savingVendor ? '…' : 'Add'}
+                                              </button>
+                                              <button onClick={() => setAddingForCarrier('')}
+                                                style={{ padding: '0.3rem 0.625rem', border: '1.5px solid var(--navy-200)', borderRadius: 6, background: 'transparent', color: 'var(--navy-500)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: FONT }}>Cancel</button>
+                                            </div>
+                                          )}
+                                          {manifestVendors.length === 0 && !isAddingHere ? (
+                                            <div style={{ padding: '0.6rem 1rem', fontSize: '0.72rem', color: 'var(--navy-400)', fontStyle: 'italic', fontFamily: FONT }}>
+                                              No manifest vendors yet — click Add to create one.
+                                            </div>
+                                          ) : (
+                                            manifestVendors.map((v, vi) => renderVendorRow(v, vi, vi === 0))
+                                          )}
+                                        </>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             )}
                           </div>

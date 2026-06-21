@@ -7,14 +7,35 @@ const https = require('https');
 
 const SL_HOST = 'shiplabel.net';
 
-const getKey = () => {
+// Per-tenant key cache: tenantId string → decrypted key
+const _keyCache = new Map();
+
+async function getKey(tenantId = null) {
+  const cacheKey = tenantId ? String(tenantId) : '_env';
+  if (_keyCache.has(cacheKey)) return _keyCache.get(cacheKey);
+  try {
+    const PlatformApiKey = require('../models/PlatformApiKey');
+    const query = tenantId ? { service: 'shiplabel', tenantId } : { service: 'shiplabel' };
+    const doc = await PlatformApiKey.findOne(query);
+    if (doc) {
+      const k = doc.getKey();
+      _keyCache.set(cacheKey, k);
+      return k;
+    }
+  } catch {}
   const k = process.env.SHIPLABEL_API_KEY;
-  if (!k) throw new Error('SHIPLABEL_API_KEY is not set in environment variables');
+  if (!k) throw new Error('ShipLabel API key not configured. Add it in Admin → Settings.');
   return k;
-};
+}
+
+function clearKeyCache(tenantId = null) {
+  if (tenantId) _keyCache.delete(String(tenantId));
+  else _keyCache.clear();
+}
 
 // ── JSON request helper ────────────────────────────────────────
-function apiRequest(method, urlPath, data = null) {
+async function apiRequest(method, urlPath, data = null, tenantId = null) {
+  const key = await getKey(tenantId);
   return new Promise((resolve, reject) => {
     const body = data ? JSON.stringify(data) : null;
     const options = {
@@ -23,7 +44,7 @@ function apiRequest(method, urlPath, data = null) {
       path:     urlPath,
       method,
       headers: {
-        'Authorization': `Bearer ${getKey()}`,
+        'Authorization': `Bearer ${key}`,
         'Content-Type':  'application/json',
         'Accept':        'application/json',
         ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}),
@@ -85,8 +106,8 @@ function inferFormatFromName(name) {
  * Get all available services on this account.
  * Returns array of { id, name, max_weight, price_ranges, inferredSeries, inferredFormat }
  */
-async function getServices() {
-  const res = await apiRequest('POST', '/api/v2/services', {});
+async function getServices(tenantId = null) {
+  const res = await apiRequest('POST', '/api/v2/services', {}, tenantId);
   // Response shape: { success: { labels: [...] } }
   const raw = (res.success && res.success.labels) || res.data || [];
   return raw
@@ -105,8 +126,8 @@ async function getServices() {
  *            label_series?, label_format? }
  * Returns: { label_created, tracking_id, pdf, price, ... }
  */
-async function createOrder(payload) {
-  const res = await apiRequest('POST', '/api/v2/create-order', payload);
+async function createOrder(payload, tenantId = null) {
+  const res = await apiRequest('POST', '/api/v2/create-order', payload, tenantId);
   // ShipLabel returns { success: { data: { tracking_id, pdf, ... } } }
   // Unwrap outer success wrapper, then inner data wrapper.
   const outer  = (res.success && typeof res.success === 'object') ? res.success : (res.data || res);
@@ -115,4 +136,4 @@ async function createOrder(payload) {
   return result;
 }
 
-module.exports = { getServices, createOrder, parseSeriesFromName, inferFormatFromName };
+module.exports = { getServices, createOrder, parseSeriesFromName, inferFormatFromName, clearKeyCache };

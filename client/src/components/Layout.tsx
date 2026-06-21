@@ -28,7 +28,6 @@ import {
   Cog6ToothIcon,
   MapIcon,
   TrophyIcon,
-  SparklesIcon,
   LightBulbIcon,
   ShoppingBagIcon,
   UsersIcon,
@@ -66,6 +65,7 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   current: boolean;
+  badge?: number;
 }
 
 interface NavSection {
@@ -80,10 +80,11 @@ const Layout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [collapsed, setCollapsed]       = useState(() => localStorage.getItem(COLLAPSED_KEY) === '1');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    overview: true, mystore: true, labels: true, operations: true, finance: true, management: true, account: true,
+    overview: true, mystore: true, labels: true, operations: true, finance: true, management: true,
   });
   const [tooltip, setTooltip] = useState<{ name: string; y: number } | null>(null);
-  const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tooltipTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tooltipShowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Announcement state ─────────────────────────────────────────────────────
   const [announcements,  setAnnouncements]  = useState<Announcement[]>([]);
@@ -98,6 +99,7 @@ const Layout: React.FC = () => {
   const location         = useLocation();
   const navigate         = useNavigate();
   const [balance, setBalance] = useState<number | null>(null);
+  const [navCounts, setNavCounts] = useState<{ users: number; manifestsUnderReview: number; labelsToday: number } | null>(null);
 
   // Fetch balance
   useEffect(() => {
@@ -105,6 +107,22 @@ const Layout: React.FC = () => {
     const token = localStorage.getItem('token');
     axios.get(`${API_BASE}/balance`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => setBalance(res.data?.balance?.currentBalance ?? 0))
+      .catch(() => {});
+  }, [user]);
+
+  // Fetch nav badge counts (admin only)
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return;
+    const token = localStorage.getItem('token');
+    axios.get(`${API_BASE}/stats`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        const d = res.data;
+        setNavCounts({
+          users: d.users?.total ?? 0,
+          manifestsUnderReview: d.manifests?.underReview ?? 0,
+          labelsToday: d.labels?.today ?? 0,
+        });
+      })
       .catch(() => {});
   }, [user]);
 
@@ -191,6 +209,7 @@ const Layout: React.FC = () => {
     { name: 'Dashboard',     href: '/dashboard',     icon: HomeIcon,       current: location.pathname === '/dashboard' },
     { name: 'Announcements', href: '/announcements', icon: MegaphoneIcon,  current: location.pathname === '/announcements' },
     { name: 'Live Activity', href: '/activity',      icon: SignalIcon,     current: location.pathname === '/activity' },
+    { name: 'Leaderboard',   href: '/leaderboard',   icon: TrophyIcon,     current: location.pathname === '/leaderboard' },
     { name: 'Suggestions',   href: '/suggestions',   icon: LightBulbIcon,  current: location.pathname === '/suggestions' },
   ];
 
@@ -201,21 +220,19 @@ const Layout: React.FC = () => {
   ];
 
   const labelsNav: NavItem[] = [
-    { name: 'Single Label',     href: '/labels/single',       icon: TagIcon,                   current: location.pathname === '/labels/single' },
-    { name: 'Bulk Labels',      href: '/labels/bulk',          icon: RectangleStackIcon,        current: location.pathname === '/labels/bulk' },
-    { name: 'Leaderboard',      href: '/leaderboard',         icon: TrophyIcon,                current: location.pathname === '/leaderboard' },
-    { name: 'Single History',   href: '/labels/history',      icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/history' },
-    { name: 'Bulk History',     href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },
-    { name: 'Manifest History', href: '/manifest/history',    icon: Squares2X2Icon,            current: location.pathname === '/manifest/history' },
+    { name: 'Single Label',   href: '/labels/single',       icon: TagIcon,                   current: location.pathname === '/labels/single' },
+    { name: 'Bulk Labels',    href: '/labels/bulk',          icon: RectangleStackIcon,        current: location.pathname === '/labels/bulk' },
+    { name: 'Single History', href: '/labels/history',      icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/history' },
+    { name: 'Bulk History',   href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },
   ];
 
   // Admin — Operations
   const adminOpsItems: NavItem[] = user?.role === 'admin' ? [
-    { name: 'Live Monitor', href: '/admin/live',     icon: SignalIcon,     current: location.pathname === '/admin/live' },
-    { name: 'Manifest Ops', href: '/admin/manifest', icon: Squares2X2Icon, current: location.pathname === '/admin/manifest' },
-    { name: 'Warehouses',   href: '/admin/warehouses', icon: CubeIcon, current: location.pathname === '/admin/warehouses' },
-    { name: 'State Analytics',   href: '/admin/states',                icon: MapIcon,       current: location.pathname === '/admin/states' },
-    { name: 'AI Bulk Tracking', href: '/admin/bulk-tracking-update', icon: SparklesIcon,  current: location.pathname === '/admin/bulk-tracking-update' },
+    { name: 'Live Monitor',     href: '/admin/live',       icon: SignalIcon,                current: location.pathname === '/admin/live',       badge: navCounts?.labelsToday },
+    { name: 'Manifest Ops',     href: '/admin/manifest',   icon: Squares2X2Icon,            current: location.pathname === '/admin/manifest',   badge: navCounts?.manifestsUnderReview || undefined },
+    { name: 'Manifest History', href: '/manifest/history', icon: ClipboardDocumentListIcon, current: location.pathname === '/manifest/history' },
+    { name: 'Warehouses',       href: '/admin/warehouses', icon: CubeIcon,                  current: location.pathname === '/admin/warehouses' },
+    { name: 'State Analytics',  href: '/admin/states',     icon: MapIcon,                   current: location.pathname === '/admin/states' },
   ] : [];
 
   // Admin — Finance
@@ -227,18 +244,14 @@ const Layout: React.FC = () => {
 
   // Admin — Management | Reseller — Clients
   const mgmtItems: NavItem[] = user?.role === 'admin' ? [
-    { name: 'Admin Panel', href: '/admin',              icon: Squares2X2Icon,         current: location.pathname === '/admin' },
-    { name: 'Users',       href: '/admin/users',        icon: UserGroupIcon,          current: location.pathname.startsWith('/admin/users') },
-    { name: 'Vendors',     href: '/admin/vendors',      icon: BuildingStorefrontIcon, current: location.pathname === '/admin/vendors' },
-    { name: 'Settings',    href: '/admin/settings',     icon: Cog6ToothIcon,          current: location.pathname === '/admin/settings' },
+    { name: 'Admin Panel', href: '/admin',          icon: Squares2X2Icon,         current: location.pathname === '/admin' },
+    { name: 'Users',       href: '/admin/users',    icon: UserGroupIcon,          current: location.pathname.startsWith('/admin/users'), badge: navCounts?.users },
+    { name: 'Vendors',     href: '/admin/vendors',  icon: BuildingStorefrontIcon, current: location.pathname === '/admin/vendors' },
+    { name: 'Settings',    href: '/admin/settings', icon: Cog6ToothIcon,          current: location.pathname === '/admin/settings' },
   ] : user?.role === 'reseller' ? [
     { name: 'My Clients', href: '/reseller/clients', icon: UserGroupIcon, current: location.pathname.startsWith('/reseller/clients') },
     { name: 'Finance',    href: '/reseller/finance', icon: BanknotesIcon, current: location.pathname === '/reseller/finance' },
   ] : [];
-
-  const accountNav: NavItem[] = [
-    { name: 'Profile', href: '/profile', icon: UserIcon, current: location.pathname === '/profile' },
-  ];
 
   const sections: NavSection[] = [
     { key: 'overview',    label: 'Overview',    items: overviewNav },
@@ -247,7 +260,6 @@ const Layout: React.FC = () => {
     ...(adminOpsItems.length > 0     ? [{ key: 'operations', label: 'Operations',  items: adminOpsItems }]     : []),
     ...(adminFinanceItems.length > 0 ? [{ key: 'finance',    label: 'Finance',     items: adminFinanceItems }] : []),
     ...(mgmtItems.length > 0         ? [{ key: 'management', label: user?.role === 'reseller' ? 'Clients' : 'Management', items: mgmtItems }] : []),
-    { key: 'account',     label: 'Account',     items: accountNav },
   ];
 
   const initials  = `${user?.firstName?.charAt(0) ?? ''}${user?.lastName?.charAt(0) ?? ''}`;
@@ -268,13 +280,19 @@ const Layout: React.FC = () => {
     const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLElement>) => {
       if (!collapsed) return;
       if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+      if (tooltipShowTimer.current) clearTimeout(tooltipShowTimer.current);
       const rect = e.currentTarget.getBoundingClientRect();
-      setTooltip({ name: item.name, y: rect.top + rect.height / 2 });
+      tooltipShowTimer.current = setTimeout(() => {
+        setTooltip({ name: item.name, y: rect.top + rect.height / 2 });
+      }, 130);
     }, [item.name]);
 
     const handleMouseLeave = useCallback(() => {
+      if (tooltipShowTimer.current) clearTimeout(tooltipShowTimer.current);
       tooltipTimer.current = setTimeout(() => setTooltip(null), 80);
     }, []);
+
+    const showBadge = !collapsed && item.badge !== undefined && item.badge > 0;
 
     return (
       <div className="nav-item-wrapper">
@@ -287,7 +305,22 @@ const Layout: React.FC = () => {
         >
           <item.icon className="nav-icon" />
           {!collapsed && <span className="nav-label">{item.name}</span>}
-          {item.current && !collapsed && <span className="nav-active-dot" />}
+          {showBadge && (
+            <span style={{
+              marginLeft: 'auto',
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              padding: '1px 6px',
+              borderRadius: 99,
+              background: 'rgba(99,102,241,0.22)',
+              color: 'var(--accent-400, #818cf8)',
+              border: '1px solid rgba(99,102,241,0.25)',
+              flexShrink: 0,
+              lineHeight: 1.5,
+            }}>
+              {item.badge! > 999 ? '999+' : item.badge}
+            </span>
+          )}
         </Link>
       </div>
     );
@@ -457,7 +490,12 @@ const Layout: React.FC = () => {
           {collapsed ? (
             /* Collapsed: stack avatar → balance → action icons */
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-              <div className="avatar avatar-sm avatar-indigo" title={`${user?.firstName} ${user?.lastName} · ${user?.role}`}>
+              <div
+                className="avatar avatar-sm avatar-indigo"
+                title={`${user?.firstName} ${user?.lastName} · ${user?.role} — View profile`}
+                style={{ cursor: 'pointer' }}
+                onClick={() => navigate('/profile')}
+              >
                 {initials}
               </div>
               <div style={{ fontSize: '0.58rem', fontWeight: 800, color: '#4ade80', letterSpacing: '-0.2px' }}>
@@ -475,7 +513,11 @@ const Layout: React.FC = () => {
           ) : (
             /* Expanded: user info row → divider → balance + action row */
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10, cursor: 'pointer' }}
+                onClick={() => navigate('/profile')}
+                title="View profile"
+              >
                 <div className="avatar avatar-sm avatar-indigo">{initials}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

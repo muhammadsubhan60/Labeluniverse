@@ -35,10 +35,12 @@ const cashbookRoutes           = require('./routes/cashbook');
 const equityPartnerRoutes      = require('./routes/equityPartners');
 const financialDashboardRoutes = require('./routes/financialDashboard');
 const shippershubAccountRoutes      = require('./routes/shippershubAccounts');
+const apiKeyRoutes                  = require('./routes/apiKeys');
 const leaderboardRoutes             = require('./routes/leaderboard');
 const suggestionRoutes              = require('./routes/suggestions');
 const shopifyRoutes                 = require('./routes/shopify');
 const etsyRoutes                    = require('./routes/etsy');
+const superadminRoutes              = require('./routes/superadmin');
 
 // ── Startup validation ────────────────────────────────────────
 // Fail fast rather than running in a broken / insecure state.
@@ -181,10 +183,12 @@ app.use('/api/cashbook',              cashbookRoutes);
 app.use('/api/equity-partners',       equityPartnerRoutes);
 app.use('/api/financial-dashboard',   financialDashboardRoutes);
 app.use('/api/shippershub-accounts',  shippershubAccountRoutes);
+app.use('/api/api-keys',              apiKeyRoutes);
 app.use('/api/leaderboard',           leaderboardRoutes);
 app.use('/api/suggestions',           suggestionRoutes);
 app.use('/api/shopify',               shopifyRoutes);
 app.use('/api/etsy',                  etsyRoutes);
+app.use('/api/superadmin',            superadminRoutes);
 
 // ── Health check ──────────────────────────────────────────────
 // Returns minimal info only — no internal state exposed publicly

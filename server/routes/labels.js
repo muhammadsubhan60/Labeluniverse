@@ -176,17 +176,45 @@ router.post('/single', authenticateToken, [
       });
     }
 
-    // Label Crow does not support single-label generation (bulk-only API)
-    if (vendor.source === 'labelcrow') {
-      return res.status(400).json({ message: 'Label Crow only supports bulk label generation. Use /labels/bulk instead.' });
-    }
-
     // Call the appropriate service to generate the label
     let shippershubResult = null;
     let trackingId = '';
     let pdfUrl     = null;
 
-    if (vendor.source === 'shippershub' && vendor.shippershubCarrierId && vendor.shippershubVendorId) {
+    if (vendor.source === 'labelcrow') {
+      if (!vendor.labelcrowProviderKey) {
+        return res.status(400).json({
+          message: `Vendor "${vendor.name}" has no Label Crow provider key configured. Re-sync vendors from Admin → Vendors → Sync Label Crow.`,
+        });
+      }
+      const labelcrow = require('../services/labelcrow');
+      const lcResult = await labelcrow.createSingleLabel({
+        seriesId:     vendor.labelcrowSeriesId,
+        carrier:      vendor.carrier.toLowerCase(),
+        serviceClass: vendor.labelcrowServiceClass,
+        providerKey:  vendor.labelcrowProviderKey,
+        weight,
+        from: {
+          name:     labelFields.from_name,
+          address:  labelFields.from_address1,
+          address2: labelFields.from_address2 || undefined,
+          city:     labelFields.from_city,
+          state:    labelFields.from_state,
+          zip:      labelFields.from_zip,
+        },
+        to: {
+          name:     labelFields.to_name,
+          address:  labelFields.to_address1,
+          address2: labelFields.to_address2 || undefined,
+          city:     labelFields.to_city,
+          state:    labelFields.to_state,
+          zip:      labelFields.to_zip,
+        },
+        orderNumber: labelFields.note || undefined,
+      }, req.user.tenantId || req.user._id);
+      trackingId = lcResult.tracking || '';
+      pdfUrl     = lcResult.pdfUrl   || null;
+    } else if (vendor.source === 'shippershub' && vendor.shippershubCarrierId && vendor.shippershubVendorId) {
       shippershubResult = await shippershub.createSingleLabel({
         carrier:  vendor.shippershubCarrierId,
         vendor:   vendor.shippershubVendorId,
@@ -1249,10 +1277,21 @@ router.get('/:id/pdf', authenticateToken, async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `${disp}; filename="${safeName}"`);
 
-    // External URL (S3 / ShippersHub CDN / ShipLabel CDN) — fetch server-side and pipe back
+    // External URL (S3 / ShippersHub CDN / ShipLabel CDN / LabelCrow) — fetch server-side and pipe back
     if (src.startsWith('http://') || src.startsWith('https://')) {
-      const mod  = src.startsWith('https') ? https : http;
-      const reqH = slAuthHeaders(src);
+      const mod = src.startsWith('https') ? https : http;
+      let reqH = slAuthHeaders(src);
+      if (src.includes('labelcrow.com')) {
+        try {
+          const labelcrow = require('../services/labelcrow');
+          const lcKey = await labelcrow.getApiKey(req.user.tenantId || req.user._id);
+          reqH = { Authorization: `Bearer ${lcKey}` };
+          console.log('[PDF proxy] LabelCrow auth header set for', src);
+        } catch (lcKeyErr) {
+          console.error('[PDF proxy] Failed to get LabelCrow key:', lcKeyErr.message);
+          return res.status(502).json({ message: 'LabelCrow API key not configured — add it in Admin → Settings.' });
+        }
+      }
       let u;
       try { u = new URL(src); } catch { return res.status(400).json({ message: 'Invalid PDF URL' }); }
       const opts = {

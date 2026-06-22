@@ -212,4 +212,50 @@ async function getProviders(tenantId = null) {
 
 async function getServices(tenantId = null) { return getProviders(tenantId); }
 
-module.exports = { submitBulkJob, pollJob, getOrder, downloadOrderZip, getSeries, getProviders, getServices, clearKeyCache };
+/**
+ * Create a single label via POST /api/v1/labels (synchronous).
+ * Returns { id, tracking, price, pdfUrl }
+ */
+async function createSingleLabel({ seriesId, carrier, serviceClass, providerKey, weight, from, to, orderNumber }, tenantId = null) {
+  const payload = {
+    carrier,
+    service_class: serviceClass,
+    provider_key:  providerKey,
+    series_id:     seriesId,
+    weight,
+    from: {
+      name:    from.name,
+      address: from.address,
+      city:    from.city,
+      state:   from.state,
+      zip:     from.zip,
+      ...(from.address2 ? { address2: from.address2 } : {}),
+    },
+    to: {
+      name:    to.name,
+      address: to.address,
+      city:    to.city,
+      state:   to.state,
+      zip:     to.zip,
+      ...(to.address2 ? { address2: to.address2 } : {}),
+    },
+    ...(orderNumber ? { order_number: orderNumber } : {}),
+  };
+  const res = await apiRequest('POST', '/api/v1/labels', payload, tenantId);
+  const d = res.data;
+  return {
+    id:       d.id,
+    tracking: d.tracking,
+    price:    d.price,
+    pdfUrl:   d.download_url ? `https://${LC_HOST}${d.download_url}` : null,
+  };
+}
+
+/**
+ * Return the Authorization header value for a given tenant (used by PDF proxy).
+ */
+async function getApiKey(tenantId = null) {
+  return getKey(tenantId);
+}
+
+module.exports = { createSingleLabel, submitBulkJob, pollJob, getOrder, downloadOrderZip, getSeries, getProviders, getServices, clearKeyCache, getApiKey };

@@ -183,7 +183,6 @@ const LabelGenerator: React.FC = () => {
   const [selectedVendorId,  setSelectedVendorId]  = useState('');
   const [showManifestModal, setShowManifestModal] = useState(false);
   const [isLoading,         setIsLoading]         = useState(false);
-  const [successData,       setSuccessData]       = useState<{ tracking: string; charged: string; balance: string } | null>(null);
   const [error,             setError]             = useState('');
   const [isReturn,          setIsReturn]          = useState(!!prefill);
   const [form,              setForm]              = useState(prefill ? { ...BLANK_FORM, ...prefill } : BLANK_FORM);
@@ -377,7 +376,7 @@ const LabelGenerator: React.FC = () => {
   };
 
   const effectiveRate = getEffectiveRate(weight);
-  const canSubmit     = !!selectedVendorId && !isLoading && selectedPortal !== 'labelcrow';
+  const canSubmit     = !!selectedVendorId && !isLoading;
 
   const uspsSaving = useMemo(() => {
     if (selectedCarrier !== 'USPS' || weight <= 0) return null;
@@ -517,34 +516,28 @@ const LabelGenerator: React.FC = () => {
     setDimPresets(updated); saveDimPresets(updated);
   };
 
-  const handleGenerateAnother = () => {
-    setForm((f: typeof BLANK_FORM) => ({
-      ...BLANK_FORM,
-      to_name: f.to_name, to_company: f.to_company, to_phone: f.to_phone,
-      to_address1: f.to_address1, to_address2: f.to_address2,
-      to_city: f.to_city, to_state: f.to_state, to_zip: f.to_zip, to_country: f.to_country,
-    }));
-    setSuccessData(null); setError('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendorId) { setError('Select a carrier and vendor first.'); return; }
-    setIsLoading(true); setError(''); setSuccessData(null);
+    setIsLoading(true); setError('');
     try {
       const res = await axios.post('/labels/single', { vendorId: selectedVendorId, ...form });
-      const pdfUrl = res.data.label?.pdfUrl;
-      if (pdfUrl) {
-        const link = document.createElement('a');
-        link.href = pdfUrl;
-        link.download = `label-${res.data.label?.trackingId || Date.now()}.pdf`;
-        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      const labelId  = res.data.label?.id;
+      const tracking = res.data.label?.trackingId || Date.now();
+      if (labelId) {
+        try {
+          const pdfRes = await axios.get(`/labels/${labelId}/pdf`, { responseType: 'blob' });
+          const blobUrl = window.URL.createObjectURL(new Blob([pdfRes.data], { type: 'application/pdf' }));
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `label-${tracking}.pdf`;
+          document.body.appendChild(link); link.click(); document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+        } catch (pdfErr) {
+          console.error('PDF download failed', pdfErr);
+        }
       }
-      setSuccessData({
-        tracking: res.data.label?.trackingId || 'N/A',
-        charged:  (res.data.label?.price ?? 0).toFixed(2),
-        balance:  (res.data.newBalance ?? 0).toFixed(2),
-      });
     } catch (err: any) {
       const data = err.response?.data;
       if (data?.errors?.length) {
@@ -704,18 +697,7 @@ const LabelGenerator: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.6rem 1rem', paddingLeft: '2rem' }}>
               <span style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.1em', minWidth: 52, fontFamily: FONT }}>Vendor</span>
 
-              {selectedPortal === 'labelcrow' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <ExclamationCircleIcon style={{ width: 14, height: 14, color: '#7C3AED', flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.78rem', color: '#5B21B6', fontFamily: FONT }}>
-                    Label Crow is bulk-only —{' '}
-                    <button type="button" onClick={() => navigate('/labels/bulk')}
-                      style={{ background: 'none', border: 'none', color: '#7C3AED', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 'inherit', fontFamily: FONT }}>
-                      use Bulk Labels
-                    </button>
-                  </span>
-                </div>
-              ) : selectedCarrier && carrierVendors.length === 0 ? (
+              {selectedCarrier && carrierVendors.length === 0 ? (
                 /* ── Item 2: No vendors message ── */
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '6px 12px' }}>
                   <ExclamationCircleIcon style={{ width: 14, height: 14, color: '#D97706', flexShrink: 0 }} />
@@ -1061,52 +1043,16 @@ const LabelGenerator: React.FC = () => {
             )}
           </div>
 
-          {/* Success / Error banner */}
-          {(error || successData) && (
-            <div style={{ borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${error ? '#FECACA' : '#BBF7D0'}`, background: error ? '#FFF5F5' : '#F0FDF4' }}>
+          {/* Error banner */}
+          {error && (
+            <div style={{ borderRadius: 12, overflow: 'hidden', border: '1.5px solid #FECACA', background: '#FFF5F5' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '0.875rem 1rem' }}>
-                {error
-                  ? <ExclamationCircleIcon style={{ width: 18, height: 18, color: '#DC2626', flexShrink: 0, marginTop: 1 }} />
-                  : <CheckCircleIcon       style={{ width: 18, height: 18, color: '#16A34A', flexShrink: 0, marginTop: 1 }} />
-                }
+                <ExclamationCircleIcon style={{ width: 18, height: 18, color: '#DC2626', flexShrink: 0, marginTop: 1 }} />
                 <div style={{ flex: 1 }}>
-                  {successData ? (
-                    <>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#15803D', fontFamily: FONT, marginBottom: 4 }}>Label Generated Successfully!</div>
-                      <div style={{ fontSize: '0.78rem', color: '#166534', fontFamily: FONT, lineHeight: 1.6 }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{successData.tracking}</span>
-                        <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span>
-                        Charged: <strong>${successData.charged}</strong>
-                        <span style={{ margin: '0 6px', opacity: 0.4 }}>·</span>
-                        Balance: <strong>${successData.balance}</strong>
-                        {(() => {
-                          const retail = selectedCarrier === 'USPS' && weight > 0 ? getUspsZone1Rate(weight) : null;
-                          const saving = retail ? Math.max(0, retail - parseFloat(successData.charged)) : 0;
-                          return saving > 0 ? (
-                            <span style={{ marginLeft: 8, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', borderRadius: 20, padding: '1px 8px', fontSize: '0.72rem', fontWeight: 700, fontFamily: FONT }}>
-                              ✦ Saved ${saving.toFixed(2)} vs USPS retail
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, marginTop: '0.75rem' }}>
-                        <button type="button" onClick={handleGenerateAnother}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0.45rem 0.875rem', borderRadius: 7, border: '1.5px solid #16A34A', background: '#fff', color: '#15803D', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
-                          <PlusIcon style={{ width: 13, height: 13 }} />
-                          Generate Another (same TO)
-                        </button>
-                        <button type="button" onClick={() => navigate('/labels/history')}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0.45rem 0.875rem', borderRadius: 7, border: '1.5px solid #BBF7D0', background: 'transparent', color: '#166534', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
-                          View in History →
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ fontSize: '0.82rem', color: '#DC2626', fontFamily: FONT, lineHeight: 1.5 }}>{error}</div>
-                  )}
+                  <div style={{ fontSize: '0.82rem', color: '#DC2626', fontFamily: FONT, lineHeight: 1.5 }}>{error}</div>
                 </div>
-                <button type="button" onClick={() => { setError(''); setSuccessData(null); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: error ? '#DC2626' : '#16A34A', opacity: 0.5, padding: '2px 4px', flexShrink: 0 }}>
+                <button type="button" onClick={() => setError('')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', opacity: 0.5, padding: '2px 4px', flexShrink: 0 }}>
                   <XMarkIcon style={{ width: 14, height: 14 }} />
                 </button>
               </div>

@@ -842,6 +842,27 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   const [loading, setLoading]         = useState(true);
   const [showAddBalance, setShowAddBalance] = useState(false);
 
+  const currentMonthStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; })();
+  const [tsMonth,  setTsMonth]  = useState(currentMonthStr);
+  const [tsCounts, setTsCounts] = useState<UserStats['trackingStatus'] | null>(null);
+  const [tsLoad,   setTsLoad]   = useState(false);
+
+  const tsMonthOpts = (() => {
+    const opts: { value: string; label: string }[] = [];
+    const n = new Date();
+    for (let i = 0; i < 13; i++) {
+      const d = new Date(n.getFullYear(), n.getMonth() - i, 1);
+      opts.push({ value: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) });
+    }
+    return opts;
+  })();
+
+  useEffect(() => {
+    setTsLoad(true);
+    axios.get(tsMonth ? `/stats/tracking-status?month=${tsMonth}` : '/stats/tracking-status')
+      .then(r => setTsCounts(r.data)).catch(() => {}).finally(() => setTsLoad(false));
+  }, [tsMonth]);
+
   const load = useCallback(async () => {
     try {
       const [s, a] = await Promise.all([axios.get('/stats'), axios.get('/access/me').catch(() => ({ data: { access: [] } }))]);
@@ -859,6 +880,17 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   const now = new Date();
   const greeting  = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening';
   const dateLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  const trackTiles = [
+    { key: 'not_scanned_yet',    label: 'Not Scanned',     color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
+    { key: 'in_transit',         label: 'In Transit',       color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' },
+    { key: 'out_for_delivery',   label: 'Out for Delivery', color: '#6D28D9', bg: '#F5F3FF', border: '#DDD6FE' },
+    { key: 'delivered',          label: 'Delivered',        color: '#15803D', bg: '#F0FDF4', border: '#BBF7D0' },
+    { key: 'exception_problem',  label: 'Exception',        color: '#DC2626', bg: '#FFF5F5', border: '#FECACA' },
+    { key: 'returned_to_sender', label: 'Returned',         color: '#BE123C', bg: '#FFF1F2', border: '#FECDD3' },
+    { key: 'pending_pickup',     label: 'Pending',          color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA' },
+    { key: 'delayed',            label: 'Delayed',          color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+  ] as const;
 
   const accessByCarrier = vendorAccess.reduce((acc, item) => {
     if (!acc[item.carrier]) acc[item.carrier] = [];
@@ -914,6 +946,52 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
             </div>
           </div>
 
+          {/* Tracking Status */}
+          <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>
+            <SLabel
+              text="Client Label Tracking Status"
+              accent="#1D4ED8"
+              action={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <CalendarDaysIcon style={{ position: 'absolute', left: 8, width: 12, height: 12, color: tsMonth ? '#1D4ED8' : 'var(--navy-400)', pointerEvents: 'none' }} />
+                    <select
+                      value={tsMonth} onChange={e => setTsMonth(e.target.value)}
+                      style={{ height: 29, paddingLeft: 25, paddingRight: tsMonth ? 26 : 8, border: `1px solid ${tsMonth ? '#BFDBFE' : 'var(--navy-200)'}`, borderRadius: 7, background: tsMonth ? '#EFF6FF' : 'var(--bg-card)', color: tsMonth ? '#1D4ED8' : 'var(--navy-600)', fontSize: '0.7rem', fontWeight: 600, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', outline: 'none', fontFamily: FONT }}
+                    >
+                      <option value="">All Time</option>
+                      {tsMonthOpts.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    {tsMonth && (
+                      <button onClick={() => setTsMonth('')} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', padding: 1, cursor: 'pointer', color: '#1D4ED8', display: 'flex' }}>
+                        <XMarkIcon style={{ width: 10, height: 10 }} />
+                      </button>
+                    )}
+                  </div>
+                  <GhostBtn onClick={() => navigate('/labels/history')}>View Labels →</GhostBtn>
+                </div>
+              }
+            />
+            {tsLoad ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem 0' }}><div className="spinner" /></div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem' }}>
+                {trackTiles.map(({ key, label, color, bg, border }) => {
+                  const count = tsCounts?.[key] ?? 0;
+                  return (
+                    <div key={key} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: '0.75rem 0.9rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+                      </div>
+                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color, letterSpacing: '-0.04em', lineHeight: 1 }}>{count}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* My Clients table */}
           <div className="db-card" style={{ overflow: 'hidden' }}>
             <div style={{ padding: '1rem 1.4rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -958,7 +1036,7 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
             onAdd={() => setShowAddBalance(true)}
           />
 
-          {/* Available Vendors (sidebar version) */}
+          {/* Available Vendors (compact) */}
           <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>
             <SLabel text="Label Vendors" accent="#0ea5e9"
               action={<GhostBtn onClick={() => navigate('/labels/single')}>Create →</GhostBtn>}
@@ -966,20 +1044,21 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
             {vendorAccess.length === 0 ? (
               <p style={{ fontSize: '0.8rem', color: 'var(--navy-500)', textAlign: 'center', padding: '0.75rem 0' }}>No vendors enabled.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {sortedCarriers.map(carrier => (
-                  <div key={carrier} style={{ border: '1px solid var(--navy-200)', borderRadius: 10, overflow: 'hidden' }}>
-                    <div style={{ padding: '0.45rem 0.8rem', borderBottom: '1px solid var(--navy-100)', background: 'var(--navy-50)' }}>
-                      <span className={`carrier-badge ${carrier.toLowerCase()}`}>{carrier}</span>
-                    </div>
-                    {accessByCarrier[carrier].map((vendor, idx) => (
-                      <div key={vendor.vendorId} style={{ padding: '0.6rem 0.8rem', borderTop: idx === 0 ? 'none' : '1px solid var(--navy-50)' }}>
-                        <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--navy-800)' }}>{vendor.vendorName}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--navy-500)' }}>{vendor.shippingService || 'Standard'}</div>
-                      </div>
-                    ))}
+                  <div key={carrier} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', background: 'var(--navy-50)', borderRadius: 9, border: '1px solid var(--navy-200)' }}>
+                    <span className={`carrier-badge ${carrier.toLowerCase()}`}>{carrier}</span>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--navy-500)' }}>
+                      {accessByCarrier[carrier].length} vendor{accessByCarrier[carrier].length !== 1 ? 's' : ''}
+                    </span>
                   </div>
                 ))}
+                <button
+                  onClick={() => navigate('/labels/single')}
+                  style={{ marginTop: 2, width: '100%', padding: '0.5rem', borderRadius: 8, background: 'none', border: '1px dashed var(--navy-200)', color: 'var(--accent-600)', fontSize: '0.77rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}
+                >
+                  Select vendor when creating a label →
+                </button>
               </div>
             )}
           </div>

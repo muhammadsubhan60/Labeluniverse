@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Squares2X2Icon, TagIcon, DocumentDuplicateIcon,
-  SparklesIcon, ChartBarIcon, UserGroupIcon,
+  SparklesIcon, ChartBarIcon,
   ArrowLeftOnRectangleIcon, Bars3Icon, XMarkIcon,
 } from '@heroicons/react/24/outline';
 

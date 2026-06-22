@@ -142,6 +142,7 @@ router.post('/single', authenticateToken, [
     if (!vendor || !vendor.isActive) {
       return res.status(404).json({ message: 'Vendor not found or inactive' });
     }
+    console.log('[Single Label] vendor:', vendor._id, '| name:', vendor.name, '| source:', vendor.source, '| providerKey:', vendor.labelcrowProviderKey, '| seriesId:', vendor.labelcrowSeriesId);
 
     // Ensure user has access to this vendor and compute effective rate based on weight tiers
     const isAdmin = req.user.role === 'admin';

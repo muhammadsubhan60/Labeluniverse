@@ -10,7 +10,7 @@ const Vendor           = require('../models/Vendor');
 const Balance          = require('../models/Balance');
 const UserVendorAccess = require('../models/UserVendorAccess');
 const ManifestJob      = require('../models/ManifestJob');
-const { authenticateToken, authorize } = require('../middleware/auth');
+const { authenticateToken, authorize, authorizeCC } = require('../middleware/auth');
 const shippershub = require('../services/shippershub');
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -918,7 +918,7 @@ router.get('/bulk-jobs', authenticateToken, async (req, res) => {
 
 // ── GET /api/labels/cc-all  (Command Center — admin only) ────
 // All labels (single + bulk) with full filtering for the tracking command center
-router.get('/cc-all', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/cc-all', authenticateToken, authorizeCC, async (req, res) => {
   try {
     const { trackingStatus, carrier, vendorId, userId, dateFrom, dateTo, search } = req.query;
     const page  = Math.max(1, parseInt(req.query.page)  || 1);
@@ -964,7 +964,7 @@ router.get('/cc-all', authenticateToken, authorize('admin'), async (req, res) =>
 
 // ── GET /api/labels/tracking-ids  (Command Center — admin only) ──
 // Returns just tracking ID strings for all labels matching current filters (no pagination)
-router.get('/tracking-ids', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/tracking-ids', authenticateToken, authorizeCC, async (req, res) => {
   try {
     const { trackingStatus, carrier, vendorId, userId, dateFrom, dateTo, search } = req.query;
     const filter = { trackingId: { $exists: true, $ne: '' } };
@@ -1000,7 +1000,7 @@ router.get('/tracking-ids', authenticateToken, authorize('admin'), async (req, r
 
 // ── GET /api/labels/vendor-stats  (Command Center — admin only) ──
 // Aggregated delivery stats per vendor name
-router.get('/vendor-stats', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/vendor-stats', authenticateToken, authorizeCC, async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
     const matchStage = {};
@@ -1052,7 +1052,7 @@ router.get('/vendor-stats', authenticateToken, authorize('admin'), async (req, r
 
 // ── GET /api/labels/daily-stats  (Command Center — admin only) ───
 // Labels grouped by creation date with tracking status breakdown
-router.get('/daily-stats', authenticateToken, authorize('admin'), async (req, res) => {
+router.get('/daily-stats', authenticateToken, authorizeCC, async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
     const matchStage = {};
@@ -1085,6 +1085,50 @@ router.get('/daily-stats', authenticateToken, authorize('admin'), async (req, re
     res.json({ days });
   } catch (err) {
     console.error('Daily stats error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ── GET /api/labels/user-stats-bulk  (Command Center — admin only) ────
+// One aggregation across all labels grouped by user — used by CCUsers table
+router.get('/user-stats-bulk', authenticateToken, authorizeCC, async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const matchStage = {};
+    if (dateFrom || dateTo) {
+      matchStage.createdAt = {};
+      if (dateFrom) matchStage.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   matchStage.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+
+    const pipeline = [
+      ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
+      {
+        $group: {
+          _id:               '$user',
+          total:             { $sum: 1 },
+          delivered:         { $sum: { $cond: [{ $eq: ['$trackingStatus', 'delivered'] },         1, 0] } },
+          in_transit:        { $sum: { $cond: [{ $eq: ['$trackingStatus', 'in_transit'] },        1, 0] } },
+          exception_problem: { $sum: { $cond: [{ $eq: ['$trackingStatus', 'exception_problem'] }, 1, 0] } },
+          not_scanned_yet:   { $sum: { $cond: [{ $in: ['$trackingStatus', ['not_scanned_yet', null]] }, 1, 0] } },
+          voided:            { $sum: { $cond: [{ $eq: ['$trackingStatus', 'voided'] },            1, 0] } },
+          spent:             { $sum: '$price' },
+        },
+      },
+    ];
+
+    const rows = await Label.aggregate(pipeline);
+    const statsMap = {};
+    for (const row of rows) {
+      if (row._id) statsMap[row._id.toString()] = {
+        total: row.total, delivered: row.delivered, in_transit: row.in_transit,
+        exception_problem: row.exception_problem, not_scanned_yet: row.not_scanned_yet,
+        voided: row.voided, spent: row.spent,
+      };
+    }
+    res.json({ statsMap });
+  } catch (err) {
+    console.error('User stats bulk error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

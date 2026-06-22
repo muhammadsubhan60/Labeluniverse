@@ -7,9 +7,10 @@ type Role = 'superadmin' | 'admin' | 'reseller' | 'user';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   roles?: Role[];
+  allowCC?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, roles }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, roles, allowCC }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -55,6 +56,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, roles }) => {
   }
 
   if (roles && user && !roles.includes(user.role as Role)) {
+    if (allowCC && user.role === 'reseller' && user.ccAccess) return <>{children}</>;
     return <Navigate to="/dashboard" replace />;
   }
 

@@ -14,7 +14,6 @@ const NAV = [
   { to: '/command-center/bulk-labels', icon: DocumentDuplicateIcon, label: 'Bulk Batches'        },
   { to: '/command-center/ai-status',   icon: SparklesIcon,          label: 'AI Status Update'    },
   { to: '/command-center/vendor-perf', icon: ChartBarIcon,          label: 'Vendor Performance'  },
-  { to: '/command-center/users',       icon: UserGroupIcon,         label: 'Users'               },
 ];
 
 export default function CCLayout() {

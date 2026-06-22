@@ -89,7 +89,7 @@ router.post('/reseller/clients', authenticateToken, authorize('admin', 'reseller
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
 
-    const { firstName, lastName, email, password } = req.body;
+    const { firstName, lastName, email, password, phone } = req.body;
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -97,7 +97,7 @@ router.post('/reseller/clients', authenticateToken, authorize('admin', 'reseller
     }
 
     const tenantId = req.user.tenantId || req.user._id;
-    const client = await User.create({ firstName, lastName, email, password, role: 'user', tenantId });
+    const client = await User.create({ firstName, lastName, email, password, role: 'user', tenantId, phone: phone || null });
 
     await Balance.create({ user: client._id, currentBalance: 0, transactions: [] });
     await Rate.create({ user: client._id, labelRate: 1.00, setBy: req.user._id, notes: 'Default rate set by reseller' });
@@ -227,7 +227,7 @@ router.put('/:id', authenticateToken, [
 
     const updates = {};
 
-    const profileFields = ['firstName', 'lastName', 'email', 'emailNotifications'];
+    const profileFields = ['firstName', 'lastName', 'email', 'emailNotifications', 'phone'];
     for (const field of profileFields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     }
@@ -322,6 +322,21 @@ router.get('/:id/clients', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Get clients error:', error);
     res.status(500).json({ message: 'Server error getting clients' });
+  }
+});
+
+// ── PATCH /api/users/:id/cc-access ───────────────────────────
+router.patch('/:id/cc-access', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role !== 'reseller') return res.status(400).json({ message: 'CC access can only be granted to resellers' });
+    user.ccAccess = !user.ccAccess;
+    await user.save();
+    res.json({ ccAccess: user.ccAccess });
+  } catch (err) {
+    console.error('CC access toggle error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

@@ -125,7 +125,8 @@ router.get('/me', authenticateToken, async (req, res) => {
         lastLogin: user.lastLogin,
         isActive: user.isActive,
         createdAt: user.createdAt,
-        clients: user.clients || []
+        clients: user.clients || [],
+        ccAccess: user.ccAccess
       }
     });
   } catch (error) {

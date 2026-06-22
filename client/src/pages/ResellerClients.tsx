@@ -8,7 +8,7 @@ import {
   CheckCircleIcon, ExclamationCircleIcon, ScaleIcon,
   BanknotesIcon, CurrencyDollarIcon, PhotoIcon,
   ArrowUpTrayIcon, ArrowDownTrayIcon, AdjustmentsHorizontalIcon,
-  PlusIcon, ChevronDownIcon, ChevronUpIcon,
+  PlusIcon, ChevronDownIcon, ChevronUpIcon, Bars3Icon, Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
 interface Client {
@@ -17,6 +17,7 @@ interface Client {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   role: 'user';
   isActive: boolean;
   createdAt: string;
@@ -80,7 +81,7 @@ const ResellerClients: React.FC = () => {
   const [activeTab,      setActiveTab]      = useState<ActiveTab>('edit');
 
   // ── Edit/Create form ─────────────────────────────────────────
-  const blank = { firstName: '', lastName: '', email: '', password: '' };
+  const blank = { firstName: '', lastName: '', email: '', password: '', phone: '' };
   const [clientForm,  setClientForm]  = useState(blank);
   const [submitting,  setSubmitting]  = useState(false);
 
@@ -112,6 +113,9 @@ const ResellerClients: React.FC = () => {
   const [savingTiers,      setSavingTiers]      = useState(false);
   const [expandedCarriers, setExpandedCarriers] = useState<Record<string, boolean>>({});
   const [expandedV,        setExpandedV]        = useState<Record<string, boolean>>({});
+
+  // ── View mode ────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<'panel' | 'list'>('panel');
 
   // ── Notifications ────────────────────────────────────────────
   const [message, setMessage] = useState('');
@@ -221,7 +225,7 @@ const ResellerClients: React.FC = () => {
   const selectClient = (c: Client) => {
     fetchingForRef.current = clientId(c);
     setSelectedClient(c);
-    setClientForm({ firstName: c.firstName, lastName: c.lastName, email: c.email, password: '' });
+    setClientForm({ firstName: c.firstName, lastName: c.lastName, email: c.email, password: '', phone: c.phone || '' });
     setIsCreating(false);
     setActiveTab('edit');
     setBalAction('');
@@ -261,6 +265,7 @@ const ResellerClients: React.FC = () => {
         firstName: clientForm.firstName,
         lastName:  clientForm.lastName,
         email:     clientForm.email,
+        phone:     clientForm.phone || null,
       });
       setMessage('Saved');
       setSelectedClient(prev => prev ? { ...prev, ...clientForm } : null);
@@ -332,7 +337,7 @@ const ResellerClients: React.FC = () => {
 
   // ── Filtered list ─────────────────────────────────────────────
   const filtered = clients.filter(c => {
-    const matchSearch = !searchTerm || `${c.firstName} ${c.lastName} ${c.email}`.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchSearch = !searchTerm || `${c.firstName} ${c.lastName} ${c.email} ${c.phone || ''}`.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = !statusFilter || String(c.isActive) === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -367,9 +372,21 @@ const ResellerClients: React.FC = () => {
           <h1 className="page-title" style={{ margin: 0 }}>Client Management</h1>
           <p className="page-subtitle" style={{ margin: 0 }}>Select a client to edit, manage balance, or configure rate tiers.</p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={startCreate}>
-          <UserPlusIcon style={{ width: 14, height: 14 }} /> New Client
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <button className={`btn btn-ghost btn-sm${viewMode === 'panel' ? ' btn-active' : ''}`}
+            onClick={() => setViewMode('panel')}
+            style={{ color: viewMode === 'panel' ? 'var(--accent-700)' : undefined, background: viewMode === 'panel' ? 'var(--accent-50)' : undefined }}>
+            <Squares2X2Icon style={{ width: 13, height: 13 }} /> Panel
+          </button>
+          <button className={`btn btn-ghost btn-sm${viewMode === 'list' ? ' btn-active' : ''}`}
+            onClick={() => setViewMode('list')}
+            style={{ color: viewMode === 'list' ? 'var(--accent-700)' : undefined, background: viewMode === 'list' ? 'var(--accent-50)' : undefined }}>
+            <Bars3Icon style={{ width: 13, height: 13 }} /> List
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={startCreate}>
+            <UserPlusIcon style={{ width: 14, height: 14 }} /> New Client
+          </button>
+        </div>
       </div>
 
       {/* Toast */}
@@ -387,8 +404,102 @@ const ResellerClients: React.FC = () => {
         </div>
       )}
 
+      {/* ── LIST VIEW ──────────────────────────────────────────── */}
+      {viewMode === 'list' && (
+        <div className="sh-card" style={{ overflow: 'hidden' }}>
+          {/* Search + filter bar */}
+          <div style={{ padding: '0.625rem 1rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flexGrow: 1, minWidth: 200 }}>
+              <MagnifyingGlassIcon style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: 'var(--navy-400)', pointerEvents: 'none' }} />
+              <input type="text" className="form-input" style={{ paddingLeft: '1.75rem', fontSize: '0.78rem' }} placeholder="Search name, email, phone…"
+                value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+            <select className="form-input form-select" style={{ fontSize: '0.78rem', minWidth: 130 }}
+              value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+            <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)', whiteSpace: 'nowrap' }}>{filtered.length} client{filtered.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {/* Table header */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 90px 80px', gap: '0 0.75rem', padding: '0.5rem 1rem', background: 'var(--navy-50)', borderBottom: '1.5px solid var(--navy-100)' }}>
+            {['Name', 'Email', 'WhatsApp / Mobile', 'Status', ''].map(h => (
+              <div key={h} style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--navy-400)' }}>{h}</div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+            {loadingList ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} style={{ height: 48, margin: '6px 12px', borderRadius: 8, background: 'linear-gradient(90deg,var(--navy-100) 25%,var(--navy-50) 50%,var(--navy-100) 75%)', backgroundSize: '200% 100%', animation: 'bl-shimmer 1.5s infinite', animationDelay: `${i * 80}ms` }} />
+              ))
+            ) : filtered.length === 0 ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.85rem' }}>No clients found</div>
+            ) : filtered.map((c, idx) => (
+              <div
+                key={clientId(c)}
+                style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 90px 80px', gap: '0 0.75rem', alignItems: 'center', padding: '0.65rem 1rem', borderTop: idx === 0 ? 'none' : '1px solid var(--navy-100)', transition: 'background 0.1s', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                onClick={() => { selectClient(c); setViewMode('panel'); }}
+              >
+                {/* Name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                  <div className={`avatar avatar-sm ${c.isActive ? 'avatar-indigo' : ''}`} style={!c.isActive ? { background: 'var(--navy-200)', color: 'var(--navy-500)' } : {}}>
+                    {c.firstName.charAt(0)}{c.lastName.charAt(0)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--navy-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.firstName} {c.lastName}</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)' }}>Client</div>
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div style={{ fontSize: '0.78rem', color: 'var(--navy-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.email}</div>
+
+                {/* Phone */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {c.phone ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="#25d366" style={{ flexShrink: 0 }}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.099 1.523 5.82L0 24l6.344-1.501A11.942 11.942 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.969 0-3.806-.557-5.365-1.521l-.385-.229-3.989.944.96-3.904-.252-.397A9.964 9.964 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--navy-700)', fontWeight: 500 }}>{c.phone}</span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--navy-300)', fontStyle: 'italic' }}>Not set</span>
+                  )}
+                </div>
+
+                {/* Status */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span className={`status-dot ${c.isActive ? 'green' : 'red'}`} />
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: c.isActive ? '#22c55e' : '#ef4444' }}>{c.isActive ? 'Active' : 'Inactive'}</span>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                  <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => { selectClient(c); setViewMode('panel'); }}>
+                    <PencilIcon style={{ width: 12, height: 12 }} />
+                  </button>
+                  <button className="btn btn-ghost btn-sm" title={c.isActive ? 'Deactivate' : 'Activate'}
+                    style={{ color: c.isActive ? 'var(--danger-500)' : 'var(--success-600)' }}
+                    onClick={() => handleToggleStatus(c)}>
+                    <EyeIcon style={{ width: 12, height: 12 }} />
+                  </button>
+                  <button className="btn btn-ghost btn-sm" title="Delete" style={{ color: 'var(--danger-500)' }} onClick={() => handleDelete(c)}>
+                    <TrashIcon style={{ width: 12, height: 12 }} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 2-column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '0.875rem', flex: 1, minHeight: 0 }}>
+      {viewMode === 'panel' && <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '0.875rem', flex: 1, minHeight: 0 }}>
 
         {/* ── LEFT: Client List ──────────────────────────────── */}
         <div className="sh-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -513,6 +624,7 @@ const ResellerClients: React.FC = () => {
 
                 {/* ── EDIT / CREATE FORM ── */}
                 {(activeTab === 'edit' || isCreating) && (
+                  <>
                   <form onSubmit={isCreating ? handleCreate : handleEdit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: 480 }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
                       <div>
@@ -530,6 +642,15 @@ const ResellerClients: React.FC = () => {
                       <label className="form-label">Email</label>
                       <input type="email" required className="form-input" value={clientForm.email}
                         onChange={e => setClientForm({ ...clientForm, email: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="form-label">
+                        WhatsApp / Mobile
+                        <span style={{ marginLeft: 5, fontWeight: 500, textTransform: 'none', fontSize: '0.65rem', color: 'var(--navy-400)' }}>for shipping updates</span>
+                      </label>
+                      <input type="tel" required className="form-input" value={clientForm.phone}
+                        placeholder="+1 555 000 0000"
+                        onChange={e => setClientForm({ ...clientForm, phone: e.target.value })} />
                     </div>
                     {isCreating && (
                       <div>
@@ -572,6 +693,29 @@ const ResellerClients: React.FC = () => {
                       </button>
                     </div>
                   </form>
+
+                  {/* Stay in the loop info */}
+                  <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', borderRadius: 10, background: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.12)', maxWidth: 480 }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.4rem' }}>Stay in the loop</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--navy-600)', lineHeight: 1.55 }}>
+                      Every label printed, every delivery confirmed, every exception flagged — your client gets notified in real time, straight to their <strong>email</strong>{clientForm.phone ? <> and <strong>WhatsApp</strong></> : <span style={{ color: 'var(--navy-400)' }}> (add a WhatsApp number above to enable those alerts too)</span>}.
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.65rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M2 5.5A2.5 2.5 0 014.5 3h11A2.5 2.5 0 0118 5.5v9a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 012 14.5v-9z" stroke="#6366f1" strokeWidth="1.5"/><path d="M2 6l8 5.5L18 6" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--navy-600)', fontWeight: 600 }}>Email</span>
+                        <span style={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: 700, background: 'rgba(34,197,94,0.1)', padding: '1px 6px', borderRadius: 99, border: '1px solid rgba(34,197,94,0.2)' }}>Active</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill={clientForm.phone ? '#25d366' : '#94a3b8'}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.099 1.523 5.82L0 24l6.344-1.501A11.942 11.942 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.969 0-3.806-.557-5.365-1.521l-.385-.229-3.989.944.96-3.904-.252-.397A9.964 9.964 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--navy-600)', fontWeight: 600 }}>WhatsApp</span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '1px 6px', borderRadius: 99, border: `1px solid ${clientForm.phone ? 'rgba(37,211,102,0.2)' : 'rgba(148,163,184,0.2)'}`, color: clientForm.phone ? '#25d366' : '#94a3b8', background: clientForm.phone ? 'rgba(37,211,102,0.08)' : 'rgba(148,163,184,0.08)' }}>
+                          {clientForm.phone ? 'Active' : 'Not set'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  </>
                 )}
 
                 {/* ── BALANCE & RATE TAB ── */}
@@ -947,7 +1091,8 @@ const ResellerClients: React.FC = () => {
             </>
           )}
         </div>
-      </div>
+      </div>}
+
     </div>
   );
 };

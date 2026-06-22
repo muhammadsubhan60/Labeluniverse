@@ -448,10 +448,17 @@ export default function CCVendorPerformance() {
                 <thead>
                   <tr style={{ background: 'var(--navy-50)', borderBottom: '1.5px solid var(--navy-200)' }}>
                     {([
-                      ['Vendor',      'vendor'],
-                      ['Carrier',     'carrier'],
-                      ['Total',       'total'],
-                      ['Voided',      'voided'],
+                      ['Vendor',  'vendor'],
+                      ['Carrier', 'carrier'],
+                    ] as [string, VSortKey][]).map(([label, key]) => (
+                      <th key={key} onClick={() => toggleVSort(key)} style={{ ...thBase, color: vSort === key ? '#6366f1' : 'var(--navy-500)' }}>
+                        {label}<SortIndicator active={vSort === key} dir={vDir} />
+                      </th>
+                    ))}
+                    <th style={{ ...thBase, cursor: 'default' }}>Portal</th>
+                    {([
+                      ['Total',  'total'],
+                      ['Voided', 'voided'],
                     ] as [string, VSortKey][]).map(([label, key]) => (
                       <th key={key} onClick={() => toggleVSort(key)} style={{ ...thBase, color: vSort === key ? '#6366f1' : 'var(--navy-500)' }}>
                         {label}<SortIndicator active={vSort === key} dir={vDir} />
@@ -481,7 +488,7 @@ export default function CCVendorPerformance() {
                   {loading ? (
                     Array.from({ length: 6 }).map((_, i) => (
                       <tr key={i}>
-                        {Array.from({ length: 8 }).map((_, j) => (
+                        {Array.from({ length: 9 }).map((_, j) => (
                           <td key={j} style={{ padding: '10px 12px' }}>
                             <div style={{ height: 10, borderRadius: 5, background: 'var(--navy-100)', animation: 'bl-shimmer 1.5s infinite' }} />
                           </td>
@@ -489,7 +496,7 @@ export default function CCVendorPerformance() {
                       </tr>
                     ))
                   ) : sortedVendors.length === 0 ? (
-                    <tr><td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--navy-400)' }}>No vendor data</td></tr>
+                    <tr><td colSpan={9} style={{ padding: '3rem', textAlign: 'center', color: 'var(--navy-400)' }}>No vendor data</td></tr>
                   ) : (
                     sortedVendors.map(v => {
                       const dRate = deliveryRate(v);
@@ -516,17 +523,16 @@ export default function CCVendorPerformance() {
                                   </div>
                                 );
                               })()}
-                              <div>
-                                <div style={{ fontWeight: 700, color: 'var(--navy-900)' }}>{v._id || '—'}</div>
-                                {dRate < 80 && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '1px 5px', borderRadius: 99, marginTop: 2, display: 'inline-block' }}>LOW</span>}
-                              </div>
+                              <div style={{ fontWeight: 700, color: 'var(--navy-900)' }}>{v._id || '—'}</div>
                             </div>
                           </td>
                           <td style={{ padding: '10px 12px' }}>
                             <span style={{ fontSize: '0.7rem', fontWeight: 700, color: cColor, background: `${cColor}15`, border: `1px solid ${cColor}30`, padding: '2px 7px', borderRadius: 5 }}>{v.carrier || '—'}</span>
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>
                             {(() => {
                               const p = PORTAL_LABEL[v.portal] || { name: v.portal || 'ShippersHub', color: '#6366f1' };
-                              return <div style={{ fontSize: '0.6rem', fontWeight: 700, color: p.color, marginTop: 3 }}>{p.name}</div>;
+                              return <span style={{ fontSize: '0.68rem', fontWeight: 700, color: p.color, background: `${p.color}12`, border: `1px solid ${p.color}25`, padding: '2px 8px', borderRadius: 5 }}>{p.name}</span>;
                             })()}
                           </td>
                           <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--navy-800)' }}>{eff.toLocaleString()}</td>

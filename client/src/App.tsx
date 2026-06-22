@@ -55,6 +55,9 @@ import './App.css';
 const AdminOnly = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute roles={['admin']}>{children}</ProtectedRoute>
 );
+const CCAllowed = ({ children }: { children: React.ReactNode }) => (
+  <ProtectedRoute roles={['admin']} allowCC>{children}</ProtectedRoute>
+);
 const AdminOrReseller = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute roles={['admin', 'reseller']}>{children}</ProtectedRoute>
 );
@@ -77,14 +80,13 @@ function App() {
                 <Route path="/superadmin" element={<SuperAdminDashboard />} />
 
                 {/* ── Tracking Command Center (admin-only, own layout) ──── */}
-                <Route path="/command-center" element={<AdminOnly><CCLayout /></AdminOnly>}>
+                <Route path="/command-center" element={<CCAllowed><CCLayout /></CCAllowed>}>
                   <Route index element={<Navigate to="/command-center/dashboard" replace />} />
                   <Route path="dashboard"   element={<CCDashboard />} />
                   <Route path="labels"      element={<CCLabels />} />
                   <Route path="bulk-labels" element={<CCBulkLabels />} />
                   <Route path="ai-status"   element={<CCBulkTrackingUpdate />} />
                   <Route path="vendor-perf" element={<CCVendorPerformance />} />
-                  <Route path="users"       element={<CCUsers />} />
                 </Route>
 
                 {/* ── Vendor Portal (completely separate, neutral branding) ── */}
@@ -135,6 +137,7 @@ function App() {
                   <Route path="/admin/financial-dashboard"     element={<AdminOnly><FinancialDashboard /></AdminOnly>} />
                   <Route path="/admin/settings"                element={<AdminOnly><Settings /></AdminOnly>} />
                   <Route path="/admin/live"                    element={<AdminOnly><AdminLiveActivity /></AdminOnly>} />
+                  <Route path="/admin/user-stats"              element={<AdminOnly><CCUsers /></AdminOnly>} />
                   <Route path="/admin/warehouses"              element={<AdminOnly><AdminWarehouses /></AdminOnly>} />
                   <Route path="/admin/states"                  element={<AdminOnly><AdminStates /></AdminOnly>} />
 

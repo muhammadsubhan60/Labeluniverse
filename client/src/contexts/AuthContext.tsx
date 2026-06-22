@@ -14,6 +14,7 @@ interface User {
   createdAt: string;
   clients?: string[];
   tenantId?: string;
+  ccAccess?: boolean;
 }
 
 interface AuthState {

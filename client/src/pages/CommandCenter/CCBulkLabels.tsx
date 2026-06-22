@@ -3,9 +3,8 @@ import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   MagnifyingGlassIcon, XMarkIcon, ArrowDownTrayIcon,
-  ArrowTopRightOnSquareIcon,
-  ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon,
-  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon, ArrowPathIcon,
+  ChevronLeftIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 
 const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
@@ -59,22 +58,22 @@ const STATUS_CFG = {
 };
 
 const inp: React.CSSProperties = { height: 34, padding: '0 0.7rem', background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', borderRadius: 8, color: 'var(--navy-900)', fontSize: '0.8rem', fontFamily: FONT, outline: 'none', boxSizing: 'border-box' };
+const thBase: React.CSSProperties = { padding: '8px 12px', textAlign: 'left', fontSize: '0.62rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' };
 
 export default function CCBulkLabels() {
   const { token } = useAuth();
 
-  const [jobs,        setJobs]        = useState<BulkJob[]>([]);
-  const [total,       setTotal]       = useState(0);
-  const [totalPages,  setTotalPages]  = useState(1);
-  const [loading,     setLoading]     = useState(true);
-  const [page,        setPage]        = useState(1);
+  const [jobs,       setJobs]       = useState<BulkJob[]>([]);
+  const [total,      setTotal]      = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading,    setLoading]    = useState(true);
+  const [page,       setPage]       = useState(1);
 
-  const [search,      setSearch]      = useState('');
-  const [carrier,     setCarrier]     = useState('');
-  const [dateFrom,    setDateFrom]    = useState('');
-  const [dateTo,      setDateTo]      = useState('');
+  const [search,   setSearch]   = useState('');
+  const [carrier,  setCarrier]  = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo,   setDateTo]   = useState('');
 
-  const [expanded,    setExpanded]    = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState<string | null>(null);
 
   const authH = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
@@ -99,9 +98,6 @@ export default function CCBulkLabels() {
 
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
-  const toggleExpand = (id: string) =>
-    setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-
   const downloadZip = async (job: BulkJob) => {
     if (!job.bulkZipUrl) return;
     setDownloading(job._id);
@@ -117,8 +113,7 @@ export default function CCBulkLabels() {
   };
 
   const openTrack = (carrier: string, ids: string[]) => {
-    const chunks = chunkArray(ids.filter(Boolean), 35);
-    chunks.forEach(chunk => {
+    chunkArray(ids.filter(Boolean), 35).forEach(chunk => {
       const enc = encodeURIComponent(chunk.join(','));
       const url = carrier === 'UPS'   ? `https://www.ups.com/track?tracknum=${enc}` :
                   carrier === 'FedEx' ? `https://www.fedex.com/fedextrack/?trknbr=${enc}` :
@@ -173,106 +168,124 @@ export default function CCBulkLabels() {
         </div>
       </div>
 
-      {/* ── Job list ───────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: '1rem' }}>
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="db-card" style={{ height: 72, background: 'linear-gradient(90deg,var(--navy-100) 25%,var(--navy-50) 50%,var(--navy-100) 75%)', backgroundSize: '200% 100%', animation: 'bl-shimmer 1.5s infinite', animationDelay: `${i * 100}ms` }} />
-          ))
-        ) : jobs.length === 0 ? (
-          <div className="db-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.85rem' }}>
-            No batches found{hasFilters ? ' — try adjusting filters' : ''}
-          </div>
-        ) : (
-          jobs.map(job => {
-            const st    = jobStatus(job);
-            const sCfg  = STATUS_CFG[st];
-            const cCfg  = CARRIER_STYLE[job.carrier] || { bg: '#F8FAFC', color: '#475569', accent: '#94A3B8' };
-            const isExp = expanded.has(job._id);
-            const isDl  = downloading === job._id;
-            const valIds= job.trackingIds?.filter(Boolean) || [];
+      {/* ── Table ──────────────────────────────────────────────── */}
+      <div className="db-card" style={{ overflow: 'hidden', marginBottom: '1rem' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', fontFamily: FONT }}>
+            <thead>
+              <tr style={{ background: 'var(--navy-50)', borderBottom: '1.5px solid var(--navy-200)' }}>
+                <th style={thBase}>Batch</th>
+                <th style={thBase}>Carrier</th>
+                <th style={thBase}>Vendor</th>
+                <th style={{ ...thBase, textAlign: 'right' }}>Total</th>
+                <th style={{ ...thBase, textAlign: 'right' }}>Generated</th>
+                <th style={{ ...thBase, textAlign: 'right' }}>Failed</th>
+                <th style={{ ...thBase, textAlign: 'right' }}>Price</th>
+                <th style={thBase}>Status</th>
+                <th style={thBase}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 9 }).map((_, j) => (
+                      <td key={j} style={{ padding: '10px 12px' }}>
+                        <div style={{ height: 10, borderRadius: 5, background: 'var(--navy-100)', animation: 'bl-shimmer 1.5s infinite', animationDelay: `${i * 80}ms` }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : jobs.length === 0 ? (
+                <tr>
+                  <td colSpan={9} style={{ padding: '3rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.85rem' }}>
+                    No batches found{hasFilters ? ' — try adjusting filters' : ''}
+                  </td>
+                </tr>
+              ) : (
+                jobs.map(job => {
+                  const st   = jobStatus(job);
+                  const sCfg = STATUS_CFG[st];
+                  const cCfg = CARRIER_STYLE[job.carrier] || { bg: '#F8FAFC', color: '#475569', accent: '#94A3B8' };
+                  const isDl = downloading === job._id;
+                  const valIds = job.trackingIds?.filter(Boolean) || [];
 
-            return (
-              <div key={job._id} className="db-card" style={{ overflow: 'hidden' }}>
-                {/* Row */}
-                <div onClick={() => toggleExpand(job._id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0.85rem 1.1rem', cursor: 'pointer', position: 'relative' }}>
-                  {/* carrier bar */}
-                  <div style={{ width: 3, alignSelf: 'stretch', background: cCfg.accent, borderRadius: '0 2px 2px 0', flexShrink: 0, position: 'absolute', left: 0, top: 0, bottom: 0 }} />
-                  <div style={{ marginLeft: 6, flexGrow: 1, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
-                    {/* File name */}
-                    <div style={{ minWidth: 200, flex: 1 }}>
-                      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.bulkFileName || 'Unnamed batch'}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 2 }}>
-                        {job.user ? `${job.user.firstName} ${job.user.lastName}` : '—'} · {timeAgo(job.createdAt)}
-                      </div>
-                    </div>
-                    {/* Carrier */}
-                    <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.72rem', fontWeight: 700, background: cCfg.bg, color: cCfg.color, border: `1px solid ${cCfg.accent}30`, whiteSpace: 'nowrap' }}>
-                      {job.carrier}
-                    </span>
-                    {/* Vendor */}
-                    <span style={{ fontSize: '0.76rem', color: 'var(--navy-600)', whiteSpace: 'nowrap' }}>{job.vendorName}</span>
-                    {/* Count */}
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--navy-800)', whiteSpace: 'nowrap' }}>{job.totalLabels.toLocaleString()} labels</span>
-                    {/* Price */}
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--navy-700)', whiteSpace: 'nowrap' }}>${job.totalPrice.toFixed(2)}</span>
-                    {/* Status */}
-                    <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: '0.68rem', fontWeight: 700, background: sCfg.bg, color: sCfg.color, border: `1px solid ${sCfg.border}`, whiteSpace: 'nowrap' }}>{sCfg.label}</span>
-                  </div>
-                  {/* Actions */}
-                  <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    {valIds.length > 0 && (
-                      <button onClick={() => openTrack(job.carrier, valIds)} title="Track all" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0.35rem 0.65rem', borderRadius: 7, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', color: 'var(--navy-600)', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
-                        <ArrowTopRightOnSquareIcon style={{ width: 12, height: 12 }} /> Track
-                      </button>
-                    )}
-                    {job.bulkZipUrl && (
-                      <button onClick={() => downloadZip(job)} disabled={isDl} title="Download ZIP" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0.35rem 0.65rem', borderRadius: 7, background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', color: '#6366f1', fontSize: '0.72rem', fontWeight: 600, cursor: isDl ? 'wait' : 'pointer', fontFamily: FONT }}>
-                        <ArrowDownTrayIcon style={{ width: 12, height: 12 }} /> {isDl ? '…' : 'ZIP'}
-                      </button>
-                    )}
-                  </div>
-                  {isExp ? <ChevronUpIcon style={{ width: 15, height: 15, color: 'var(--navy-400)', flexShrink: 0 }} /> : <ChevronDownIcon style={{ width: 15, height: 15, color: 'var(--navy-400)', flexShrink: 0 }} />}
-                </div>
-
-                {/* Expanded: progress + tracking IDs */}
-                {isExp && (
-                  <div style={{ borderTop: '1px solid var(--navy-100)', padding: '0.85rem 1.1rem 0.85rem 1.5rem', background: 'var(--navy-50)' }}>
-                    {/* Progress bar */}
-                    <div style={{ marginBottom: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--navy-600)' }}>Label generation</span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--navy-500)' }}>{job.generatedCount} / {job.totalLabels}</span>
-                      </div>
-                      <div style={{ height: 6, borderRadius: 99, background: 'var(--navy-200)', overflow: 'hidden' }}>
-                        <div style={{ width: `${job.totalLabels > 0 ? (job.generatedCount / job.totalLabels) * 100 : 0}%`, height: '100%', background: 'linear-gradient(90deg,#10B981,#34D399)', transition: 'width 0.5s ease' }} />
-                      </div>
-                      <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: '0.7rem' }}>
-                        <span style={{ color: '#059669', fontWeight: 700 }}>{job.generatedCount} generated</span>
-                        {job.failedCount > 0 && <span style={{ color: '#DC2626', fontWeight: 700 }}>{job.failedCount} failed</span>}
-                      </div>
-                    </div>
-                    {/* Tracking IDs preview */}
-                    {valIds.length > 0 && (
-                      <div>
-                        <div style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Tracking IDs (first 10)</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {valIds.slice(0, 10).map(id => (
-                            <a key={id} href={`https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer"
-                              style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: '#6366f1', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 5, padding: '2px 6px', textDecoration: 'none' }}>
-                              {id}
-                            </a>
-                          ))}
-                          {valIds.length > 10 && <span style={{ fontSize: '0.68rem', color: 'var(--navy-400)', padding: '2px 4px' }}>+{valIds.length - 10} more</span>}
+                  return (
+                    <tr key={job._id} style={{ borderBottom: '1px solid var(--navy-100)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {/* Batch name + user + time */}
+                      <td style={{ padding: '10px 12px', maxWidth: 240 }}>
+                        <div style={{ fontWeight: 700, color: 'var(--navy-900)', fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {job.bulkFileName || 'Unnamed batch'}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
+                        <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 2, whiteSpace: 'nowrap' }}>
+                          {timeAgo(job.createdAt)}
+                        </div>
+                      </td>
+
+                      {/* Carrier */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: cCfg.bg, color: cCfg.color, border: `1px solid ${cCfg.accent}30`, whiteSpace: 'nowrap' }}>
+                          {job.carrier}
+                        </span>
+                      </td>
+
+                      {/* Vendor */}
+                      <td style={{ padding: '10px 12px', color: 'var(--navy-600)', fontSize: '0.76rem', whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {job.vendorName || '—'}
+                      </td>
+
+                      {/* Total */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--navy-800)' }}>
+                        {job.totalLabels.toLocaleString()}
+                      </td>
+
+                      {/* Generated */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#15803d' }}>
+                        {job.generatedCount.toLocaleString()}
+                      </td>
+
+                      {/* Failed */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: job.failedCount > 0 ? '#dc2626' : 'var(--navy-300)' }}>
+                        {job.failedCount > 0 ? job.failedCount.toLocaleString() : '—'}
+                      </td>
+
+                      {/* Price */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--navy-700)', whiteSpace: 'nowrap' }}>
+                        ${job.totalPrice.toFixed(2)}
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: '0.65rem', fontWeight: 700, background: sCfg.bg, color: sCfg.color, border: `1px solid ${sCfg.border}`, whiteSpace: 'nowrap' }}>
+                          {sCfg.label}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                          {valIds.length > 0 && (
+                            <button onClick={() => openTrack(job.carrier, valIds)} title="Track all" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0.3rem 0.6rem', borderRadius: 6, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', color: 'var(--navy-600)', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                              <ArrowTopRightOnSquareIcon style={{ width: 11, height: 11 }} /> Track
+                            </button>
+                          )}
+                          {job.bulkZipUrl && (
+                            <button onClick={() => downloadZip(job)} disabled={isDl} title="Download ZIP" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0.3rem 0.6rem', borderRadius: 6, background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', color: '#6366f1', fontSize: '0.7rem', fontWeight: 600, cursor: isDl ? 'wait' : 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                              <ArrowDownTrayIcon style={{ width: 11, height: 11 }} /> {isDl ? '…' : 'ZIP'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ── Pagination ─────────────────────────────────────────── */}

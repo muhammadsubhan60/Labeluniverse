@@ -32,7 +32,7 @@ const toAbsUrl = (p: string) => p.startsWith('http') ? p : `${_API_BASE}${p}`;
 
 interface User {
   id: string; firstName: string; lastName: string; email: string;
-  role: 'admin' | 'reseller' | 'user'; isActive: boolean; createdAt: string;
+  role: 'admin' | 'reseller' | 'user'; isActive: boolean; createdAt: string; ccAccess?: boolean;
 }
 interface RateTier { minLbs: number; maxLbs: number | null; rate: number; }
 interface VendorAccess {
@@ -348,6 +348,15 @@ const UserManagement: React.FC = () => {
       fetchUsers();
       if (selectedUser?.id === u.id) setSelectedUser({ ...u, isActive: !u.isActive });
     } catch (err: any) { setError(err.response?.data?.message || 'Failed'); }
+  };
+
+  const handleToggleCC = async (u: User) => {
+    try {
+      const r = await axios.patch(`/users/${u.id}/cc-access`);
+      setMessage(`CC access ${r.data.ccAccess ? 'granted' : 'revoked'}`);
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ccAccess: r.data.ccAccess } : x));
+      if (selectedUser?.id === u.id) setSelectedUser({ ...u, ccAccess: r.data.ccAccess });
+    } catch { setMessage('Failed to update CC access'); }
   };
 
   const doBalanceAction = async (e: React.FormEvent) => {
@@ -725,6 +734,17 @@ const UserManagement: React.FC = () => {
                       >
                         <EyeIcon style={{ width: 14, height: 14 }} />
                       </button>
+                      {selectedUser.role === 'reseller' && (
+                        <button
+                          onClick={() => handleToggleCC(selectedUser)}
+                          title={selectedUser.ccAccess ? 'Revoke CC access' : 'Grant CC access'}
+                          style={{ width: 28, height: 28, borderRadius: 7, border: `1.5px solid ${selectedUser.ccAccess ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.2)'}`, background: selectedUser.ccAccess ? 'rgba(99,102,241,0.12)' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}
+                        >
+                          <svg style={{ width: 14, height: 14 }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+                          </svg>
+                        </button>
+                      )}
                       {selectedUser.id !== authUser?.id && (
                         <button
                           onClick={() => handleDelete(selectedUser)}

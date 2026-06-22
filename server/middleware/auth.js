@@ -53,6 +53,16 @@ const authorize = (...roles) => {
 };
 
 /**
+ * Command Center authorization — admin OR reseller with ccAccess flag
+ */
+const authorizeCC = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: 'Authentication required' });
+  if (req.user.role === 'admin') return next();
+  if (req.user.role === 'reseller' && req.user.ccAccess) return next();
+  return res.status(403).json({ message: 'Command Center access required' });
+};
+
+/**
  * Generate a signed JWT token for a user
  */
 const generateToken = (userId) => {
@@ -63,4 +73,4 @@ const generateToken = (userId) => {
   );
 };
 
-module.exports = { authenticateToken, authorize, generateToken };
+module.exports = { authenticateToken, authorize, authorizeCC, generateToken };

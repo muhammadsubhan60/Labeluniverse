@@ -64,6 +64,12 @@ const userSchema = new mongoose.Schema({
     enum: ['Organic', 'Paid Ads', null],
     default: null,
   },
+  phone: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'Phone number cannot exceed 20 characters'],
+    default: null,
+  },
   // Notification preferences
   emailNotifications: {
     type: Boolean,
@@ -79,6 +85,11 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0,
+  },
+  // Command Center delegate access — admin-granted, reseller-only
+  ccAccess: {
+    type: Boolean,
+    default: false,
   },
 }, {
   timestamps: true

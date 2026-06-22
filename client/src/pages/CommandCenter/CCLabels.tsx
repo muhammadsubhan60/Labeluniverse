@@ -503,7 +503,7 @@ export default function CCLabels() {
                 <th style={{ padding: '8px 10px', width: 36 }}>
                   <input type="checkbox" checked={selected.size === labels.length && labels.length > 0} onChange={toggleAll} style={{ cursor: 'pointer' }} />
                 </th>
-                {['Tracking ID', 'Type', 'Portal', 'Vendor', 'From', 'To', 'Wt', 'Status', 'Owner', 'Date', ''].map(h => (
+                {['Tracking ID', 'Type', 'Portal', 'Vendor', 'From', 'To', 'Wt', 'Status', 'Date', ''].map(h => (
                   <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: '0.63rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -554,14 +554,6 @@ export default function CCLabels() {
                     <td style={{ padding: '8px 10px', color: 'var(--navy-600)', whiteSpace: 'nowrap' }}>{l.weight} lbs</td>
                     <td style={{ padding: '8px 10px' }}>
                       <StatusCell label={l} onUpdate={onUpdate} />
-                    </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--navy-600)', fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
-                      {l.user ? (
-                        <div>
-                          <div style={{ fontWeight: 600, color: 'var(--navy-800)' }}>{l.user.firstName} {l.user.lastName}</div>
-                          <div style={{ color: 'var(--navy-400)', fontSize: '0.68rem' }}>{l.user.email}</div>
-                        </div>
-                      ) : '—'}
                     </td>
                     <td style={{ padding: '8px 10px', color: 'var(--navy-400)', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{timeAgo(l.createdAt)}</td>
                     <td style={{ padding: '8px 10px' }}>

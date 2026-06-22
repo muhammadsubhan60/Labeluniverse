@@ -32,6 +32,7 @@ import {
   ShoppingBagIcon,
   UsersIcon,
   PuzzlePieceIcon,
+  CommandLineIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Announcement types ────────────────────────────────────────────────────────
@@ -226,13 +227,19 @@ const Layout: React.FC = () => {
     { name: 'Bulk History',   href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },
   ];
 
+  // Command Center — visible to admin OR reseller with ccAccess
+  const ccItems: NavItem[] = (user?.role === 'admin' || (user?.role === 'reseller' && user?.ccAccess)) ? [
+    { name: 'Command Center', href: '/command-center', icon: CommandLineIcon, current: location.pathname.startsWith('/command-center') },
+  ] : [];
+
   // Admin — Operations
   const adminOpsItems: NavItem[] = user?.role === 'admin' ? [
-    { name: 'Live Monitor',     href: '/admin/live',       icon: SignalIcon,                current: location.pathname === '/admin/live',       badge: navCounts?.labelsToday },
-    { name: 'Manifest Ops',     href: '/admin/manifest',   icon: Squares2X2Icon,            current: location.pathname === '/admin/manifest',   badge: navCounts?.manifestsUnderReview || undefined },
-    { name: 'Manifest History', href: '/manifest/history', icon: ClipboardDocumentListIcon, current: location.pathname === '/manifest/history' },
-    { name: 'Warehouses',       href: '/admin/warehouses', icon: CubeIcon,                  current: location.pathname === '/admin/warehouses' },
-    { name: 'State Analytics',  href: '/admin/states',     icon: MapIcon,                   current: location.pathname === '/admin/states' },
+    { name: 'Live Monitor',      href: '/admin/live',          icon: SignalIcon,                current: location.pathname === '/admin/live',          badge: navCounts?.labelsToday },
+    { name: 'User Stats',        href: '/admin/user-stats',    icon: UserGroupIcon,             current: location.pathname === '/admin/user-stats' },
+    { name: 'Manifest Ops',      href: '/admin/manifest',      icon: Squares2X2Icon,            current: location.pathname === '/admin/manifest',      badge: navCounts?.manifestsUnderReview || undefined },
+    { name: 'Manifest History',  href: '/manifest/history',    icon: ClipboardDocumentListIcon, current: location.pathname === '/manifest/history' },
+    { name: 'Warehouses',        href: '/admin/warehouses',    icon: CubeIcon,                  current: location.pathname === '/admin/warehouses' },
+    { name: 'State Analytics',   href: '/admin/states',        icon: MapIcon,                   current: location.pathname === '/admin/states' },
   ] : [];
 
   // Admin — Finance
@@ -257,6 +264,7 @@ const Layout: React.FC = () => {
     { key: 'overview',    label: 'Overview',    items: overviewNav },
     { key: 'mystore',     label: 'My Store',    items: storeNav },
     { key: 'labels',      label: 'Labels',      items: labelsNav },
+    ...(ccItems.length > 0           ? [{ key: 'cc',         label: 'Command Center', items: ccItems }]          : []),
     ...(adminOpsItems.length > 0     ? [{ key: 'operations', label: 'Operations',  items: adminOpsItems }]     : []),
     ...(adminFinanceItems.length > 0 ? [{ key: 'finance',    label: 'Finance',     items: adminFinanceItems }] : []),
     ...(mgmtItems.length > 0         ? [{ key: 'management', label: user?.role === 'reseller' ? 'Clients' : 'Management', items: mgmtItems }] : []),

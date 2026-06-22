@@ -344,12 +344,12 @@ const LabelGenerator: React.FC = () => {
 
   const handlePortalSelect = (portal: typeof selectedPortal) => {
     setSelectedPortal(portal); setSelectedCarrier(''); setSelectedVendorId('');
-    setError(''); setSuccessData(null);
+    setError('');
   };
 
   const handleCarrierSelect = (carrier: string) => {
     setSelectedCarrier(carrier); setSelectedVendorId('');
-    setError(''); setSuccessData(null);
+    setError('');
   };
 
   const carrierVendors = accessList.filter(a =>

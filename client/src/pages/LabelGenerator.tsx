@@ -185,7 +185,8 @@ const LabelGenerator: React.FC = () => {
   const [isLoading,         setIsLoading]         = useState(false);
   const [error,             setError]             = useState('');
   const [isReturn,          setIsReturn]          = useState(!!prefill);
-  const [form,              setForm]              = useState(prefill ? { ...BLANK_FORM, ...prefill } : BLANK_FORM);
+  const { vendorId: _pVid, carrier: _pCarrier, ...prefillFormFields } = (prefill || {}) as any;
+  const [form,              setForm]              = useState({ ...BLANK_FORM, ...prefillFormFields });
 
   // Warehouses
   const [warehouses,   setWarehouses]   = useState<Warehouse[]>(loadWarehouses);

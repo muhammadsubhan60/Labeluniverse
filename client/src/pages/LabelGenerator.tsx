@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
-  TruckIcon, CheckCircleIcon, ExclamationCircleIcon,
+  TruckIcon, ExclamationCircleIcon,
   ArrowDownTrayIcon, XMarkIcon, ArrowsRightLeftIcon,
   BuildingOfficeIcon, PlusIcon, TrashIcon, ChevronDownIcon,
   SparklesIcon, TagIcon, CubeIcon, UserIcon,

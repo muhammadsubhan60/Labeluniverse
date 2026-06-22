@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
@@ -6,6 +7,7 @@ import {
   MagnifyingGlassIcon, CheckCircleIcon, ExclamationCircleIcon,
   XMarkIcon, ChevronDownIcon, ChevronUpIcon, ArrowLeftIcon,
   ShieldCheckIcon, ShieldExclamationIcon, UsersIcon, TagIcon,
+  CurrencyDollarIcon, PlusIcon, TrashIcon,
 } from '@heroicons/react/24/outline';
 
 const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
@@ -88,6 +90,13 @@ const BulkVendorAccess: React.FC = () => {
   const [applying,  setApplying]  = useState(false);
   const [message,   setMessage]   = useState('');
   const [error,     setError]     = useState('');
+
+  // ── Rate modal ───────────────────────────────────────────────
+  const [showRateModal, setShowRateModal] = useState(false);
+  const [rateMode,      setRateMode]      = useState<'replace' | 'skip_existing'>('replace');
+  const [flatRate,      setFlatRate]      = useState('');
+  const [tiers,         setTiers]         = useState<Array<{ minLbs: string; maxLbs: string; rate: string }>>([{ minLbs: '0', maxLbs: '', rate: '' }]);
+  const [applyingRates, setApplyingRates] = useState(false);
 
   useEffect(() => { fetchUsers(); }, [userPage]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchVendors(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -189,6 +198,51 @@ const BulkVendorAccess: React.FC = () => {
 
   const canApply = selectedU.size > 0 && selectedV.size > 0 && !applying;
 
+  const openRateModal = () => {
+    setFlatRate('');
+    setTiers([{ minLbs: '0', maxLbs: '', rate: '' }]);
+    setRateMode('replace');
+    setShowRateModal(true);
+  };
+
+  const handleFlatRate = (val: string) => {
+    setFlatRate(val);
+    setTiers([{ minLbs: '0', maxLbs: '', rate: val }]);
+  };
+
+  const updateTier = (i: number, field: string, val: string) =>
+    setTiers(ts => ts.map((t, idx) => idx === i ? { ...t, [field]: val } : t));
+  const addTier = () => setTiers(ts => [...ts, { minLbs: '', maxLbs: '', rate: '' }]);
+  const removeTier = (i: number) => setTiers(ts => ts.filter((_, idx) => idx !== i));
+
+  const applyRates = async () => {
+    if (applyingRates) return;
+    const validTiers = tiers
+      .filter(t => t.rate !== '')
+      .map(t => ({
+        minLbs: parseFloat(t.minLbs) || 0,
+        maxLbs: t.maxLbs === '' ? null : parseFloat(t.maxLbs),
+        rate:   parseFloat(t.rate)   || 0,
+      }));
+    if (validTiers.length === 0) { setError('Add at least one tier with a rate.'); return; }
+    setApplyingRates(true);
+    try {
+      const vendorEntries = vendors.filter(v => selectedV.has(v.vendorId)).map(v => ({ vendorId: v.vendorId, carrier: v.carrier }));
+      const result = await axios.put('/access/bulk/rates', {
+        userIds: Array.from(selectedU),
+        vendorEntries,
+        rateTiers: validTiers,
+        mode: rateMode,
+      });
+      setMessage(result.data.message);
+      setShowRateModal(false);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to apply rates');
+    } finally {
+      setApplyingRates(false);
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: FONT, display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
@@ -267,7 +321,9 @@ const BulkVendorAccess: React.FC = () => {
               </span>
             </div>
             {selectedU.size > 0 && selectedV.size > 0 && (
-              <span style={{ fontSize: '0.68rem', color: 'var(--navy-400)', fontFamily: FONT }}>· Existing rate tiers are preserved</span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--navy-400)', fontFamily: FONT }}>
+                · {selectedU.size} × {selectedV.size} = {selectedU.size * selectedV.size} record{selectedU.size * selectedV.size !== 1 ? 's' : ''}
+              </span>
             )}
           </div>
           <div style={{ display: 'flex', gap: 7 }}>
@@ -302,6 +358,22 @@ const BulkVendorAccess: React.FC = () => {
             >
               <ShieldExclamationIcon style={{ width: 14, height: 14 }} />
               {applying ? 'Applying…' : `Disable for ${selectedU.size || '—'}`}
+            </button>
+            <button
+              onClick={openRateModal}
+              disabled={!canApply}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '0.5rem 1.1rem',
+                borderRadius: 8, border: 'none',
+                background: canApply ? 'linear-gradient(135deg,#6366f1,#4f46e5)' : 'var(--navy-100)',
+                color: canApply ? '#fff' : 'var(--navy-400)',
+                fontSize: '0.82rem', fontWeight: 700, cursor: canApply ? 'pointer' : 'not-allowed',
+                fontFamily: FONT, boxShadow: canApply ? '0 4px 12px rgba(99,102,241,0.35)' : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              <CurrencyDollarIcon style={{ width: 14, height: 14 }} />
+              Set Rates
             </button>
           </div>
         </div>
@@ -572,6 +644,137 @@ const BulkVendorAccess: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Rate modal — portalled to avoid stacking context trap */}
+      {showRateModal && ReactDOM.createPortal(
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setShowRateModal(false); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)' }}
+        >
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, border: '1.5px solid var(--navy-200)', boxShadow: 'var(--shadow-lg)', width: '100%', maxWidth: 500, margin: '1rem', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+            {/* Header */}
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--navy-900)', fontFamily: FONT }}>Bulk Set Rates</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 2, fontFamily: FONT }}>
+                  {selectedU.size} user{selectedU.size !== 1 ? 's' : ''} × {selectedV.size} vendor{selectedV.size !== 1 ? 's' : ''} = {selectedU.size * selectedV.size} records
+                </div>
+              </div>
+              <button onClick={() => setShowRateModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 4, display: 'flex' }}>
+                <XMarkIcon style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '1rem 1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+              {/* Flat rate shortcut */}
+              <div>
+                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT, marginBottom: 6 }}>Quick flat rate (all weights)</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '0.88rem', color: 'var(--navy-500)', fontWeight: 600 }}>$</span>
+                  <input
+                    type="number" min="0" step="0.01" placeholder="e.g. 0.40"
+                    value={flatRate}
+                    onChange={e => handleFlatRate(e.target.value)}
+                    style={{ ...inp, width: 140, fontSize: '0.88rem', fontWeight: 700 }}
+                    onFocus={focusI} onBlur={blurI}
+                  />
+                  <span style={{ fontSize: '0.68rem', color: 'var(--navy-400)', fontFamily: FONT }}>fills tier grid below</span>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--navy-100)' }} />
+                <span style={{ fontSize: '0.6rem', color: 'var(--navy-400)', fontFamily: FONT, fontWeight: 700, letterSpacing: '0.07em' }}>OR DEFINE WEIGHT TIERS</span>
+                <div style={{ flex: 1, height: 1, background: 'var(--navy-100)' }} />
+              </div>
+
+              {/* Tier grid */}
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 32px', gap: 6, marginBottom: 5 }}>
+                  {['Min (lbs)', 'Max (lbs)', 'Rate ($)', ''].map(h => (
+                    <div key={h} style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>{h}</div>
+                  ))}
+                </div>
+                {tiers.map((t, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 32px', gap: 6, marginBottom: 5 }}>
+                    <input type="number" min="0" step="0.1" placeholder="0"
+                      value={t.minLbs}
+                      onChange={e => { setFlatRate(''); updateTier(i, 'minLbs', e.target.value); }}
+                      style={{ ...inp, fontSize: '0.8rem' }} onFocus={focusI} onBlur={blurI} />
+                    <input type="number" min="0" step="0.1" placeholder="∞"
+                      value={t.maxLbs}
+                      onChange={e => { setFlatRate(''); updateTier(i, 'maxLbs', e.target.value); }}
+                      style={{ ...inp, fontSize: '0.8rem' }} onFocus={focusI} onBlur={blurI} />
+                    <input type="number" min="0" step="0.01" placeholder="0.00"
+                      value={t.rate}
+                      onChange={e => { setFlatRate(''); updateTier(i, 'rate', e.target.value); }}
+                      style={{ ...inp, fontSize: '0.8rem' }} onFocus={focusI} onBlur={blurI} />
+                    <button
+                      onClick={() => { setFlatRate(''); removeTier(i); }}
+                      disabled={tiers.length === 1}
+                      style={{ width: 32, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1.5px solid rgba(239,68,68,0.22)', borderRadius: 7, cursor: tiers.length === 1 ? 'not-allowed' : 'pointer', color: '#ef4444', opacity: tiers.length === 1 ? 0.3 : 1, flexShrink: 0 }}>
+                      <TrashIcon style={{ width: 12, height: 12 }} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => { setFlatRate(''); addTier(); }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 2, padding: '5px 12px', borderRadius: 7, border: '1.5px dashed var(--navy-200)', background: 'transparent', color: 'var(--navy-500)', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+                  <PlusIcon style={{ width: 12, height: 12 }} /> Add tier
+                </button>
+              </div>
+
+              {/* Apply mode */}
+              <div>
+                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT, marginBottom: 6 }}>Apply mode</div>
+                <div style={{ display: 'flex', gap: 7 }}>
+                  {([
+                    { val: 'replace'       as const, label: 'Replace all',     desc: 'Overwrites existing tiers for every selected user' },
+                    { val: 'skip_existing' as const, label: 'Skip with tiers', desc: 'Only updates users who have no tiers yet'          },
+                  ]).map(({ val, label, desc }) => (
+                    <button key={val} onClick={() => setRateMode(val)}
+                      style={{
+                        flex: 1, padding: '0.55rem 0.75rem', borderRadius: 9, textAlign: 'left', cursor: 'pointer',
+                        border: `1.5px solid ${rateMode === val ? 'rgba(99,102,241,0.4)' : 'var(--navy-200)'}`,
+                        background: rateMode === val ? 'rgba(99,102,241,0.07)' : 'transparent',
+                        transition: 'all 0.12s',
+                      }}>
+                      <div style={{ fontSize: '0.77rem', fontWeight: 700, color: rateMode === val ? '#6366f1' : 'var(--navy-700)', fontFamily: FONT }}>{label}</div>
+                      <div style={{ fontSize: '0.63rem', color: 'var(--navy-400)', fontFamily: FONT, marginTop: 2 }}>{desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setShowRateModal(false)}
+                style={{ padding: '0.5rem 1rem', borderRadius: 8, border: '1.5px solid var(--navy-200)', background: 'transparent', color: 'var(--navy-600)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+                Cancel
+              </button>
+              <button onClick={applyRates} disabled={applyingRates}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '0.5rem 1.25rem',
+                  borderRadius: 8, border: 'none',
+                  background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+                  color: '#fff', fontSize: '0.82rem', fontWeight: 700,
+                  cursor: applyingRates ? 'not-allowed' : 'pointer',
+                  fontFamily: FONT, opacity: applyingRates ? 0.7 : 1,
+                  boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
+                }}>
+                <CurrencyDollarIcon style={{ width: 14, height: 14 }} />
+                {applyingRates ? 'Applying…' : `Apply to ${selectedU.size} × ${selectedV.size}`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

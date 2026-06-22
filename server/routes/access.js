@@ -94,6 +94,71 @@ router.put('/bulk/vendor-access', authenticateToken, authorize('admin'), async (
   }
 });
 
+// ── PUT /api/access/bulk/rates ───────────────────────────────
+// Bulk-set rate tiers for multiple users × vendors in one shot.
+// Body: { userIds, vendorEntries: [{ vendorId, carrier }], rateTiers, mode }
+// mode='replace'       → always overwrite tiers (default)
+// mode='skip_existing' → skip records that already have ≥1 tier
+// Auto-enables access (isAllowed: true) for new/existing records.
+router.put('/bulk/rates', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { userIds, vendorEntries, rateTiers, mode = 'replace' } = req.body;
+
+    if (!Array.isArray(userIds) || !userIds.length)
+      return res.status(400).json({ message: 'userIds must be a non-empty array' });
+    if (!Array.isArray(vendorEntries) || !vendorEntries.length)
+      return res.status(400).json({ message: 'vendorEntries must be a non-empty array' });
+    if (!Array.isArray(rateTiers) || !rateTiers.length)
+      return res.status(400).json({ message: 'rateTiers must be a non-empty array' });
+
+    for (const t of rateTiers) {
+      if (t.minLbs < 0) return res.status(400).json({ message: 'Min lbs cannot be negative' });
+      if (t.maxLbs !== null && t.maxLbs !== undefined && t.maxLbs <= t.minLbs)
+        return res.status(400).json({ message: 'Max lbs must be greater than Min lbs' });
+      if (t.rate < 0) return res.status(400).json({ message: 'Rate cannot be negative' });
+    }
+
+    // Build set of records to skip (those that already have tiers)
+    const skipKeys = new Set();
+    if (mode === 'skip_existing') {
+      const existing = await UserVendorAccess.find({
+        user:   { $in: userIds },
+        vendor: { $in: vendorEntries.map(e => e.vendorId) },
+        'rateTiers.0': { $exists: true },
+      }).select('user vendor carrier').lean();
+      existing.forEach(r => skipKeys.add(`${r.user}:${r.vendor}:${r.carrier}`));
+    }
+
+    const ops = [];
+    for (const userId of userIds) {
+      for (const { vendorId, carrier } of vendorEntries) {
+        if (skipKeys.has(`${userId}:${vendorId}:${carrier}`)) continue;
+        ops.push({
+          updateOne: {
+            filter: { user: userId, vendor: vendorId, carrier },
+            update: {
+              $set:        { isAllowed: true, rateTiers },
+              $setOnInsert: { user: userId, vendor: vendorId, carrier },
+            },
+            upsert: true,
+          },
+        });
+      }
+    }
+
+    if (ops.length > 0) await UserVendorAccess.bulkWrite(ops);
+    const skipped = (userIds.length * vendorEntries.length) - ops.length;
+    res.json({
+      message: `Updated ${ops.length} record(s)${skipped > 0 ? `, skipped ${skipped} (already had tiers)` : ''}`,
+      updated: ops.length,
+      skipped,
+    });
+  } catch (err) {
+    console.error('Bulk rates error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ── GET /api/access/:userId ───────────────────────────────────
 router.get('/:userId', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {
   try {

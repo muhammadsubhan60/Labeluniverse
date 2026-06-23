@@ -27,7 +27,14 @@ interface VendorAccess {
   vendorId: string; vendorName: string; carrier: string;
   vendorType: 'api' | 'manifest';
   shippingService: string; baseRate: number; isAllowed: boolean; rateTiers: RateTier[];
+  portal?: string;
 }
+
+const PORTAL_META: Record<string, { label: string; color: string; bg: string }> = {
+  shippershub: { label: 'ShippersHub', color: '#1d4ed8', bg: 'rgba(29,78,216,0.06)'   },
+  labelcrow:   { label: 'LabelCrow',   color: '#7c3aed', bg: 'rgba(124,58,237,0.06)'  },
+  shiplabel:   { label: 'ShipLabel',   color: '#059669', bg: 'rgba(5,150,105,0.06)'   },
+};
 interface Balance {
   currentBalance: number;
   recentTransactions: Array<{ type: string; amount: number; description: string; date: string }>;
@@ -112,6 +119,7 @@ const ResellerClients: React.FC = () => {
   const [loadingTiers,     setLoadingTiers]     = useState(false);
   const [savingTiers,      setSavingTiers]      = useState(false);
   const [expandedCarriers, setExpandedCarriers] = useState<Record<string, boolean>>({});
+  const [expandedPortals,  setExpandedPortals]  = useState<Record<string, boolean>>({});
   const [expandedV,        setExpandedV]        = useState<Record<string, boolean>>({});
 
   // ── View mode ────────────────────────────────────────────────
@@ -939,7 +947,9 @@ const ResellerClients: React.FC = () => {
 
                       {CARRIERS_ORDER.map(carrier => {
                         const allVendors      = access.filter(v => v.carrier === carrier);
-                        const apiVendors      = allVendors.filter(v => v.vendorType !== 'manifest');
+                        const shVendors       = allVendors.filter(v => v.vendorType !== 'manifest' && (v.portal || 'shippershub') === 'shippershub');
+                        const lcVendors       = allVendors.filter(v => v.vendorType !== 'manifest' && v.portal === 'labelcrow');
+                        const slVendors       = allVendors.filter(v => v.vendorType !== 'manifest' && v.portal === 'shiplabel');
                         const manifestVendors = allVendors.filter(v => v.vendorType === 'manifest');
                         const enabledCount    = allVendors.filter(v => v.isAllowed).length;
                         const isCarrierOpen   = expandedCarriers[carrier] || false;
@@ -1023,10 +1033,13 @@ const ResellerClients: React.FC = () => {
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--navy-900)' }}>{carrier}</div>
                                 <div style={{ fontSize: '0.68rem', color: 'var(--navy-500)' }}>
-                                  {allVendors.length === 0
-                                    ? 'No vendors configured'
-                                    : `${apiVendors.length} API · ${manifestVendors.length} Manifest · ${enabledCount} enabled`
-                                  }
+                                  {allVendors.length === 0 ? 'No vendors configured' : [
+                                    shVendors.length  > 0 && `${shVendors.length} ShippersHub`,
+                                    lcVendors.length  > 0 && `${lcVendors.length} LabelCrow`,
+                                    slVendors.length  > 0 && `${slVendors.length} ShipLabel`,
+                                    manifestVendors.length > 0 && `${manifestVendors.length} Manifest`,
+                                    `${enabledCount} enabled`,
+                                  ].filter(Boolean).join(' · ')}
                                 </div>
                               </div>
                               {allVendors.length > 0 && (
@@ -1047,20 +1060,36 @@ const ResellerClients: React.FC = () => {
                             {isCarrierOpen && (
                               <div style={{ background: '#fff' }}>
 
-                                {/* API Vendors */}
-                                {apiVendors.length > 0 && (
-                                  <>
-                                    <div style={{ padding: '0.35rem 0.875rem', background: 'var(--navy-50)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>API Vendors</span>
-                                    </div>
-                                    {apiVendors.map((vendor, vi) => renderVendorRow(vendor, vi, vi === 0))}
-                                  </>
-                                )}
+                                {([
+                                  { key: 'shippershub', vendors: shVendors },
+                                  { key: 'labelcrow',   vendors: lcVendors },
+                                  { key: 'shiplabel',   vendors: slVendors },
+                                ] as { key: string; vendors: VendorAccess[] }[]).map(({ key, vendors: pvs }) => {
+                                  if (pvs.length === 0) return null;
+                                  const pm   = PORTAL_META[key];
+                                  const pKey = `${carrier}-${key}`;
+                                  const pOpen = expandedPortals[pKey] !== false;
+                                  return (
+                                    <React.Fragment key={key}>
+                                      <div
+                                        onClick={() => setExpandedPortals(p => ({ ...p, [pKey]: !pOpen }))}
+                                        style={{ padding: '0.35rem 0.875rem', background: pm.bg, borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+                                      >
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: pm.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{pm.label}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                          <span style={{ fontSize: '0.58rem', color: pm.color }}>{pvs.length} vendor{pvs.length !== 1 ? 's' : ''}</span>
+                                          {pOpen ? <ChevronUpIcon style={{ width: 11, height: 11, color: pm.color }} /> : <ChevronDownIcon style={{ width: 11, height: 11, color: pm.color }} />}
+                                        </div>
+                                      </div>
+                                      {pOpen && pvs.map((vendor, vi) => renderVendorRow(vendor, vi, vi === 0))}
+                                    </React.Fragment>
+                                  );
+                                })}
 
                                 {/* Manifest Vendors — view only, no Add button for resellers */}
                                 {manifestVendors.length > 0 && (
                                   <>
-                                    <div style={{ padding: '0.35rem 0.875rem', background: 'var(--navy-50)', borderTop: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ padding: '0.35rem 0.875rem', background: 'var(--navy-50)', borderTop: `1px solid ${cfg.border}` }}>
                                       <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Manifest Vendors</span>
                                     </div>
                                     {manifestVendors.map((vendor, vi) => renderVendorRow(vendor, vi, vi === 0))}

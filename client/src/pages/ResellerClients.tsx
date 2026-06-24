@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
@@ -9,6 +9,7 @@ import {
   BanknotesIcon, CurrencyDollarIcon, PhotoIcon,
   ArrowUpTrayIcon, ArrowDownTrayIcon, AdjustmentsHorizontalIcon,
   PlusIcon, ChevronDownIcon, ChevronUpIcon, Bars3Icon, Squares2X2Icon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 interface Client {
@@ -391,6 +392,9 @@ const ResellerClients: React.FC = () => {
             style={{ color: viewMode === 'list' ? 'var(--accent-700)' : undefined, background: viewMode === 'list' ? 'var(--accent-50)' : undefined }}>
             <Bars3Icon style={{ width: 13, height: 13 }} /> List
           </button>
+          <Link to="/reseller/bulk-access" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
+            <ShieldCheckIcon style={{ width: 13, height: 13 }} /> Bulk Access
+          </Link>
           <button className="btn btn-primary btn-sm" onClick={startCreate}>
             <UserPlusIcon style={{ width: 14, height: 14 }} /> New Client
           </button>

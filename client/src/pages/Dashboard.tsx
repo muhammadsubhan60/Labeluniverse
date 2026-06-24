@@ -7,6 +7,7 @@ import {
   UserGroupIcon, ArrowUpRightIcon, ClockIcon, SparklesIcon,
   InformationCircleIcon, ArrowTrendingUpIcon, ChevronDownIcon,
   ArrowUpTrayIcon, CalendarDaysIcon, XMarkIcon,
+  ArrowPathIcon, BellAlertIcon, BanknotesIcon, ExclamationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -36,6 +37,10 @@ interface ResellerStats {
   labels: { total: number; revenue: number; byCarrier: Record<string, number> };
   manifests: { total: number; active: number; completed: number; revenue: number };
   totalClientSpend: number; recentClients: any[];
+  alerts: {
+    topUp:  Array<{ _id: string; firstName: string; lastName: string; email: string; balance: number }>;
+    unpaid: Array<{ _id: string; firstName: string; lastName: string; email: string; balance: number }>;
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -837,10 +842,31 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
 // ── Reseller Dashboard ────────────────────────────────────────────────────────
 const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   const navigate = useNavigate();
-  const [stats, setStats]             = useState<ResellerStats | null>(null);
+  const [stats, setStats]               = useState<ResellerStats | null>(null);
   const [vendorAccess, setVendorAccess] = useState<VendorAccessItem[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
   const [showAddBalance, setShowAddBalance] = useState(false);
+  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
+  const dismissAlert = (id: string) => setDismissedAlerts(prev => prev.includes(id) ? prev : [...prev, id]);
+
+  type RsPeriod = 'all' | 'this_month' | 'last_month' | 'last_3m';
+  const toISO = (d: Date) => d.toISOString().slice(0, 10);
+  const [periodPreset, setPeriodPreset] = useState<RsPeriod>('this_month');
+
+  const getPeriodRange = useCallback((preset: RsPeriod): { from: string; to: string } => {
+    const n = new Date();
+    if (preset === 'this_month') {
+      return { from: toISO(new Date(n.getFullYear(), n.getMonth(), 1)), to: toISO(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
+    }
+    if (preset === 'last_month') {
+      return { from: toISO(new Date(n.getFullYear(), n.getMonth() - 1, 1)), to: toISO(new Date(n.getFullYear(), n.getMonth(), 0)) };
+    }
+    if (preset === 'last_3m') {
+      return { from: toISO(new Date(n.getFullYear(), n.getMonth() - 2, 1)), to: toISO(n) };
+    }
+    return { from: '', to: '' };
+  }, []);
 
   const currentMonthStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; })();
   const [tsMonth,  setTsMonth]  = useState(currentMonthStr);
@@ -863,23 +889,62 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
       .then(r => setTsCounts(r.data)).catch(() => {}).finally(() => setTsLoad(false));
   }, [tsMonth]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showRefresh = false, preset: RsPeriod = periodPreset) => {
+    if (showRefresh) setRefreshing(true);
     try {
-      const [s, a] = await Promise.all([axios.get('/stats'), axios.get('/access/me').catch(() => ({ data: { access: [] } }))]);
+      const { from, to } = getPeriodRange(preset);
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to)   params.to   = to;
+      const [s, a] = await Promise.all([
+        axios.get('/stats', { params }),
+        axios.get('/access/me').catch(() => ({ data: { access: [] } })),
+      ]);
       setStats(s.data);
       setVendorAccess((a.data?.access || []).filter((v: VendorAccessItem) => v.isAllowed));
-    } catch { } finally { setLoading(false); }
-  }, []);
+    } catch { } finally { setLoading(false); setRefreshing(false); }
+  }, [periodPreset, getPeriodRange]);
+
   useEffect(() => { load(); }, [load]);
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>;
   if (!stats) return null;
 
-  const { myBalance, labels, manifests, recentClients, clientCount, activeClients, totalClientSpend } = stats;
+  const { myBalance, labels, manifests, recentClients, clientCount, activeClients, totalClientSpend, alerts } = stats;
   const totalLabels = labels.total || 1;
   const now = new Date();
   const greeting  = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening';
   const dateLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const ownBalanceLow = myBalance.currentBalance < 100;
+
+  const PRESETS_PERIOD = [
+    { key: 'all',        label: 'All Time'   },
+    { key: 'this_month', label: 'This Month' },
+    { key: 'last_month', label: 'Last Month' },
+    { key: 'last_3m',    label: 'Last 3M'   },
+  ] as const;
+
+  const applyPreset = (key: RsPeriod) => { setPeriodPreset(key); load(false, key); };
+  const { from: activeFrom, to: activeTo } = getPeriodRange(periodPreset);
+
+  const visibleTopUp  = (alerts?.topUp  || []).filter(a => !dismissedAlerts.includes(`tu-${a._id}`));
+  const visibleUnpaid = (alerts?.unpaid || []).filter(a => !dismissedAlerts.includes(`up-${a._id}`));
+  const alertsVisible = !dismissedAlerts.includes('__section__') && (visibleTopUp.length + visibleUnpaid.length > 0);
+
+  const alertCardHeader = (accent: string, Icon: React.ElementType, title: string, sub: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0.75rem 1rem', borderBottom: '1px solid var(--navy-100)' }}>
+      <div style={{ width: 28, height: 28, borderRadius: 8, background: `${accent}18`, border: `1px solid ${accent}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Icon style={{ width: 14, height: 14, color: accent }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--navy-900)', fontFamily: FONT }}>{title}</div>
+        <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', fontFamily: FONT, marginTop: 1 }}>{sub}</div>
+      </div>
+      <button onClick={() => navigate('/reseller/clients')} className="btn btn-ghost btn-sm" style={{ fontSize: '0.65rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+        View clients
+      </button>
+    </div>
+  );
 
   const trackTiles = [
     { key: 'not_scanned_yet',    label: 'Not Scanned',     color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
@@ -906,7 +971,172 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontFamily: FONT }}>
 
-      <Hero greeting={greeting} name={firstName} date={dateLabel} />
+      {/* ── Dark Hero + Period filter ──────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)',
+        borderRadius: 18, overflow: 'hidden', position: 'relative',
+      }}>
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.06, backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '22px 22px', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 50% 90% at 8% 50%, rgba(59,130,246,0.14) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+        <div style={{ padding: '1.4rem 2rem', position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' }}>
+          <div>
+            <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: '0.7rem', fontWeight: 500, margin: '0 0 4px', letterSpacing: '0.03em' }}>{dateLabel}</p>
+            <h1 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 3px', lineHeight: 1.15 }}>
+              {greeting}, <span style={{ color: '#60A5FA' }}>{firstName}</span>
+            </h1>
+            <p style={{ color: '#64748B', fontSize: '0.78rem', margin: 0 }}>
+              Reseller overview — {clientCount} client{clientCount !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.63rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0, fontFamily: FONT }}>Period</span>
+
+            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: 2, gap: 1 }}>
+              {PRESETS_PERIOD.map(p => (
+                <button key={p.key} onClick={() => applyPreset(p.key as RsPeriod)} style={{
+                  padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  fontSize: '0.71rem', fontWeight: 700, fontFamily: FONT, transition: 'all 0.12s',
+                  background: periodPreset === p.key ? 'rgba(255,255,255,0.14)' : 'transparent',
+                  color:      periodPreset === p.key ? '#fff' : 'rgba(255,255,255,0.38)',
+                  boxShadow:  periodPreset === p.key ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                }}>{p.label}</button>
+              ))}
+            </div>
+
+            <button onClick={() => load(true)} disabled={refreshing}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '0.45rem 0.85rem', fontSize: '0.75rem', fontWeight: 600, cursor: refreshing ? 'not-allowed' : 'pointer', opacity: refreshing ? 0.7 : 1, fontFamily: FONT }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}>
+              <ArrowPathIcon style={{ width: 13, height: 13, animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+
+            {periodPreset !== 'all' && (
+              <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 99, padding: '3px 10px', fontFamily: FONT, flexShrink: 0 }}>
+                {activeFrom} → {activeTo}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Own Balance Low Banner ─────────────────────────────────────────────── */}
+      {ownBalanceLow && !dismissedAlerts.includes('own-balance') && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.8rem 1rem', borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a', fontFamily: FONT }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fef3c7', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <BanknotesIcon style={{ width: 16, height: 16, color: '#d97706' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.83rem', fontWeight: 800, color: '#92400e' }}>Your balance is running low</div>
+            <div style={{ fontSize: '0.74rem', color: '#b45309', marginTop: 1 }}>
+              Current balance: <strong>{fmt$(myBalance.currentBalance)}</strong> — add funds to continue servicing your clients.
+            </div>
+          </div>
+          <button onClick={() => setShowAddBalance(true)} style={{ padding: '0.4rem 0.85rem', borderRadius: 8, background: '#f59e0b', border: 'none', color: '#fff', fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT, flexShrink: 0, whiteSpace: 'nowrap' }}>
+            Add Balance
+          </button>
+          <button onClick={() => dismissAlert('own-balance')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', display: 'flex', padding: 4 }}>
+            <XMarkIcon style={{ width: 14, height: 14 }} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Alerts Section (Top Up + Unpaid) ──────────────────────────────────── */}
+      {alertsVisible && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 3, height: 13, borderRadius: 3, background: '#ef4444', flexShrink: 0 }} />
+              <BellAlertIcon style={{ width: 13, height: 13, color: '#ef4444' }} />
+              <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: FONT }}>
+                Alerts · {visibleTopUp.length + visibleUnpaid.length}
+              </span>
+            </div>
+            <button onClick={() => dismissAlert('__section__')} className="btn btn-ghost btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.7rem', color: 'var(--navy-400)' }} title="Hide until next refresh">
+              <XMarkIcon style={{ width: 13, height: 13 }} /> Hide
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: visibleTopUp.length && visibleUnpaid.length ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
+
+            {/* Top Up Alert — clients with low balance (0 < balance < $50) */}
+            {visibleTopUp.length > 0 && (
+              <div className="db-card" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#f59e0b', borderRadius: '16px 16px 0 0' }} />
+                {alertCardHeader('#f59e0b', BanknotesIcon, 'Low Balance — Top Up Needed', `${visibleTopUp.length} client${visibleTopUp.length !== 1 ? 's' : ''} below $50`)}
+                <div style={{ padding: '0.35rem 0.6rem 0.5rem', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {visibleTopUp.map(c => (
+                    <div key={c._id}
+                      onClick={() => navigate('/reseller/clients')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.4rem 0.45rem', borderRadius: 8, cursor: 'pointer', transition: 'background 0.12s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#f59e0b,#d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '0.63rem', fontWeight: 800, color: '#fff', fontFamily: FONT }}>{c.firstName?.[0]}{c.lastName?.[0]}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--navy-800)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.firstName} {c.lastName}</div>
+                        <div style={{ fontSize: '0.64rem', color: 'var(--navy-400)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email}</div>
+                      </div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: c.balance <= 10 ? '#ef4444' : '#f59e0b', fontFamily: FONT, flexShrink: 0 }}>{fmt$(c.balance)}</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); dismissAlert(`tu-${c._id}`); }}
+                        style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-400)', flexShrink: 0, transition: 'all 0.12s' }}
+                        onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-100)', color: 'var(--navy-700)' })}
+                        onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-50)', color: 'var(--navy-400)' })}
+                        title="Dismiss"
+                      >
+                        <XMarkIcon style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Unpaid Alert — clients with $0 balance (cannot ship) */}
+            {visibleUnpaid.length > 0 && (
+              <div className="db-card" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#ef4444', borderRadius: '16px 16px 0 0' }} />
+                {alertCardHeader('#ef4444', ExclamationCircleIcon, 'Zero Balance — Unpaid', `${visibleUnpaid.length} client${visibleUnpaid.length !== 1 ? 's' : ''} cannot ship`)}
+                <div style={{ padding: '0.35rem 0.6rem 0.5rem', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {visibleUnpaid.map(c => (
+                    <div key={c._id}
+                      onClick={() => navigate('/reseller/clients')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.4rem 0.45rem', borderRadius: 8, cursor: 'pointer', transition: 'background 0.12s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#ef4444,#dc2626)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '0.63rem', fontWeight: 800, color: '#fff', fontFamily: FONT }}>{c.firstName?.[0]}{c.lastName?.[0]}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--navy-800)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.firstName} {c.lastName}</div>
+                        <div style={{ fontSize: '0.64rem', color: 'var(--navy-400)', fontFamily: FONT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email}</div>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444', background: 'var(--navy-50)', border: '1px solid var(--navy-200)', borderRadius: 6, padding: '2px 8px', fontFamily: FONT, flexShrink: 0 }}>
+                        $0.00 balance
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); dismissAlert(`up-${c._id}`); }}
+                        style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-400)', flexShrink: 0, transition: 'all 0.12s' }}
+                        onMouseEnter={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-100)', color: 'var(--navy-700)' })}
+                        onMouseLeave={e => Object.assign(e.currentTarget.style, { background: 'var(--navy-50)', color: 'var(--navy-400)' })}
+                        title="Dismiss"
+                      >
+                        <XMarkIcon style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="dashboard-layout">
 
@@ -914,14 +1144,14 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
           <div className="dashboard-kpi-3col">
-            <KpiCard label="Total Clients" value={clientCount}          sub={`${activeClients} active`}     color="#8b5cf6" Icon={UserGroupIcon}              onClick={() => navigate('/reseller/clients')} />
-            <KpiCard label="Client Labels" value={labels.total}         sub="Generated by clients"          color="#0ea5e9" Icon={TagIcon} />
-            <KpiCard label="Client Spend"  value={fmt$(totalClientSpend)} sub="Labels + manifest jobs"    color="#f59e0b" Icon={CurrencyDollarIcon} />
+            <KpiCard label="Total Clients" value={clientCount}            sub={`${activeClients} active`}    color="#8b5cf6" Icon={UserGroupIcon}              onClick={() => navigate('/reseller/clients')} />
+            <KpiCard label="Client Labels" value={labels.total}           sub="Generated by clients"         color="#0ea5e9" Icon={TagIcon} />
+            <KpiCard label="Client Spend"  value={fmt$(totalClientSpend)} sub="Labels + manifest jobs"       color="#f59e0b" Icon={CurrencyDollarIcon} />
           </div>
 
           <div className="dashboard-kpi-2col">
-            <KpiCard label="Active Jobs"     value={manifests.active}    sub={`${manifests.completed} completed`} color="#f59e0b" Icon={ClipboardDocumentListIcon} />
-            <KpiCard label="Manifest Revenue" value={fmt$(manifests.revenue)} sub="Total revenue"              color="#22c55e" Icon={ArrowTrendingUpIcon} />
+            <KpiCard label="Active Jobs"      value={manifests.active}        sub={`${manifests.completed} completed`} color="#f59e0b" Icon={ClipboardDocumentListIcon} />
+            <KpiCard label="Manifest Revenue" value={fmt$(manifests.revenue)} sub="Total revenue"                     color="#22c55e" Icon={ArrowTrendingUpIcon} />
           </div>
 
           {/* Client carrier activity */}
@@ -1067,9 +1297,9 @@ const ResellerDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
           <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>
             <SLabel text="Quick Actions" accent="var(--accent-500)" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <QAction label="Manage Clients" sub="Add or edit clients"      Icon={UserGroupIcon}              color="#8b5cf6" onClick={() => navigate('/reseller/clients')} />
-              <QAction label="Single Label"   sub="Generate for a client"    Icon={TagIcon}                   color="#0ea5e9" onClick={() => navigate('/labels/single')} />
-              <QAction label="Bulk Labels"    sub="CSV upload for many"      Icon={ClipboardDocumentListIcon} color="#f59e0b" onClick={() => navigate('/labels/bulk')} />
+              <QAction label="Manage Clients" sub="Add or edit clients"   Icon={UserGroupIcon}              color="#8b5cf6" onClick={() => navigate('/reseller/clients')} />
+              <QAction label="Single Label"   sub="Generate for a client" Icon={TagIcon}                   color="#0ea5e9" onClick={() => navigate('/labels/single')} />
+              <QAction label="Bulk Labels"    sub="CSV upload for many"   Icon={ClipboardDocumentListIcon} color="#f59e0b" onClick={() => navigate('/labels/bulk')} />
             </div>
           </div>
 

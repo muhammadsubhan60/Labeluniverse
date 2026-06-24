@@ -256,8 +256,10 @@ const Layout: React.FC = () => {
     { name: 'Vendors',     href: '/admin/vendors',  icon: BuildingStorefrontIcon, current: location.pathname === '/admin/vendors' },
     { name: 'Settings',    href: '/admin/settings', icon: Cog6ToothIcon,          current: location.pathname === '/admin/settings' },
   ] : user?.role === 'reseller' ? [
-    { name: 'My Clients', href: '/reseller/clients', icon: UserGroupIcon, current: location.pathname.startsWith('/reseller/clients') },
-    { name: 'Finance',    href: '/reseller/finance', icon: BanknotesIcon, current: location.pathname === '/reseller/finance' },
+    { name: 'My Clients',  href: '/reseller/clients',     icon: UserGroupIcon,             current: location.pathname.startsWith('/reseller/clients') },
+    { name: 'Bulk Access', href: '/reseller/bulk-access', icon: UsersIcon,                 current: location.pathname === '/reseller/bulk-access' },
+    { name: 'User Stats',  href: '/reseller/user-stats',  icon: PresentationChartLineIcon, current: location.pathname === '/reseller/user-stats' },
+    { name: 'Finance',     href: '/reseller/finance',     icon: BanknotesIcon,             current: location.pathname === '/reseller/finance' },
   ] : [];
 
   const sections: NavSection[] = [

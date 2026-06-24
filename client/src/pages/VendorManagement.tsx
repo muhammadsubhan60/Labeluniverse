@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
@@ -7,6 +7,7 @@ import {
   CheckCircleIcon, ExclamationCircleIcon, XMarkIcon,
   BanknotesIcon, EyeIcon, EyeSlashIcon,
   UserGroupIcon, ArrowPathIcon, CloudArrowDownIcon,
+  AdjustmentsHorizontalIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -70,27 +71,22 @@ const CARRIER_STYLES: Record<string, { bg: string; color: string; border: string
   DHL:   { bg: '#fef9c3', color: '#713f12', border: '#fef08a' },
 };
 
-// ── Star rating display ────────────────────────────────────────
+// ── Star rating ────────────────────────────────────────────────
 const StarRating = ({ score }: { score: number | null }) => {
-  if (score === null || score === undefined) {
+  if (score === null || score === undefined)
     return <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>No score yet</span>;
-  }
   const stars = [];
   for (let i = 1; i <= 5; i++) {
     const filled = i <= Math.floor(score);
     const half   = !filled && i - 0.5 <= score;
     stars.push(
-      <span key={i} style={{ color: '#f59e0b', fontSize: '0.9rem' }}>
-        {filled || half ? '★' : '☆'}
-      </span>
+      <span key={i} style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{filled || half ? '★' : '☆'}</span>
     );
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       {stars}
-      <span style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginLeft: 4 }}>
-        {score.toFixed(1)}
-      </span>
+      <span style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginLeft: 4 }}>{score.toFixed(1)}</span>
     </div>
   );
 };
@@ -110,22 +106,15 @@ const Modal = ({ title, onClose, children }: { title: string; onClose: () => voi
   </div>
 );
 
-// ── Vendor form ────────────────────────────────────────────────
+// ── Vendor form (manifest) ─────────────────────────────────────
 const VendorForm = ({ form, setForm, isEdit }: { form: FormData; setForm: (f: FormData) => void; isEdit?: boolean }) => {
   const [showPw, setShowPw] = React.useState(false);
   const set = (key: keyof FormData, val: any) => setForm({ ...form, [key]: val });
-
-  const toggleCarrier = (c: string) => {
-    set('carriers', form.carriers.includes(c)
-      ? form.carriers.filter(x => x !== c)
-      : [...form.carriers, c]
-    );
-  };
+  const toggleCarrier = (c: string) =>
+    set('carriers', form.carriers.includes(c) ? form.carriers.filter(x => x !== c) : [...form.carriers, c]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-      {/* Name + email */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <div>
           <label className="form-label">Vendor Name *</label>
@@ -138,8 +127,6 @@ const VendorForm = ({ form, setForm, isEdit }: { form: FormData; setForm: (f: Fo
             onChange={e => set('email', e.target.value)} placeholder="vendor@example.com" />
         </div>
       </div>
-
-      {/* Password + notify email */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <div>
           <label className="form-label">
@@ -164,8 +151,6 @@ const VendorForm = ({ form, setForm, isEdit }: { form: FormData; setForm: (f: Fo
             onChange={e => set('notifyEmail', e.target.value)} placeholder="Same as login if blank" />
         </div>
       </div>
-
-      {/* Carriers */}
       <div>
         <label className="form-label">Supported Carriers *</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -189,8 +174,6 @@ const VendorForm = ({ form, setForm, isEdit }: { form: FormData; setForm: (f: Fo
           <p style={{ fontSize: '0.72rem', color: 'var(--danger-600)', marginTop: 4 }}>Select at least one carrier</p>
         )}
       </div>
-
-      {/* Vendor rate + score override */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <div>
           <label className="form-label">Vendor Rate ($/label)</label>
@@ -200,19 +183,14 @@ const VendorForm = ({ form, setForm, isEdit }: { form: FormData; setForm: (f: Fo
         <div>
           <label className="form-label">Score Override <span style={{ color: 'var(--navy-400)', fontWeight: 400 }}>(1–5, blank = auto)</span></label>
           <input className="form-input" type="number" step="0.5" min="1" max="5"
-            value={form.scoreOverride} onChange={e => set('scoreOverride', e.target.value)}
-            placeholder="Auto" />
+            value={form.scoreOverride} onChange={e => set('scoreOverride', e.target.value)} placeholder="Auto" />
         </div>
       </div>
-
-      {/* Description */}
       <div>
         <label className="form-label">Description / Notes</label>
         <input className="form-input" value={form.description}
           onChange={e => set('description', e.target.value)} placeholder="Optional internal note" />
       </div>
-
-      {/* Active toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <input type="checkbox" id="isActive" checked={form.isActive}
           onChange={e => set('isActive', e.target.checked)}
@@ -229,49 +207,90 @@ const VendorForm = ({ form, setForm, isEdit }: { form: FormData; setForm: (f: Fo
 const VendorManagement: React.FC = () => {
   const { user } = useAuth();
 
-  const [activeTab,     setActiveTab]     = useState<'api' | 'manifest'>('api');
-  const [activePortal,  setActivePortal]  = useState<'shippershub' | 'labelcrow' | 'shiplabel'>('shippershub');
+  const [activeTab,    setActiveTab]    = useState<'api' | 'manifest'>('api');
+  const [activePortal, setActivePortal] = useState<'shippershub' | 'labelcrow' | 'shiplabel'>('shippershub');
 
-  // API vendors (ShippersHub)
-  const [apiVendors,    setApiVendors]    = useState<ApiVendor[]>([]);
-  const [apiLoading,    setApiLoading]    = useState(true);
-  const [importing,     setImporting]     = useState(false);
-  const [editApi,       setEditApi]       = useState<ApiVendor | null>(null);
-  const [apiRate,       setApiRate]       = useState('');
-  const [apiActive,     setApiActive]     = useState(true);
-  const [apiSaving,     setApiSaving]     = useState(false);
-  const [diagLoading,   setDiagLoading]   = useState(false);
-  const [diagData,      setDiagData]      = useState<any[] | null>(null);
-  const [diagError,     setDiagError]     = useState('');
+  // API vendors
+  const [apiVendors,  setApiVendors]  = useState<ApiVendor[]>([]);
+  const [apiLoading,  setApiLoading]  = useState(true);
+  const [importing,   setImporting]   = useState(false);
+  const [editApi,     setEditApi]     = useState<ApiVendor | null>(null);
+  const [apiRate,     setApiRate]     = useState('');
+  const [apiActive,   setApiActive]   = useState(true);
+  const [apiSaving,   setApiSaving]   = useState(false);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagData,    setDiagData]    = useState<any[] | null>(null);
+  const [diagError,   setDiagError]   = useState('');
+  const [lcVendors,   setLcVendors]   = useState<ApiVendor[]>([]);
+  const [lcSyncing,   setLcSyncing]   = useState(false);
+  const [slVendors,   setSlVendors]   = useState<ApiVendor[]>([]);
+  const [slSyncing,   setSlSyncing]   = useState(false);
 
-  // API vendors (Label Crow)
-  const [lcVendors,     setLcVendors]     = useState<ApiVendor[]>([]);
-  const [lcSyncing,     setLcSyncing]     = useState(false);
-
-  // API vendors (ShipLabel)
-  const [slVendors,     setSlVendors]     = useState<ApiVendor[]>([]);
-  const [slSyncing,     setSlSyncing]     = useState(false);
+  // Bulk selection
+  const [selectedIds,     setSelectedIds]     = useState<Set<string>>(new Set());
+  const [bulkModal,       setBulkModal]       = useState(false);
+  const [bulkRate,        setBulkRate]        = useState('');
+  const [bulkRateEnabled, setBulkRateEnabled] = useState(false);
+  const [bulkStatus,      setBulkStatus]      = useState<'keep' | 'activate' | 'deactivate'>('keep');
+  const [bulkSaving,      setBulkSaving]      = useState(false);
 
   // Manifest vendors
-  const [vendors,       setVendors]       = useState<ManifestVendor[]>([]);
-  const [isLoading,     setIsLoading]     = useState(true);
-  const [search,        setSearch]        = useState('');
-  const [showCreate,    setShowCreate]    = useState(false);
-  const [editVendor,    setEditVendor]    = useState<ManifestVendor | null>(null);
-  const [form,          setForm]          = useState<FormData>(BLANK);
-  const [isSubmitting,  setIsSubmitting]  = useState(false);
-  const [message,       setMessage]       = useState('');
-  const [error,         setError]         = useState('');
-  // Payout state
-  const [payoutVendor,  setPayoutVendor]  = useState<ManifestVendor | null>(null);
-  const [payoutAmt,     setPayoutAmt]     = useState('');
-  const [payoutNote,    setPayoutNote]    = useState('');
-  const [payoutBusy,    setPayoutBusy]    = useState(false);
+  const [vendors,      setVendors]      = useState<ManifestVendor[]>([]);
+  const [isLoading,    setIsLoading]    = useState(true);
+  const [search,       setSearch]       = useState('');
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [editVendor,   setEditVendor]   = useState<ManifestVendor | null>(null);
+  const [form,         setForm]         = useState<FormData>(BLANK);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message,      setMessage]      = useState('');
+  const [error,        setError]        = useState('');
+  const [payoutVendor, setPayoutVendor] = useState<ManifestVendor | null>(null);
+  const [payoutAmt,    setPayoutAmt]    = useState('');
+  const [payoutNote,   setPayoutNote]   = useState('');
+  const [payoutBusy,   setPayoutBusy]   = useState(false);
 
   useEffect(() => { fetchVendors(); fetchApiVendors(); }, []);
 
+  // ── Derived (must be before early return so hooks stay unconditional) ──
+  const activeVendors = activePortal === 'shippershub' ? apiVendors
+    : activePortal === 'labelcrow' ? lcVendors
+    : slVendors;
+  const allSelected  = activeVendors.length > 0 && selectedIds.size === activeVendors.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < activeVendors.length;
+  const selectAllRef = useCallback((el: HTMLInputElement | null) => {
+    if (el) el.indeterminate = someSelected;
+  }, [someSelected]);
+
   if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
 
+  // ── Selection handlers ───────────────────────────────────────
+  const switchPortal = (id: typeof activePortal) => { setActivePortal(id); setSelectedIds(new Set()); };
+  const toggleSelect = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleSelectAll = () => setSelectedIds(allSelected ? new Set() : new Set(activeVendors.map(v => v._id)));
+
+  // ── Bulk save ────────────────────────────────────────────────
+  const handleBulkSave = async () => {
+    setBulkSaving(true);
+    try {
+      const payload: any = { ids: Array.from(selectedIds) };
+      if (bulkRateEnabled) payload.rate = parseFloat(bulkRate) || 0;
+      if (bulkStatus !== 'keep') payload.isActive = bulkStatus === 'activate';
+      await axios.post('/vendors/bulk-update', payload);
+      notify(`${selectedIds.size} vendor${selectedIds.size !== 1 ? 's' : ''} updated`);
+      setBulkModal(false);
+      setSelectedIds(new Set());
+      setBulkRate(''); setBulkRateEnabled(false); setBulkStatus('keep');
+      fetchApiVendors();
+    } catch (err: any) {
+      notify(err.response?.data?.message || 'Bulk update failed', true);
+    } finally { setBulkSaving(false); }
+  };
+
+  // ── API vendor handlers ──────────────────────────────────────
   const fetchApiVendors = async () => {
     setApiLoading(true);
     try {
@@ -288,26 +307,19 @@ const VendorManagement: React.FC = () => {
     setImporting(true);
     try {
       const res = await axios.post('/vendors/import-from-shippershub');
-      notify(res.data.message || 'Sync complete');
-      fetchApiVendors();
+      notify(res.data.message || 'Sync complete'); fetchApiVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Sync failed', true); }
     finally { setImporting(false); }
   };
 
-  const openEditApi = (v: ApiVendor) => {
-    setEditApi(v);
-    setApiRate(String(v.rate));
-    setApiActive(v.isActive);
-  };
+  const openEditApi = (v: ApiVendor) => { setEditApi(v); setApiRate(String(v.rate)); setApiActive(v.isActive); };
 
   const handleSaveApi = async () => {
     if (!editApi) return;
     setApiSaving(true);
     try {
       await axios.put(`/vendors/${editApi._id}`, { rate: parseFloat(apiRate) || 0, isActive: apiActive });
-      notify('Vendor updated');
-      setEditApi(null);
-      fetchApiVendors();
+      notify('Vendor updated'); setEditApi(null); fetchApiVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Update failed', true); }
     finally { setApiSaving(false); }
   };
@@ -316,8 +328,7 @@ const VendorManagement: React.FC = () => {
     if (!window.confirm(`Delete "${v.name}"?`)) return;
     try {
       await axios.delete(`/vendors/${v._id}`);
-      notify('Vendor deleted');
-      fetchApiVendors();
+      notify('Vendor deleted'); fetchApiVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Delete failed', true); }
   };
 
@@ -335,8 +346,7 @@ const VendorManagement: React.FC = () => {
     setLcSyncing(true);
     try {
       const res = await axios.post('/vendors/import-from-labelcrow');
-      notify(res.data.message || 'Label Crow sync complete');
-      fetchApiVendors();
+      notify(res.data.message || 'Label Crow sync complete'); fetchApiVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Label Crow sync failed', true); }
     finally { setLcSyncing(false); }
   };
@@ -345,12 +355,12 @@ const VendorManagement: React.FC = () => {
     setSlSyncing(true);
     try {
       const res = await axios.post('/vendors/import-from-shiplabel');
-      notify(res.data.message || 'ShipLabel sync complete');
-      fetchApiVendors();
+      notify(res.data.message || 'ShipLabel sync complete'); fetchApiVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'ShipLabel sync failed', true); }
     finally { setSlSyncing(false); }
   };
 
+  // ── Manifest vendor handlers ─────────────────────────────────
   const fetchVendors = async () => {
     setIsLoading(true);
     try {
@@ -365,7 +375,6 @@ const VendorManagement: React.FC = () => {
     setTimeout(() => { setMessage(''); setError(''); }, 4000);
   };
 
-  // ── Create ──────────────────────────────────────────────────
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.carriers.length === 0) { notify('Select at least one carrier', true); return; }
@@ -374,22 +383,17 @@ const VendorManagement: React.FC = () => {
       const payload: any = { ...form, scoreOverride: form.scoreOverride !== '' ? parseFloat(form.scoreOverride) : null };
       if (!payload.password) delete payload.password;
       await axios.post('/manifest-vendors', payload);
-      notify('Vendor created');
-      setShowCreate(false); setForm(BLANK); fetchVendors();
+      notify('Vendor created'); setShowCreate(false); setForm(BLANK); fetchVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Failed to create vendor', true); }
     finally { setIsSubmitting(false); }
   };
 
-  // ── Edit ────────────────────────────────────────────────────
   const openEdit = (v: ManifestVendor) => {
     setEditVendor(v);
     setForm({
-      name: v.name, email: v.email, password: '',
-      notifyEmail: v.notifyEmail || '',
-      carriers: v.carriers || [],
-      vendorRate: v.vendorRate || 0,
-      description: v.description || '',
-      isActive: v.isActive,
+      name: v.name, email: v.email, password: '', notifyEmail: v.notifyEmail || '',
+      carriers: v.carriers || [], vendorRate: v.vendorRate || 0,
+      description: v.description || '', isActive: v.isActive,
       scoreOverride: v.scoreOverride !== null && v.scoreOverride !== undefined ? String(v.scoreOverride) : '',
     });
   };
@@ -403,57 +407,73 @@ const VendorManagement: React.FC = () => {
       const payload: any = { ...form, scoreOverride: form.scoreOverride !== '' ? parseFloat(form.scoreOverride) : null };
       if (!payload.password) delete payload.password;
       await axios.put(`/manifest-vendors/${editVendor._id}`, payload);
-      notify('Vendor updated');
-      setEditVendor(null); setForm(BLANK); fetchVendors();
+      notify('Vendor updated'); setEditVendor(null); setForm(BLANK); fetchVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Failed to update vendor', true); }
     finally { setIsSubmitting(false); }
   };
 
-  // ── Delete ──────────────────────────────────────────────────
   const handleDelete = async (v: ManifestVendor) => {
     if (!window.confirm(`Delete "${v.name}"? This cannot be undone.`)) return;
     try {
       await axios.delete(`/manifest-vendors/${v._id}`);
-      notify('Vendor deleted');
-      fetchVendors();
+      notify('Vendor deleted'); fetchVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Failed to delete', true); }
   };
 
-  // ── Toggle active ───────────────────────────────────────────
   const handleToggle = async (v: ManifestVendor) => {
     try {
       await axios.put(`/manifest-vendors/${v._id}`, { isActive: !v.isActive });
-      notify(`${v.name} ${!v.isActive ? 'activated' : 'deactivated'}`);
-      fetchVendors();
+      notify(`${v.name} ${!v.isActive ? 'activated' : 'deactivated'}`); fetchVendors();
     } catch { notify('Failed to update status', true); }
   };
 
-  // ── Payout ──────────────────────────────────────────────────
   const handlePayout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payoutVendor) return;
     setPayoutBusy(true);
     try {
-      await axios.post(`/manifest-vendors/${payoutVendor._id}/payout`, {
-        amount: parseFloat(payoutAmt),
-        note:   payoutNote,
-      });
-      notify('Payout recorded');
-      setPayoutVendor(null); setPayoutAmt(''); setPayoutNote('');
-      fetchVendors();
+      await axios.post(`/manifest-vendors/${payoutVendor._id}/payout`, { amount: parseFloat(payoutAmt), note: payoutNote });
+      notify('Payout recorded'); setPayoutVendor(null); setPayoutAmt(''); setPayoutNote(''); fetchVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Payout failed', true); }
     finally { setPayoutBusy(false); }
   };
 
-  // ── Filtered ────────────────────────────────────────────────
-  const filtered = vendors.filter(v =>
-    !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.email.toLowerCase().includes(search.toLowerCase())
-  );
-
+  const filtered  = vendors.filter(v => !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.email.toLowerCase().includes(search.toLowerCase()));
   const totalOwed = vendors.reduce((s, v) => s + (v.payableBalance || 0), 0);
 
+  // ── Portal config ────────────────────────────────────────────
+  const PORTALS = [
+    { id: 'shippershub' as const, label: 'ShippersHub', count: apiVendors.length, accent: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', syncing: importing,  onSync: handleImportShippersHub, syncLabel: 'Sync from ShippersHub', desc: 'API vendors synced from your ShippersHub account' },
+    { id: 'labelcrow'   as const, label: 'Label Crow',  count: lcVendors.length,  accent: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', syncing: lcSyncing,   onSync: handleSyncLabelCrow,     syncLabel: 'Sync from Label Crow',  desc: 'USPS vendors · each series × provider key combo' },
+    { id: 'shiplabel'   as const, label: 'ShipLabel',   count: slVendors.length,  accent: '#059669', bg: '#ECFDF5', border: '#A7F3D0', syncing: slSyncing,   onSync: handleSyncShipLabel,     syncLabel: 'Sync from ShipLabel',   desc: 'USPS vendors synced from shiplabel.net' },
+  ];
+  const portal = PORTALS.find(p => p.id === activePortal)!;
+
+  // ── Reusable checkbox cell/header ────────────────────────────
+  const cbStyle: React.CSSProperties = { width: 15, height: 15, accentColor: 'var(--accent-600)', cursor: 'pointer', flexShrink: 0 };
+  const checkTh = (
+    <th style={{ width: 44, paddingLeft: 12, paddingRight: 0 }}>
+      <input type="checkbox" ref={selectAllRef} checked={allSelected} onChange={toggleSelectAll} style={cbStyle} title={allSelected ? 'Deselect all' : 'Select all'} />
+    </th>
+  );
+  const checkTd = (id: string) => (
+    <td style={{ width: 44, paddingLeft: 12, paddingRight: 0 }} onClick={e => e.stopPropagation()}>
+      <input type="checkbox" checked={selectedIds.has(id)} onChange={() => toggleSelect(id)} style={cbStyle} />
+    </td>
+  );
+
+  // ── Render ────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }} className="animate-fadeIn">
+
+      <style>{`
+        .sh-table tbody tr { transition: background 120ms; }
+        .sh-table tbody tr:hover { background: var(--navy-25, #f8fafc); }
+        .sh-table tbody tr.row-selected { background: #eff6ff; }
+        .sh-table tbody tr.row-selected:hover { background: #dbeafe; }
+        .vnd-btn { background: none; border: none; cursor: pointer; padding: 5px; border-radius: 5px; transition: background 120ms, color 120ms; display: flex; align-items: center; }
+        .vnd-btn:hover { background: var(--navy-100, #f1f5f9); }
+      `}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -467,8 +487,7 @@ const VendorManagement: React.FC = () => {
           </button>
         )}
         {activeTab === 'api' && (
-          <button className="btn btn-ghost" onClick={handleDiagnose} disabled={diagLoading}
-            title="Check live connection to ShippersHub">
+          <button className="btn btn-ghost" onClick={handleDiagnose} disabled={diagLoading} title="Check live connection to ShippersHub">
             {diagLoading
               ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Checking…</>
               : <><MagnifyingGlassIcon style={{ width: 16, height: 16 }} /> Check Connection</>
@@ -492,8 +511,8 @@ const VendorManagement: React.FC = () => {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid var(--navy-100)', paddingBottom: 0 }}>
         {([
-          { key: 'api',      label: `API Vendors  ${(apiVendors.length + lcVendors.length + slVendors.length) > 0 ? `· ${apiVendors.length + lcVendors.length + slVendors.length}` : ''}` },
-          { key: 'manifest', label: `Manifest Vendors  ${vendors.length > 0 ? `· ${vendors.length}` : ''}` },
+          { key: 'api',      label: `API Vendors${(apiVendors.length + lcVendors.length + slVendors.length) > 0 ? ` · ${apiVendors.length + lcVendors.length + slVendors.length}` : ''}` },
+          { key: 'manifest', label: `Manifest Vendors${vendors.length > 0 ? ` · ${vendors.length}` : ''}` },
         ] as { key: 'api' | 'manifest'; label: string }[]).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
             padding: '0.55rem 1.1rem', fontSize: '0.82rem', fontWeight: 600, border: 'none', cursor: 'pointer',
@@ -507,454 +526,466 @@ const VendorManagement: React.FC = () => {
       </div>
 
       {/* ── API Vendors Tab ──────────────────────────────────── */}
-      {activeTab === 'api' && (() => {
-        const PORTALS = [
-          {
-            id:       'shippershub' as const,
-            label:    'ShippersHub',
-            count:    apiVendors.length,
-            accent:   '#1D4ED8',
-            bg:       '#EFF6FF',
-            border:   '#BFDBFE',
-            syncing:  importing,
-            onSync:   handleImportShippersHub,
-            syncLabel:'Sync from ShippersHub',
-            desc:     'API vendors synced from your ShippersHub account',
-          },
-          {
-            id:       'labelcrow' as const,
-            label:    'Label Crow',
-            count:    lcVendors.length,
-            accent:   '#7C3AED',
-            bg:       '#F5F3FF',
-            border:   '#DDD6FE',
-            syncing:  lcSyncing,
-            onSync:   handleSyncLabelCrow,
-            syncLabel:'Sync from Label Crow',
-            desc:     'USPS vendors · each series × provider key combo',
-          },
-          {
-            id:       'shiplabel' as const,
-            label:    'ShipLabel',
-            count:    slVendors.length,
-            accent:   '#059669',
-            bg:       '#ECFDF5',
-            border:   '#A7F3D0',
-            syncing:  slSyncing,
-            onSync:   handleSyncShipLabel,
-            syncLabel:'Sync from ShipLabel',
-            desc:     'USPS vendors synced from shiplabel.net',
-          },
-        ];
-        const portal = PORTALS.find(p => p.id === activePortal)!;
+      {activeTab === 'api' && (
+        <>
+          {/* Portal selector */}
+          <div className="sh-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--navy-100)' }}>
+              {PORTALS.map(p => {
+                const active = activePortal === p.id;
+                return (
+                  <button key={p.id} onClick={() => switchPortal(p.id)} style={{
+                    flex: 1, padding: '0.75rem 0.5rem', border: 'none', cursor: 'pointer',
+                    background: active ? p.bg : '#fff',
+                    borderBottom: active ? `2.5px solid ${p.accent}` : '2.5px solid transparent',
+                    transition: 'all 0.12s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: active ? p.accent : 'var(--navy-500)' }}>{p.label}</span>
+                    <span style={{
+                      fontSize: '0.68rem', fontWeight: 700,
+                      background: active ? p.accent : 'var(--navy-100)',
+                      color: active ? '#fff' : 'var(--navy-500)',
+                      padding: '1px 8px', borderRadius: 99, transition: 'all 0.12s',
+                    }}>
+                      {p.count} vendor{p.count !== 1 ? 's' : ''}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', background: portal.bg }}>
+              <span style={{ fontSize: '0.78rem', color: portal.accent, fontWeight: 600 }}>{portal.desc}</span>
+              <button onClick={portal.onSync} disabled={portal.syncing} style={{
+                display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                padding: '6px 14px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
+                border: `1.5px solid ${portal.accent}`,
+                background: portal.syncing ? portal.bg : portal.accent,
+                color: portal.syncing ? portal.accent : '#fff',
+                cursor: portal.syncing ? 'not-allowed' : 'pointer',
+                opacity: portal.syncing ? 0.75 : 1, transition: 'all 0.15s',
+              }}>
+                {portal.syncing
+                  ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderColor: `${portal.accent}40`, borderTopColor: portal.accent }} /> Syncing…</>
+                  : <><ArrowPathIcon style={{ width: 13, height: 13 }} /> {portal.syncLabel}</>
+                }
+              </button>
+            </div>
+          </div>
 
-        return (
-          <>
-            {/* ── Portal selector card ─────────────────────────── */}
-            <div className="sh-card" style={{ padding: 0, overflow: 'hidden' }}>
-
-              {/* Portal pills row */}
-              <div style={{ display: 'flex', borderBottom: '1px solid var(--navy-100)' }}>
-                {PORTALS.map(p => {
-                  const active = activePortal === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => setActivePortal(p.id)}
-                      style={{
-                        flex: 1, padding: '0.75rem 0.5rem', border: 'none', cursor: 'pointer',
-                        background: active ? p.bg : '#fff',
-                        borderBottom: active ? `2.5px solid ${p.accent}` : '2.5px solid transparent',
-                        transition: 'all 0.12s',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                      }}
-                    >
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: active ? p.accent : 'var(--navy-500)' }}>
-                        {p.label}
-                      </span>
-                      <span style={{
-                        fontSize: '0.68rem', fontWeight: 700,
-                        background: active ? p.accent : 'var(--navy-100)',
-                        color: active ? '#fff' : 'var(--navy-500)',
-                        padding: '1px 8px', borderRadius: 99, transition: 'all 0.12s',
-                      }}>
-                        {p.count} vendor{p.count !== 1 ? 's' : ''}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Active portal header: description + sync button */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', background: portal.bg }}>
-                <span style={{ fontSize: '0.78rem', color: portal.accent, fontWeight: 600 }}>{portal.desc}</span>
-                <button
-                  onClick={portal.onSync}
-                  disabled={portal.syncing}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                    padding: '6px 14px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
-                    border: `1.5px solid ${portal.accent}`,
-                    background: portal.syncing ? portal.bg : portal.accent,
-                    color: portal.syncing ? portal.accent : '#fff',
-                    cursor: portal.syncing ? 'not-allowed' : 'pointer',
-                    opacity: portal.syncing ? 0.75 : 1, transition: 'all 0.15s',
-                  }}
-                >
-                  {portal.syncing
-                    ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderColor: `${portal.accent}40`, borderTopColor: portal.accent }} /> Syncing…</>
-                    : <><ArrowPathIcon style={{ width: 13, height: 13 }} /> {portal.syncLabel}</>
-                  }
+          {/* Diagnostics (ShippersHub only) */}
+          {activePortal === 'shippershub' && (diagData !== null || diagError) && (
+            <div className="sh-card" style={{ padding: '1rem 1.25rem', border: diagError ? '1.5px solid #fca5a5' : '1.5px solid #bbf7d0', background: diagError ? '#fff5f5' : '#f0fdf4' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: '0.82rem', color: diagError ? '#b91c1c' : '#15803d' }}>
+                  {diagError ? '✗ Connection failed' : `✓ ShippersHub connected — ${diagData!.length} carrier(s) found`}
+                </span>
+                <button onClick={() => { setDiagData(null); setDiagError(''); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 2 }}>
+                  <XMarkIcon style={{ width: 14, height: 14 }} />
                 </button>
               </div>
-            </div>
-
-            {/* ── Diagnostics (ShippersHub only) ──────────────── */}
-            {activePortal === 'shippershub' && (diagData !== null || diagError) && (
-              <div className="sh-card" style={{ padding: '1rem 1.25rem', border: diagError ? '1.5px solid #fca5a5' : '1.5px solid #bbf7d0', background: diagError ? '#fff5f5' : '#f0fdf4' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.82rem', color: diagError ? '#b91c1c' : '#15803d' }}>
-                    {diagError ? '✗ Connection failed' : `✓ ShippersHub connected — ${diagData!.length} carrier(s) found`}
-                  </span>
-                  <button onClick={() => { setDiagData(null); setDiagError(''); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 2 }}>
-                    <XMarkIcon style={{ width: 14, height: 14 }} />
-                  </button>
+              {diagError && <p style={{ fontSize: '0.82rem', color: '#b91c1c', margin: 0 }}>{diagError}</p>}
+              {diagData && diagData.map((carrier: any) => (
+                <div key={carrier._id || carrier.id} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-700)', marginBottom: 4 }}>
+                    {carrier.name} — Carrier ID: <code style={{ background: '#e0f2fe', padding: '1px 5px', borderRadius: 3, fontSize: '0.75rem' }}>{carrier._id || carrier.id || '?'}</code>
+                  </div>
+                  {(carrier.vendors || []).length === 0
+                    ? <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>No vendors found for this carrier</div>
+                    : (carrier.vendors || []).map((v: any) => (
+                        <div key={v._id || v.id} style={{ fontSize: '0.72rem', color: 'var(--navy-600)', display: 'flex', gap: 8, marginBottom: 2 }}>
+                          <span style={{ fontWeight: 600 }}>{v.name}</span>
+                          <span>Vendor ID: <code style={{ background: '#e0f2fe', padding: '1px 4px', borderRadius: 3 }}>{v._id || v.id || '?'}</code></span>
+                          <span style={{ color: 'var(--navy-400)' }}>{v.status || ''}</span>
+                        </div>
+                      ))
+                  }
                 </div>
-                {diagError && <p style={{ fontSize: '0.82rem', color: '#b91c1c', margin: 0 }}>{diagError}</p>}
-                {diagData && diagData.map((carrier: any) => (
-                  <div key={carrier._id || carrier.id} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-700)', marginBottom: 4 }}>
-                      {carrier.name} — Carrier ID: <code style={{ background: '#e0f2fe', padding: '1px 5px', borderRadius: 3, fontSize: '0.75rem' }}>{carrier._id || carrier.id || '?'}</code>
-                    </div>
-                    {(carrier.vendors || []).length === 0
-                      ? <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>No vendors found for this carrier</div>
-                      : (carrier.vendors || []).map((v: any) => (
-                          <div key={v._id || v.id} style={{ fontSize: '0.72rem', color: 'var(--navy-600)', display: 'flex', gap: 8, marginBottom: 2 }}>
-                            <span style={{ fontWeight: 600 }}>{v.name}</span>
-                            <span>Vendor ID: <code style={{ background: '#e0f2fe', padding: '1px 4px', borderRadius: 3 }}>{v._id || v.id || '?'}</code></span>
-                            <span style={{ color: 'var(--navy-400)' }}>{v.status || ''}</span>
-                          </div>
-                        ))
-                    }
-                  </div>
-                ))}
-                {diagData && diagData.length > 0 && (
-                  <p style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginTop: 8, marginBottom: 0 }}>
-                    If the IDs above don't match what's stored in your vendors, click <strong>Sync from ShippersHub</strong> to re-import.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* ── Vendor table ─────────────────────────────────── */}
-            <div className="sh-card">
-              {apiLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
-              ) : activePortal === 'shippershub' ? (
-                apiVendors.length === 0 ? (
-                  <div className="empty-state">
-                    <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#93C5FD' }} />
-                    <h3>No ShippersHub vendors yet</h3>
-                    <p>Click <strong>Sync from ShippersHub</strong> above to import your carriers and vendors.</p>
-                  </div>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="sh-table">
-                      <thead><tr><th>Vendor Name</th><th>Carrier</th><th>Service</th><th>Rate</th><th>Status</th><th></th></tr></thead>
-                      <tbody>
-                        {apiVendors.map(v => (
-                          <tr key={v._id}>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span>
-                                {(!v.shippershubCarrierId || !v.shippershubVendorId) && (
-                                  <span title="Missing IDs — re-sync to fix"
-                                    style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 5px', fontSize: '0.65rem', fontWeight: 700, cursor: 'help' }}>
-                                    ⚠ IDs missing
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 1 }}>
-                                C: {v.shippershubCarrierId || <span style={{ color: '#dc2626' }}>—</span>} · V: {v.shippershubVendorId || <span style={{ color: '#dc2626' }}>—</span>}
-                              </div>
-                            </td>
-                            <td>{(() => { const s = CARRIER_STYLES[v.carrier] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' }; return <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{v.carrier}</span>; })()}</td>
-                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shippingService || '—'}</td>
-                            <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
-                            <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
-                            <td>
-                              <div style={{ display: 'flex', gap: 2 }}>
-                                <button onClick={() => openEditApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1D4ED8', padding: 5, borderRadius: 4 }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
-                                <button onClick={() => handleDeleteApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              ) : activePortal === 'labelcrow' ? (
-                lcVendors.length === 0 ? (
-                  <div className="empty-state">
-                    <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#C4B5FD' }} />
-                    <h3>No Label Crow vendors yet</h3>
-                    <p>Click <strong>Sync from Label Crow</strong> above to import all series × provider combinations.</p>
-                  </div>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="sh-table">
-                      <thead><tr><th>Vendor Name</th><th>Series ID</th><th>Service</th><th>Provider Key</th><th>Rate</th><th>Status</th><th></th></tr></thead>
-                      <tbody>
-                        {lcVendors.map(v => (
-                          <tr key={v._id}>
-                            <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
-                            <td><code style={{ background: '#ede9fe', color: '#5b21b6', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.labelcrowSeriesId ?? '—'}</code></td>
-                            <td>
-                              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: v.labelcrowServiceClass === 'priority' ? '#e8f0fe' : '#f0fdf4', color: v.labelcrowServiceClass === 'priority' ? '#1a56db' : '#15803d', border: `1px solid ${v.labelcrowServiceClass === 'priority' ? '#bfdbfe' : '#bbf7d0'}` }}>
-                                {v.labelcrowServiceClass ? v.labelcrowServiceClass.charAt(0).toUpperCase() + v.labelcrowServiceClass.slice(1) : '—'}
-                              </span>
-                            </td>
-                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.labelcrowProviderKey || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
-                            <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
-                            <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
-                            <td>
-                              <div style={{ display: 'flex', gap: 2 }}>
-                                <button onClick={() => openEditApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7C3AED', padding: 5, borderRadius: 4 }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
-                                <button onClick={() => handleDeleteApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              ) : (
-                slVendors.length === 0 ? (
-                  <div className="empty-state">
-                    <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#6EE7B7' }} />
-                    <h3>No ShipLabel vendors yet</h3>
-                    <p>Click <strong>Sync from ShipLabel</strong> above to import all services from your account.</p>
-                  </div>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table className="sh-table">
-                      <thead><tr><th>Vendor Name</th><th>Service ID</th><th>Series</th><th>Format</th><th>Rate</th><th>Status</th><th></th></tr></thead>
-                      <tbody>
-                        {slVendors.map(v => (
-                          <tr key={v._id}>
-                            <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
-                            <td><code style={{ background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.shiplabelServiceId ?? '—'}</code></td>
-                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelSeries || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
-                            <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelFormat || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
-                            <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
-                            <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
-                            <td>
-                              <div style={{ display: 'flex', gap: 2 }}>
-                                <button onClick={() => openEditApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#059669', padding: 5, borderRadius: 4 }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
-                                <button onClick={() => handleDeleteApi(v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
+              ))}
+              {diagData && diagData.length > 0 && (
+                <p style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginTop: 8, marginBottom: 0 }}>
+                  If the IDs above don't match what's stored in your vendors, click <strong>Sync from ShippersHub</strong> to re-import.
+                </p>
               )}
             </div>
+          )}
 
-            {/* Edit API vendor modal */}
-            {editApi && (
-              <Modal title={`Edit — ${editApi.name}`} onClose={() => setEditApi(null)}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ padding: '0.75rem 1rem', background: 'var(--navy-25)', borderRadius: 8, border: '1px solid var(--navy-100)', fontSize: '0.82rem', color: 'var(--navy-600)' }}>
-                    <strong>{editApi.carrier}</strong>{editApi.shippingService ? ` · ${editApi.shippingService}` : ''} &mdash;{' '}
-                    {editApi.source === 'labelcrow' ? 'Label Crow vendor' : editApi.source === 'shiplabel' ? 'ShipLabel vendor' : 'ShippersHub vendor'}
-                  </div>
-                  <div>
-                    <label className="form-label">Rate per Label ($)</label>
-                    <input className="form-input" type="number" step="0.01" min="0"
-                      value={apiRate} onChange={e => setApiRate(e.target.value)} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <input type="checkbox" id="apiActive" checked={apiActive}
-                      onChange={e => setApiActive(e.target.checked)}
-                      style={{ width: 16, height: 16, accentColor: 'var(--accent-600)' }} />
-                    <label htmlFor="apiActive" style={{ fontSize: '0.875rem', color: 'var(--navy-700)', cursor: 'pointer' }}>
-                      Active (users can generate labels with this vendor)
+          {/* ── Bulk action bar ── appears when items are selected */}
+          {selectedIds.size > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '0.65rem 1rem',
+              background: `linear-gradient(135deg, ${portal.accent}dd, ${portal.accent})`,
+              borderRadius: 10, color: '#fff',
+              boxShadow: `0 4px 14px ${portal.accent}35`,
+            }}>
+              <input
+                type="checkbox"
+                ref={el => { if (el) el.indeterminate = someSelected; }}
+                checked={allSelected}
+                onChange={toggleSelectAll}
+                style={{ width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }}
+                title="Toggle all"
+              />
+              <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                {selectedIds.size} of {activeVendors.length} selected
+              </span>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={() => { setBulkRate(''); setBulkRateEnabled(false); setBulkStatus('keep'); setBulkModal(true); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 14px', borderRadius: 7, fontSize: '0.78rem', fontWeight: 700,
+                  background: '#fff', color: portal.accent, border: 'none', cursor: 'pointer',
+                  transition: 'opacity 120ms',
+                }}
+              >
+                <AdjustmentsHorizontalIcon style={{ width: 14, height: 14 }} />
+                Bulk Edit
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                title="Clear selection"
+                style={{ background: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer', color: '#fff', borderRadius: 6, padding: '5px 8px', display: 'flex', alignItems: 'center' }}
+              >
+                <XMarkIcon style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+          )}
+
+          {/* Vendor table card */}
+          <div className="sh-card">
+            {apiLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
+            ) : activePortal === 'shippershub' ? (
+              apiVendors.length === 0 ? (
+                <div className="empty-state">
+                  <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#93C5FD' }} />
+                  <h3>No ShippersHub vendors yet</h3>
+                  <p>Click <strong>Sync from ShippersHub</strong> above to import your carriers and vendors.</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="sh-table">
+                    <thead>
+                      <tr>
+                        {checkTh}
+                        <th>Vendor Name</th><th>Carrier</th><th>Service</th><th>Rate</th><th>Status</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {apiVendors.map(v => (
+                        <tr key={v._id} className={selectedIds.has(v._id) ? 'row-selected' : ''}>
+                          {checkTd(v._id)}
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span>
+                              {(!v.shippershubCarrierId || !v.shippershubVendorId) && (
+                                <span title="Missing IDs — re-sync to fix" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 5px', fontSize: '0.65rem', fontWeight: 700, cursor: 'help' }}>IDs missing</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 1 }}>
+                              C: {v.shippershubCarrierId || <span style={{ color: '#dc2626' }}>—</span>} · V: {v.shippershubVendorId || <span style={{ color: '#dc2626' }}>—</span>}
+                            </div>
+                          </td>
+                          <td>{(() => { const s = CARRIER_STYLES[v.carrier] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' }; return <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{v.carrier}</span>; })()}</td>
+                          <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shippingService || '—'}</td>
+                          <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
+                          <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 2 }}>
+                              <button className="vnd-btn" title="Edit" onClick={() => openEditApi(v)} style={{ color: '#1D4ED8' }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
+                              <button className="vnd-btn" title="Delete" onClick={() => handleDeleteApi(v)} style={{ color: 'var(--danger-500)' }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : activePortal === 'labelcrow' ? (
+              lcVendors.length === 0 ? (
+                <div className="empty-state">
+                  <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#C4B5FD' }} />
+                  <h3>No Label Crow vendors yet</h3>
+                  <p>Click <strong>Sync from Label Crow</strong> above to import all series × provider combinations.</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="sh-table">
+                    <thead>
+                      <tr>
+                        {checkTh}
+                        <th>Vendor Name</th><th>Series ID</th><th>Service</th><th>Provider Key</th><th>Rate</th><th>Status</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lcVendors.map(v => (
+                        <tr key={v._id} className={selectedIds.has(v._id) ? 'row-selected' : ''}>
+                          {checkTd(v._id)}
+                          <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
+                          <td><code style={{ background: '#ede9fe', color: '#5b21b6', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.labelcrowSeriesId ?? '—'}</code></td>
+                          <td>
+                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: v.labelcrowServiceClass === 'priority' ? '#e8f0fe' : '#f0fdf4', color: v.labelcrowServiceClass === 'priority' ? '#1a56db' : '#15803d', border: `1px solid ${v.labelcrowServiceClass === 'priority' ? '#bfdbfe' : '#bbf7d0'}` }}>
+                              {v.labelcrowServiceClass ? v.labelcrowServiceClass.charAt(0).toUpperCase() + v.labelcrowServiceClass.slice(1) : '—'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.labelcrowProviderKey || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
+                          <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
+                          <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 2 }}>
+                              <button className="vnd-btn" title="Edit" onClick={() => openEditApi(v)} style={{ color: '#7C3AED' }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
+                              <button className="vnd-btn" title="Delete" onClick={() => handleDeleteApi(v)} style={{ color: 'var(--danger-500)' }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : (
+              slVendors.length === 0 ? (
+                <div className="empty-state">
+                  <CloudArrowDownIcon style={{ width: 40, height: 40, color: '#6EE7B7' }} />
+                  <h3>No ShipLabel vendors yet</h3>
+                  <p>Click <strong>Sync from ShipLabel</strong> above to import all services from your account.</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="sh-table">
+                    <thead>
+                      <tr>
+                        {checkTh}
+                        <th>Vendor Name</th><th>Service ID</th><th>Series</th><th>Format</th><th>Rate</th><th>Status</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {slVendors.map(v => (
+                        <tr key={v._id} className={selectedIds.has(v._id) ? 'row-selected' : ''}>
+                          {checkTd(v._id)}
+                          <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
+                          <td><code style={{ background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.shiplabelServiceId ?? '—'}</code></td>
+                          <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelSeries || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
+                          <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelFormat || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
+                          <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
+                          <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 2 }}>
+                              <button className="vnd-btn" title="Edit" onClick={() => openEditApi(v)} style={{ color: '#059669' }}><PencilIcon style={{ width: 14, height: 14 }} /></button>
+                              <button className="vnd-btn" title="Delete" onClick={() => handleDeleteApi(v)} style={{ color: 'var(--danger-500)' }}><TrashIcon style={{ width: 14, height: 14 }} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </div>
+
+          {/* Single edit modal */}
+          {editApi && (
+            <Modal title={`Edit — ${editApi.name}`} onClose={() => setEditApi(null)}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ padding: '0.75rem 1rem', background: 'var(--navy-25)', borderRadius: 8, border: '1px solid var(--navy-100)', fontSize: '0.82rem', color: 'var(--navy-600)' }}>
+                  <strong>{editApi.carrier}</strong>{editApi.shippingService ? ` · ${editApi.shippingService}` : ''} &mdash;{' '}
+                  {editApi.source === 'labelcrow' ? 'Label Crow vendor' : editApi.source === 'shiplabel' ? 'ShipLabel vendor' : 'ShippersHub vendor'}
+                </div>
+                <div>
+                  <label className="form-label">Rate per Label ($)</label>
+                  <input className="form-input" type="number" step="0.01" min="0"
+                    value={apiRate} onChange={e => setApiRate(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input type="checkbox" id="apiActive" checked={apiActive}
+                    onChange={e => setApiActive(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: 'var(--accent-600)' }} />
+                  <label htmlFor="apiActive" style={{ fontSize: '0.875rem', color: 'var(--navy-700)', cursor: 'pointer' }}>
+                    Active (users can generate labels with this vendor)
+                  </label>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.5rem' }}>
+                <button className="btn btn-ghost" onClick={() => setEditApi(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={handleSaveApi} disabled={apiSaving}>
+                  {apiSaving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </Modal>
+          )}
+
+          {/* Bulk edit modal */}
+          {bulkModal && (
+            <Modal title={`Bulk Edit — ${selectedIds.size} vendor${selectedIds.size !== 1 ? 's' : ''}`} onClose={() => setBulkModal(false)}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ padding: '0.75rem 1rem', background: 'var(--navy-25)', borderRadius: 8, border: '1px solid var(--navy-100)', fontSize: '0.82rem', color: 'var(--navy-600)' }}>
+                  Changes apply to <strong>{selectedIds.size}</strong> selected vendor{selectedIds.size !== 1 ? 's' : ''}. Unchecked fields keep their current values.
+                </div>
+
+                {/* Rate */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <input type="checkbox" id="bulkRateEnable" checked={bulkRateEnabled}
+                      onChange={e => setBulkRateEnabled(e.target.checked)}
+                      style={{ width: 15, height: 15, accentColor: 'var(--accent-600)', cursor: 'pointer' }} />
+                    <label htmlFor="bulkRateEnable" className="form-label" style={{ margin: 0, cursor: 'pointer' }}>
+                      Set Rate per Label ($)
                     </label>
                   </div>
+                  <input className="form-input" type="number" step="0.01" min="0"
+                    disabled={!bulkRateEnabled}
+                    value={bulkRate} onChange={e => setBulkRate(e.target.value)}
+                    placeholder="e.g. 0.40"
+                    style={{ opacity: bulkRateEnabled ? 1 : 0.4, transition: 'opacity 120ms' }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.5rem' }}>
-                  <button className="btn btn-ghost" onClick={() => setEditApi(null)}>Cancel</button>
-                  <button className="btn btn-primary" onClick={handleSaveApi} disabled={apiSaving}>
-                    {apiSaving ? 'Saving…' : 'Save Changes'}
-                  </button>
+
+                {/* Status */}
+                <div>
+                  <label className="form-label">Status</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {([
+                      { val: 'keep'       as const, label: 'Keep current', color: 'var(--accent-600)', bg: '#eff6ff' },
+                      { val: 'activate'   as const, label: 'Activate all',  color: '#15803d',           bg: '#f0fdf4' },
+                      { val: 'deactivate' as const, label: 'Deactivate all', color: '#dc2626',          bg: '#fef2f2' },
+                    ]).map(opt => (
+                      <button key={opt.val} type="button" onClick={() => setBulkStatus(opt.val)} style={{
+                        flex: 1, padding: '7px 0', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
+                        border: `1.5px solid ${bulkStatus === opt.val ? opt.color : 'var(--navy-200)'}`,
+                        background: bulkStatus === opt.val ? opt.bg : 'transparent',
+                        color: bulkStatus === opt.val ? opt.color : 'var(--navy-500)',
+                        cursor: 'pointer', transition: 'all 120ms',
+                      }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </Modal>
-            )}
-          </>
-        );
-      })()}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: '1.5rem' }}>
+                <button className="btn btn-ghost" onClick={() => setBulkModal(false)}>Cancel</button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleBulkSave}
+                  disabled={bulkSaving || (!bulkRateEnabled && bulkStatus === 'keep')}
+                >
+                  {bulkSaving ? 'Saving…' : `Apply to ${selectedIds.size} vendor${selectedIds.size !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </Modal>
+          )}
+        </>
+      )}
 
       {/* ── Manifest Vendors Tab ─────────────────────────────── */}
       {activeTab === 'manifest' && (
         <>
-          {/* Stats row */}
+          {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
-        {[
-          { label: 'Total Vendors',   value: vendors.length,                              color: 'var(--navy-900)' },
-          { label: 'Active',          value: vendors.filter(v => v.isActive).length,       color: 'var(--success-600)' },
-          { label: 'Total Labels',    value: vendors.reduce((s,v)=>s+(v.stats?.totalLabels||0),0).toLocaleString(), color: 'var(--accent-600)' },
-          { label: 'Total Owed',      value: `$${totalOwed.toFixed(2)}`,                  color: totalOwed > 0 ? 'var(--warning-600)' : 'var(--navy-400)' },
-        ].map(s => (
-          <div key={s.label} className="sh-card" style={{ padding: '1rem 1.25rem' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--navy-500)', marginTop: 2 }}>{s.label}</div>
+            {[
+              { label: 'Total Vendors', value: vendors.length,                                                              color: 'var(--navy-900)' },
+              { label: 'Active',        value: vendors.filter(v => v.isActive).length,                                      color: 'var(--success-600)' },
+              { label: 'Total Labels',  value: vendors.reduce((s, v) => s + (v.stats?.totalLabels || 0), 0).toLocaleString(), color: 'var(--accent-600)' },
+              { label: 'Total Owed',    value: `$${totalOwed.toFixed(2)}`,                                                  color: totalOwed > 0 ? 'var(--warning-600)' : 'var(--navy-400)' },
+            ].map(s => (
+              <div key={s.label} className="sh-card" style={{ padding: '1rem 1.25rem' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: s.color }}>{s.value}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--navy-500)', marginTop: 2 }}>{s.label}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Search */}
-      <div className="sh-card" style={{ padding: '0.75rem 1rem' }}>
-        <div style={{ position: 'relative', maxWidth: 360 }}>
-          <MagnifyingGlassIcon style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: 'var(--navy-400)', pointerEvents: 'none' }} />
-          <input className="form-input" style={{ paddingLeft: '2.1rem', fontSize: '0.82rem' }}
-            placeholder="Search by name or email…" value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="sh-card">
-        {isLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
-        ) : filtered.length === 0 ? (
-          <div className="empty-state">
-            <UserGroupIcon style={{ width: 40, height: 40 }} />
-            <h3>No vendors yet</h3>
-            <p>Add your first manifest vendor (Arslan, Mujtaba, etc.) to get started.</p>
+          {/* Search */}
+          <div className="sh-card" style={{ padding: '0.75rem 1rem' }}>
+            <div style={{ position: 'relative', maxWidth: 360 }}>
+              <MagnifyingGlassIcon style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: 'var(--navy-400)', pointerEvents: 'none' }} />
+              <input className="form-input" style={{ paddingLeft: '2.1rem', fontSize: '0.82rem' }}
+                placeholder="Search by name or email…" value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
           </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="sh-table">
-              <thead>
-                <tr>
-                  <th>Vendor</th>
-                  <th>Carriers</th>
-                  <th>Score</th>
-                  <th>KPIs</th>
-                  <th>Vendor Rate</th>
-                  <th>Payable Balance</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(v => (
-                  <tr key={v._id}>
 
-                    {/* Name + email */}
-                    <td>
-                      <div style={{ fontWeight: 700, color: 'var(--navy-900)', fontSize: '0.875rem' }}>{v.name}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>{v.email}</div>
-                      {v.description && <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 2 }}>{v.description}</div>}
-                    </td>
-
-                    {/* Carrier badges */}
-                    <td>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {(v.carriers || []).map(c => {
-                          const s = CARRIER_STYLES[c] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
-                          return (
-                            <span key={c} style={{
-                              padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700,
-                              background: s.bg, color: s.color, border: `1px solid ${s.border}`,
-                            }}>{c}</span>
-                          );
-                        })}
-                      </div>
-                    </td>
-
-                    {/* Star score */}
-                    <td><StarRating score={v.score} /></td>
-
-                    {/* KPIs */}
-                    <td>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--navy-600)', lineHeight: 1.6 }}>
-                        <div>{v.stats?.completedJobs || 0} completed</div>
-                        <div style={{ color: 'var(--navy-400)' }}>{v.stats?.totalLabels || 0} labels</div>
-                      </div>
-                    </td>
-
-                    {/* Vendor rate */}
-                    <td>
-                      <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--success-700)' }}>
-                        ${(v.vendorRate || 0).toFixed(2)}<span style={{ fontWeight: 400, fontSize: '0.68rem', color: 'var(--navy-400)' }}>/label</span>
-                      </div>
-                    </td>
-
-                    {/* Payable balance + payout button */}
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{
-                          fontWeight: 700, fontSize: '0.875rem',
-                          color: (v.payableBalance || 0) > 0 ? 'var(--warning-700)' : 'var(--navy-400)',
-                        }}>
-                          ${(v.payableBalance || 0).toFixed(2)}
-                        </div>
-                        {(v.payableBalance || 0) > 0 && (
-                          <button
-                            className="btn btn-sm btn-ghost"
-                            style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-                            onClick={() => { setPayoutVendor(v); setPayoutAmt(v.payableBalance.toFixed(2)); setPayoutNote(''); }}
-                          >
-                            <BanknotesIcon style={{ width: 11, height: 11 }} /> Pay
-                          </button>
-                        )}
-                      </div>
-                      {v.totalPaidOut > 0 && (
-                        <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 2 }}>
-                          ${(v.totalPaidOut).toFixed(2)} paid total
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Status badge */}
-                    <td>
-                      <span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>
-                        {v.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td>
-                      <div style={{ display: 'flex', gap: 2 }}>
-                        <button title="Edit" onClick={() => openEdit(v)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-600)', padding: 5, borderRadius: 4 }}>
-                          <PencilIcon style={{ width: 15, height: 15 }} />
-                        </button>
-                        <button title={v.isActive ? 'Deactivate' : 'Activate'} onClick={() => handleToggle(v)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: v.isActive ? 'var(--warning-600)' : 'var(--success-600)', padding: 5, borderRadius: 4 }}>
-                          <ArrowPathIcon style={{ width: 15, height: 15 }} />
-                        </button>
-                        <button title="Delete" onClick={() => handleDelete(v)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 5, borderRadius: 4 }}>
-                          <TrashIcon style={{ width: 15, height: 15 }} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Table */}
+          <div className="sh-card">
+            {isLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
+            ) : filtered.length === 0 ? (
+              <div className="empty-state">
+                <UserGroupIcon style={{ width: 40, height: 40 }} />
+                <h3>No vendors yet</h3>
+                <p>Add your first manifest vendor (Arslan, Mujtaba, etc.) to get started.</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="sh-table">
+                  <thead>
+                    <tr>
+                      <th>Vendor</th><th>Carriers</th><th>Score</th><th>KPIs</th>
+                      <th>Vendor Rate</th><th>Payable Balance</th><th>Status</th><th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(v => (
+                      <tr key={v._id}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: 'var(--navy-900)', fontSize: '0.875rem' }}>{v.name}</div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>{v.email}</div>
+                          {v.description && <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 2 }}>{v.description}</div>}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {(v.carriers || []).map(c => {
+                              const s = CARRIER_STYLES[c] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+                              return <span key={c} style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{c}</span>;
+                            })}
+                          </div>
+                        </td>
+                        <td><StarRating score={v.score} /></td>
+                        <td>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--navy-600)', lineHeight: 1.6 }}>
+                            <div>{v.stats?.completedJobs || 0} completed</div>
+                            <div style={{ color: 'var(--navy-400)' }}>{v.stats?.totalLabels || 0} labels</div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--success-700)' }}>
+                            ${(v.vendorRate || 0).toFixed(2)}<span style={{ fontWeight: 400, fontSize: '0.68rem', color: 'var(--navy-400)' }}>/label</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: (v.payableBalance || 0) > 0 ? 'var(--warning-700)' : 'var(--navy-400)' }}>
+                              ${(v.payableBalance || 0).toFixed(2)}
+                            </div>
+                            {(v.payableBalance || 0) > 0 && (
+                              <button className="btn btn-sm btn-ghost" style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                                onClick={() => { setPayoutVendor(v); setPayoutAmt(v.payableBalance.toFixed(2)); setPayoutNote(''); }}>
+                                <BanknotesIcon style={{ width: 11, height: 11 }} /> Pay
+                              </button>
+                            )}
+                          </div>
+                          {v.totalPaidOut > 0 && (
+                            <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 2 }}>${(v.totalPaidOut).toFixed(2)} paid total</div>
+                          )}
+                        </td>
+                        <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 2 }}>
+                            <button title="Edit" onClick={() => openEdit(v)} className="vnd-btn" style={{ color: 'var(--accent-600)' }}><PencilIcon style={{ width: 15, height: 15 }} /></button>
+                            <button title={v.isActive ? 'Deactivate' : 'Activate'} onClick={() => handleToggle(v)} className="vnd-btn" style={{ color: v.isActive ? 'var(--warning-600)' : 'var(--success-600)' }}><ArrowPathIcon style={{ width: 15, height: 15 }} /></button>
+                            <button title="Delete" onClick={() => handleDelete(v)} className="vnd-btn" style={{ color: 'var(--danger-500)' }}><TrashIcon style={{ width: 15, height: 15 }} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-          {/* Create modal */}
           {showCreate && (
             <Modal title="Add Manifest Vendor" onClose={() => setShowCreate(false)}>
               <form onSubmit={handleCreate}>
@@ -969,7 +1000,6 @@ const VendorManagement: React.FC = () => {
             </Modal>
           )}
 
-          {/* Edit modal */}
           {editVendor && (
             <Modal title={`Edit — ${editVendor.name}`} onClose={() => { setEditVendor(null); setForm(BLANK); }}>
               <form onSubmit={handleEdit}>
@@ -984,14 +1014,11 @@ const VendorManagement: React.FC = () => {
             </Modal>
           )}
 
-          {/* Payout modal */}
           {payoutVendor && (
             <Modal title={`Pay Out — ${payoutVendor.name}`} onClose={() => setPayoutVendor(null)}>
               <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'var(--navy-25)', borderRadius: 8, border: '1px solid var(--navy-100)' }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)', marginBottom: 4 }}>Payable Balance</div>
-                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--warning-700)' }}>
-                  ${(payoutVendor.payableBalance || 0).toFixed(2)}
-                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--warning-700)' }}>${(payoutVendor.payableBalance || 0).toFixed(2)}</div>
               </div>
               <form onSubmit={handlePayout}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>

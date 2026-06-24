@@ -9,6 +9,7 @@ const Label            = require('../models/Label');
 const Vendor           = require('../models/Vendor');
 const Balance          = require('../models/Balance');
 const UserVendorAccess = require('../models/UserVendorAccess');
+const User             = require('../models/User');
 const ManifestJob      = require('../models/ManifestJob');
 const { authenticateToken, authorize, authorizeCC } = require('../middleware/auth');
 const shippershub = require('../services/shippershub');
@@ -167,7 +168,12 @@ router.post('/single', authenticateToken, [
     }
 
     const tierRate = isAdmin ? null : access.getRateForWeight(weight);
-    const effectiveRate = tierRate !== null && tierRate !== undefined ? tierRate : vendor.rate;
+    if (!isAdmin && (tierRate === null || tierRate === undefined)) {
+      return res.status(403).json({
+        message: `No rate tier configured for "${vendor.name}". Contact your admin to set up pricing before generating labels.`,
+      });
+    }
+    const effectiveRate = isAdmin ? vendor.rate : tierRate;
 
     // Check user has sufficient balance
     const balance = await Balance.getOrCreateBalance(req.user._id);
@@ -407,15 +413,21 @@ router.post('/bulk', authenticateToken, [
       }
     }
 
-    // Effective rate helper
+    // Effective rate helper — throws if no tier configured for non-admin
     const getRate = (weight) => {
       if (isAdmin) return vendor.rate;
       const tierRate = access.getRateForWeight(weight);
-      return (tierRate !== null && tierRate !== undefined) ? tierRate : vendor.rate;
+      if (tierRate === null || tierRate === undefined) return null;
+      return tierRate;
     };
 
-    // Pre-calculate costs
-    const rowCosts  = labelRows.map(r => getRate(parseFloat(r.weight) || 0));
+    // Pre-calculate costs — block if any row has no tier
+    const rowCosts = labelRows.map(r => getRate(parseFloat(r.weight) || 0));
+    if (!isAdmin && rowCosts.some(c => c === null)) {
+      return res.status(403).json({
+        message: `No rate tier configured for "${vendor.name}". Contact your admin to set up pricing before generating labels.`,
+      });
+    }
     const totalCost = rowCosts.reduce((s, c) => s + c, 0);
 
     const balance = await Balance.getOrCreateBalance(req.user._id);
@@ -1129,6 +1141,54 @@ router.get('/user-stats-bulk', authenticateToken, authorizeCC, async (req, res) 
     res.json({ statsMap });
   } catch (err) {
     console.error('User stats bulk error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ── GET /api/labels/user-stats-bulk-reseller ──────────────────
+// Reseller: label stats scoped to their own clients only
+router.get('/user-stats-bulk-reseller', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+
+    const me = await User.findById(req.user._id).select('clients');
+    const clientIds = me?.clients || [];
+    if (!clientIds.length) return res.json({ statsMap: {} });
+
+    const matchStage = { user: { $in: clientIds } };
+    if (dateFrom || dateTo) {
+      matchStage.createdAt = {};
+      if (dateFrom) matchStage.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   matchStage.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+
+    const rows = await Label.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id:               '$user',
+          total:             { $sum: 1 },
+          delivered:         { $sum: { $cond: [{ $eq: ['$trackingStatus', 'delivered'] },         1, 0] } },
+          in_transit:        { $sum: { $cond: [{ $eq: ['$trackingStatus', 'in_transit'] },        1, 0] } },
+          exception_problem: { $sum: { $cond: [{ $eq: ['$trackingStatus', 'exception_problem'] }, 1, 0] } },
+          not_scanned_yet:   { $sum: { $cond: [{ $in: ['$trackingStatus', ['not_scanned_yet', null]] }, 1, 0] } },
+          voided:            { $sum: { $cond: [{ $eq: ['$trackingStatus', 'voided'] },            1, 0] } },
+          spent:             { $sum: '$price' },
+        },
+      },
+    ]);
+
+    const statsMap = {};
+    for (const row of rows) {
+      if (row._id) statsMap[row._id.toString()] = {
+        total: row.total, delivered: row.delivered, in_transit: row.in_transit,
+        exception_problem: row.exception_problem, not_scanned_yet: row.not_scanned_yet,
+        voided: row.voided, spent: row.spent,
+      };
+    }
+    res.json({ statsMap });
+  } catch (err) {
+    console.error('Reseller user stats bulk error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

@@ -37,7 +37,9 @@ import CCBulkTrackingUpdate from './pages/CommandCenter/CCBulkTrackingUpdate';
 import CCVendorPerformance  from './pages/CommandCenter/CCVendorPerformance';
 import CCUsers              from './pages/CommandCenter/CCUsers';
 import ManifestHistory from './pages/ManifestHistory';
-import ResellerClients from './pages/ResellerClients';
+import ResellerClients    from './pages/ResellerClients';
+import ResellerUserStats  from './pages/ResellerUserStats';
+import ResellerBulkAccess from './pages/ResellerBulkAccess';
 import Finance             from './pages/Finance';
 import CashBook            from './pages/CashBook';
 import FinancialDashboard  from './pages/FinancialDashboard';
@@ -146,8 +148,10 @@ function App() {
                   <Route path="/customers" element={<ShopifyCustomers />} />
 
                   {/* Reseller routes (admin can also access) */}
-                  <Route path="/reseller/clients" element={<AdminOrReseller><ResellerClients /></AdminOrReseller>} />
-                  <Route path="/reseller/finance" element={<AdminOrReseller><Finance /></AdminOrReseller>} />
+                  <Route path="/reseller/clients"     element={<AdminOrReseller><ResellerClients /></AdminOrReseller>} />
+                  <Route path="/reseller/finance"     element={<AdminOrReseller><Finance /></AdminOrReseller>} />
+                  <Route path="/reseller/user-stats"  element={<AdminOrReseller><ResellerUserStats /></AdminOrReseller>} />
+                  <Route path="/reseller/bulk-access" element={<AdminOrReseller><ResellerBulkAccess /></AdminOrReseller>} />
                 </Route>
 
                 {/* Catch all → root domain */}

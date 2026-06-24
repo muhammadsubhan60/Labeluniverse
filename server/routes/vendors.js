@@ -320,18 +320,22 @@ router.post('/import-from-labelcrow', authenticateToken, authorize('admin'), asy
 });
 
 // ── POST /api/vendors/import-from-shiplabel ───────────────────
-// Admin: sync ShipLabel services as Vendor records
+// Admin: sync ShipLabel services as Vendor records.
+// Vendors returned by the API are created/activated; any existing ShipLabel
+// vendor whose service ID is no longer in the API response is deactivated.
 router.post('/import-from-shiplabel', authenticateToken, authorize('admin'), async (req, res) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
     const shiplabel = require('../services/shiplabel');
     const services  = await shiplabel.getServices(tenantId);
 
-    const created = [];
-    const updated = [];
+    const created    = [];
+    const updated    = [];
+    const deactivated = [];
+
+    const liveIds = services.map(s => String(s.id));
 
     for (const svc of services) {
-      // Parse rate from first price range (strip "$" and " lbs")
       const rawPrice = svc.price_ranges?.[0]?.price || '$0';
       const rateVal  = parseFloat(rawPrice.replace(/[^0-9.]/g, '')) || 0;
 
@@ -355,20 +359,57 @@ router.post('/import-from-shiplabel', authenticateToken, authorize('admin'), asy
         created.push(svc.name);
       } else {
         await Vendor.updateOne(filter, {
-          $set: { name: svc.name, shippingService: svc.inferredFormat || existing.shippingService },
+          $set: {
+            name:             svc.name,
+            shippingService:  svc.inferredFormat || existing.shippingService,
+            isActive:         true,
+          },
         });
         updated.push(svc.name);
       }
     }
 
+    // Deactivate any ShipLabel vendors not returned by the API
+    const stale = await Vendor.find({
+      source:   'shiplabel',
+      tenantId,
+      shiplabelServiceId: { $nin: liveIds },
+      isActive: true,
+    });
+    if (stale.length) {
+      await Vendor.updateMany(
+        { source: 'shiplabel', tenantId, shiplabelServiceId: { $nin: liveIds } },
+        { $set: { isActive: false } }
+      );
+      stale.forEach(v => deactivated.push(v.name));
+    }
+
     res.json({
-      message: `ShipLabel sync — ${created.length} added, ${updated.length} updated`,
+      message: `ShipLabel sync — ${created.length} added, ${updated.length} active, ${deactivated.length} deactivated`,
       created,
       updated,
+      deactivated,
     });
   } catch (error) {
     console.error('Import ShipLabel vendors error:', error);
     res.status(502).json({ message: `ShipLabel error: ${error.message}` });
+  }
+});
+
+// ── POST /api/vendors/bulk-update ─────────────────────────────
+router.post('/bulk-update', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { ids, rate, isActive } = req.body;
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ message: 'No vendor IDs provided' });
+    const update = {};
+    if (rate !== undefined) update.rate = parseFloat(rate) || 0;
+    if (isActive !== undefined) update.isActive = Boolean(isActive);
+    if (!Object.keys(update).length) return res.status(400).json({ message: 'Nothing to update' });
+    const result = await Vendor.updateMany({ _id: { $in: ids } }, { $set: update });
+    res.json({ message: `${result.modifiedCount} vendor(s) updated`, modified: result.modifiedCount });
+  } catch (error) {
+    console.error('Bulk update vendors error:', error);
+    res.status(500).json({ message: error.message });
   }
 });
 

@@ -18,7 +18,7 @@ router.get('/', authenticateToken, async (req, res) => {
       const tenantId = req.user.tenantId || req.user._id;
       return res.json(await adminStats(tenantId, { from: req.query.from, to: req.query.to }));
     }
-    if (role === 'reseller') return res.json(await resellerStats(userId));
+    if (role === 'reseller') return res.json(await resellerStats(userId, { from: req.query.from, to: req.query.to }));
     return res.json(await userStats(userId));
   } catch (err) {
     console.error('Stats error:', err);
@@ -214,26 +214,40 @@ async function adminStats(tenantId, { from, to } = {}) {
 }
 
 // ── Reseller ──────────────────────────────────────────────────────────────────
-async function resellerStats(userId) {
+async function resellerStats(userId, { from, to } = {}) {
   const me = await User.findById(userId).select('clients');
   const clientIds = (me?.clients || []).map(id => new mongoose.Types.ObjectId(String(id)));
+
+  const hasPeriod = from || to;
+  const periodFilter = {};
+  if (from) periodFilter.$gte = new Date(from);
+  if (to)   periodFilter.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
 
   const [
     clients,
     myBalance,
     labelGroups,
     manifestGroups,
+    clientAlerts,
   ] = await Promise.all([
     User.find({ _id: { $in: clientIds } }).select('firstName lastName email isActive createdAt').sort({ createdAt: -1 }),
     Balance.getOrCreateBalance(userId),
     Label.aggregate([
-      { $match: { user: { $in: clientIds } } },
+      { $match: { user: { $in: clientIds }, ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $group: { _id: { carrier: '$carrier' }, count: { $sum: 1 }, revenue: { $sum: '$price' } } },
     ]),
     ManifestJob.aggregate([
-      { $match: { user: { $in: clientIds } } },
+      { $match: { user: { $in: clientIds }, ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $group: { _id: '$status', count: { $sum: 1 }, revenue: { $sum: '$userBilling.totalAmount' } } },
     ]),
+    clientIds.length ? Balance.aggregate([
+      { $match: { user: { $in: clientIds }, currentBalance: { $lt: 50 } } },
+      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: '_u' } },
+      { $unwind: '$_u' },
+      { $sort: { currentBalance: 1 } },
+      { $limit: 20 },
+      { $project: { _id: '$_u._id', firstName: '$_u.firstName', lastName: '$_u.lastName', email: '$_u.email', balance: '$currentBalance' } },
+    ]) : Promise.resolve([]),
   ]);
 
   const labelTotals = { total: 0, revenue: 0, byCarrier: {} };
@@ -252,7 +266,6 @@ async function resellerStats(userId) {
     if (g._id === 'completed')            manifestTotals.completed += g.count;
   }
 
-  // compute totals from Balance transactions
   const txns      = myBalance.transactions || [];
   const deposited = txns.filter(t => t.type === 'topup').reduce((s, t) => s + t.amount, 0);
   const spent     = txns.filter(t => t.type === 'deduction').reduce((s, t) => s + t.amount, 0);
@@ -269,6 +282,10 @@ async function resellerStats(userId) {
     manifests: manifestTotals,
     totalClientSpend: labelTotals.revenue + manifestTotals.revenue,
     recentClients: clients.slice(0, 6),
+    alerts: {
+      topUp:  clientAlerts.filter(c => c.balance > 0),
+      unpaid: clientAlerts.filter(c => c.balance <= 0),
+    },
   };
 }
 

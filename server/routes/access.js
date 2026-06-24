@@ -60,7 +60,7 @@ async function resellerOwnsClient(resellerId, clientId) {
 // Bulk enable/disable specific vendors for multiple users at once.
 // Preserves existing rate tiers — only flips isAllowed.
 // Body: { userIds, vendorEntries: [{ vendorId, carrier }], isAllowed }
-router.put('/bulk/vendor-access', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/bulk/vendor-access', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {
   try {
     const { userIds, vendorEntries, isAllowed } = req.body;
     if (!Array.isArray(userIds) || !Array.isArray(vendorEntries)) {
@@ -68,6 +68,14 @@ router.put('/bulk/vendor-access', authenticateToken, authorize('admin'), async (
     }
     if (typeof isAllowed !== 'boolean') {
       return res.status(400).json({ message: 'isAllowed must be a boolean' });
+    }
+
+    // Resellers may only operate on their own clients
+    if (req.user.role === 'reseller') {
+      const me = await User.findById(req.user._id).select('clients');
+      const allowed = (me?.clients || []).map(String);
+      const forbidden = userIds.filter(id => !allowed.includes(String(id)));
+      if (forbidden.length) return res.status(403).json({ message: 'One or more users are not your clients' });
     }
 
     const ops = [];
@@ -100,7 +108,7 @@ router.put('/bulk/vendor-access', authenticateToken, authorize('admin'), async (
 // mode='replace'       → always overwrite tiers (default)
 // mode='skip_existing' → skip records that already have ≥1 tier
 // Auto-enables access (isAllowed: true) for new/existing records.
-router.put('/bulk/rates', authenticateToken, authorize('admin'), async (req, res) => {
+router.put('/bulk/rates', authenticateToken, authorize('admin', 'reseller'), async (req, res) => {
   try {
     const { userIds, vendorEntries, rateTiers, mode = 'replace' } = req.body;
 
@@ -110,6 +118,14 @@ router.put('/bulk/rates', authenticateToken, authorize('admin'), async (req, res
       return res.status(400).json({ message: 'vendorEntries must be a non-empty array' });
     if (!Array.isArray(rateTiers) || !rateTiers.length)
       return res.status(400).json({ message: 'rateTiers must be a non-empty array' });
+
+    // Resellers may only operate on their own clients
+    if (req.user.role === 'reseller') {
+      const me = await User.findById(req.user._id).select('clients');
+      const allowed = (me?.clients || []).map(String);
+      const forbidden = userIds.filter(id => !allowed.includes(String(id)));
+      if (forbidden.length) return res.status(403).json({ message: 'One or more users are not your clients' });
+    }
 
     for (const t of rateTiers) {
       if (t.minLbs < 0) return res.status(400).json({ message: 'Min lbs cannot be negative' });

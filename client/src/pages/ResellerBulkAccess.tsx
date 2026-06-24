@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
   MagnifyingGlassIcon, CheckCircleIcon, ExclamationCircleIcon,
@@ -57,7 +56,6 @@ const CarrierBadge: React.FC<{ carrier: string }> = ({ carrier }) => {
 };
 
 const ResellerBulkAccess: React.FC = () => {
-  const { user: authUser } = useAuth();
   const navigate = useNavigate();
 
   const [clients,      setClients]      = useState<UserRow[]>([]);

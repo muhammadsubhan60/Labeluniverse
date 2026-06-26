@@ -58,9 +58,12 @@ router.post('/register', [
       user.otpExpire = otpExpire;
       await user.save();
     } else {
+      // Assign self-registered users to the main admin's tenant so they appear in the admin panel
+      const mainAdmin = await User.findOne({ email: 'admin@uspslabelportal.com' }).select('_id').lean();
       user = await User.create({
         firstName, lastName, email,
         role: 'user',
+        tenantId: mainAdmin?._id || null,
         emailVerified: false,
         otp: otpHash,
         otpExpire,

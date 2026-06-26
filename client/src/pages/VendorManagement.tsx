@@ -27,6 +27,7 @@ interface ApiVendor {
   shiplabelServiceId:    string | null;
   shiplabelLabelSeries:  string | null;
   shiplabelLabelFormat:  string | null;
+  shiplabelSeries:       Array<{ series: string; format: string; name: string }>;
   createdAt: string;
 }
 
@@ -223,8 +224,11 @@ const VendorManagement: React.FC = () => {
   const [diagError,   setDiagError]   = useState('');
   const [lcVendors,   setLcVendors]   = useState<ApiVendor[]>([]);
   const [lcSyncing,   setLcSyncing]   = useState(false);
-  const [slVendors,   setSlVendors]   = useState<ApiVendor[]>([]);
-  const [slSyncing,   setSlSyncing]   = useState(false);
+  const [slVendors,      setSlVendors]      = useState<ApiVendor[]>([]);
+  const [slSyncing,      setSlSyncing]      = useState(false);
+  const [slLabelSeries,  setSlLabelSeries]  = useState('');
+  const [slLabelFormat,  setSlLabelFormat]  = useState('');
+  const [slSeriesRows,   setSlSeriesRows]   = useState<Array<{ series: string; format: string; name: string }>>([]);
 
   // Bulk selection
   const [selectedIds,     setSelectedIds]     = useState<Set<string>>(new Set());
@@ -312,13 +316,26 @@ const VendorManagement: React.FC = () => {
     finally { setImporting(false); }
   };
 
-  const openEditApi = (v: ApiVendor) => { setEditApi(v); setApiRate(String(v.rate)); setApiActive(v.isActive); };
+  const openEditApi = (v: ApiVendor) => {
+    setEditApi(v);
+    setApiRate(String(v.rate));
+    setApiActive(v.isActive);
+    setSlLabelSeries(v.shiplabelLabelSeries || '');
+    setSlLabelFormat(v.shiplabelLabelFormat || '');
+    setSlSeriesRows(v.shiplabelSeries?.length ? v.shiplabelSeries : []);
+  };
 
   const handleSaveApi = async () => {
     if (!editApi) return;
     setApiSaving(true);
     try {
-      await axios.put(`/vendors/${editApi._id}`, { rate: parseFloat(apiRate) || 0, isActive: apiActive });
+      const payload: any = { rate: parseFloat(apiRate) || 0, isActive: apiActive };
+      if (editApi.source === 'shiplabel') {
+        payload.shiplabelSeries     = slSeriesRows;
+        payload.shiplabelLabelSeries = slLabelSeries;
+        payload.shiplabelLabelFormat = slLabelFormat;
+      }
+      await axios.put(`/vendors/${editApi._id}`, payload);
       notify('Vendor updated'); setEditApi(null); fetchApiVendors();
     } catch (err: any) { notify(err.response?.data?.message || 'Update failed', true); }
     finally { setApiSaving(false); }
@@ -759,7 +776,7 @@ const VendorManagement: React.FC = () => {
                     <thead>
                       <tr>
                         {checkTh}
-                        <th>Vendor Name</th><th>Service ID</th><th>Series</th><th>Format</th><th>Rate</th><th>Status</th><th></th>
+                        <th>Vendor Name</th><th>Service ID</th><th>Series Options</th><th>Rate</th><th>Status</th><th></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -768,8 +785,19 @@ const VendorManagement: React.FC = () => {
                           {checkTd(v._id)}
                           <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
                           <td><code style={{ background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.shiplabelServiceId ?? '—'}</code></td>
-                          <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelSeries || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
-                          <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shiplabelLabelFormat || <span style={{ color: 'var(--navy-300)' }}>—</span>}</td>
+                          <td>
+                            {v.shiplabelSeries?.length ? (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {v.shiplabelSeries.map((s, i) => (
+                                  <span key={i} style={{ background: '#d1fae5', color: '#065f46', padding: '2px 7px', borderRadius: 10, fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                    {s.name || s.series}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--navy-300)', fontSize: '0.82rem' }}>—</span>
+                            )}
+                          </td>
                           <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
                           <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
                           <td>
@@ -800,6 +828,85 @@ const VendorManagement: React.FC = () => {
                   <input className="form-input" type="number" step="0.01" min="0"
                     value={apiRate} onChange={e => setApiRate(e.target.value)} />
                 </div>
+                {editApi.source === 'shiplabel' && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <label className="form-label" style={{ margin: 0 }}>Series Options</label>
+                      <button type="button" className="btn btn-ghost btn-sm"
+                        style={{ fontSize: '0.72rem', padding: '3px 9px', gap: 4 }}
+                        onClick={() => setSlSeriesRows(r => [...r, { series: '', format: '', name: '' }])}>
+                        <PlusIcon style={{ width: 11, height: 11 }} /> Add
+                      </button>
+                    </div>
+                    {slSeriesRows.length === 0 && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--navy-400)', padding: '0.5rem 0' }}>
+                        No series added yet — click Add to create one.
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {slSeriesRows.map((row, i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr 28px', gap: 6, alignItems: 'center' }}>
+                          <select className="form-input"
+                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem' }}
+                            value={row.series}
+                            onChange={e => setSlSeriesRows(r => r.map((x, j) => j === i ? { ...x, series: e.target.value } : x))}>
+                            <option value="">— series —</option>
+                            <option value="9501">9501</option>
+                            <option value="9505">9505</option>
+                            <option value="9559">9559</option>
+                            <option value="91210">91210</option>
+                            <option value="91558">91558</option>
+                            <option value="92019">92019</option>
+                            <option value="92020">92020</option>
+                            <option value="92022">92022</option>
+                            <option value="92612">92612</option>
+                            <option value="93001">93001</option>
+                            <option value="93020">93020</option>
+                            <option value="93055">93055</option>
+                            <option value="94001">94001</option>
+                            <option value="94019">94019</option>
+                            <option value="94888">94888</option>
+                            <option value="95346">95346</option>
+                            <option value="95701">95701</option>
+                            <option value="90940">90940</option>
+                            <option value="19033">19033</option>
+                            <option value="7999">7999</option>
+                            <option value="30210">30210</option>
+                            <option value="949">949</option>
+                          </select>
+                          <select className="form-input"
+                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem' }}
+                            value={row.format}
+                            onChange={e => setSlSeriesRows(r => r.map((x, j) => j === i ? { ...x, format: e.target.value } : x))}>
+                            <option value="">— format —</option>
+                            <option value="usps_priority_pro">Priority Pro</option>
+                            <option value="usps_priority_private">Priority Private</option>
+                            <option value="usps_priority_mail">Priority Mail</option>
+                            <option value="usps_priority_pitneyBow">Priority PitneyBow</option>
+                            <option value="usps_priority_mail_commercial_easypost">Priority EasyPost</option>
+                            <option value="usps_ground_api">Ground API</option>
+                            <option value="click_n_ship">Click-N-Ship</option>
+                            <option value="usps_ground_pro">Ground Pro</option>
+                            <option value="usps_ground_advantage">Ground Advantage</option>
+                          </select>
+                          <input className="form-input" placeholder="Display name"
+                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem' }}
+                            value={row.name}
+                            onChange={e => setSlSeriesRows(r => r.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
+                          <button type="button" onClick={() => setSlSeriesRows(r => r.filter((_, j) => j !== i))}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-500)', padding: 2, display: 'flex', alignItems: 'center' }}>
+                            <XMarkIcon style={{ width: 14, height: 14 }} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {slSeriesRows.length > 0 && (
+                      <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 4 }}>
+                        Series · Format · Display name shown to users
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="checkbox" id="apiActive" checked={apiActive}
                     onChange={e => setApiActive(e.target.checked)}

@@ -20,9 +20,15 @@ function useViewport() {
   return w;
 }
 
+const API_BASE = process.env.REACT_APP_API_URL
+  || (window.location.hostname === 'localhost' ? 'http://localhost:5001/api' : '/api');
+
 const Login: React.FC = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
   const { login, isAuthenticated, isLoading, error, user } = useAuth();
   const navigate = useNavigate();
   const vw = useViewport();
@@ -43,7 +49,29 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try { await login(formData.email, formData.password); } catch {}
+    setNeedsVerification(false);
+    setResendMsg('');
+    try {
+      await login(formData.email, formData.password);
+    } catch (err: any) {
+      if (err.response?.data?.needsVerification) {
+        setNeedsVerification(true);
+      }
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    setResendMsg('');
+    try {
+      const axios = (await import('axios')).default;
+      await axios.post(`${API_BASE}/auth/resend-verification`, { email: formData.email });
+      setResendMsg('Verification email sent. Check your inbox.');
+    } catch {
+      setResendMsg('Failed to resend. Please try again.');
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   const features = [
@@ -319,7 +347,13 @@ const Login: React.FC = () => {
               </div>
             </div>
 
-            {error && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -4 }}>
+              <Link to="/forgot-password" style={{ fontSize: '0.78rem', color: 'var(--accent-500)', fontWeight: 600, textDecoration: 'none', fontFamily: FONT }}>
+                Forgot password?
+              </Link>
+            </div>
+
+            {error && !needsVerification && (
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: 8,
                 padding: '10px 12px',
@@ -330,6 +364,17 @@ const Login: React.FC = () => {
               }}>
                 <ExclamationCircleIcon style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }} />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {needsVerification && (
+              <div style={{ padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: '0.82rem', color: '#92400e', fontFamily: FONT }}>
+                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Email not verified</p>
+                <p style={{ margin: '0 0 8px', fontWeight: 400 }}>Please verify your email before signing in.</p>
+                {resendMsg
+                  ? <p style={{ margin: 0, fontWeight: 600, color: resendMsg.includes('sent') ? '#15803d' : '#dc2626' }}>{resendMsg}</p>
+                  : <button onClick={handleResendVerification} disabled={resendLoading} style={{ background: 'none', border: 'none', padding: 0, color: '#6366f1', fontWeight: 700, cursor: resendLoading ? 'not-allowed' : 'pointer', fontSize: '0.82rem', fontFamily: FONT }}>{resendLoading ? 'Sending...' : 'Resend verification email'}</button>
+                }
               </div>
             )}
 

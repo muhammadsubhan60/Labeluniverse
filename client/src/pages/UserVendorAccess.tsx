@@ -8,9 +8,13 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface RateTier { minLbs: number; maxLbs: number | null; rate: number; }
+interface SlSeriesOption { series: string; format: string; name: string; }
 interface VendorAccess {
   vendorId: string; vendorName: string; carrier: string;
   shippingService: string; vendorRate: number; isAllowed: boolean; rateTiers: RateTier[];
+  portal?: string;
+  shiplabelSeries?: SlSeriesOption[];
+  allowedShiplabelSeries?: string[];
 }
 
 const CARRIERS_ORDER = ['USPS', 'UPS', 'FedEx', 'DHL'];
@@ -75,7 +79,7 @@ const UserVendorAccess: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true); setError('');
     try {
-      const records = access.map(v => ({ vendorId: v.vendorId, carrier: v.carrier, isAllowed: v.isAllowed, rateTiers: v.rateTiers }));
+      const records = access.map(v => ({ vendorId: v.vendorId, carrier: v.carrier, isAllowed: v.isAllowed, rateTiers: v.rateTiers, allowedShiplabelSeries: v.allowedShiplabelSeries || [] }));
       await axios.put(`/access/${userId}/bulk/save`, { records });
       setMessage('Configuration saved successfully');
     } catch (err: any) {
@@ -305,6 +309,43 @@ const UserVendorAccess: React.FC = () => {
                             className="btn btn-ghost btn-sm" style={{ fontSize: '0.72rem', padding: '3px 9px', gap: 4 }}>
                             <PlusIcon style={{ width: 11, height: 11 }} /> Add Tier
                           </button>
+
+                          {/* ShipLabel series permissions */}
+                          {vendor.portal === 'shiplabel' && vendor.shiplabelSeries && vendor.shiplabelSeries.length > 0 && (
+                            <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--navy-100)' }}>
+                              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--navy-600)', marginBottom: '0.5rem' }}>
+                                Allowed Series
+                                <span style={{ marginLeft: 6, fontWeight: 400, color: 'var(--navy-400)' }}>— unchecked series are hidden from this user</span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                {vendor.shiplabelSeries.map(opt => {
+                                  const allowed = vendor.allowedShiplabelSeries || [];
+                                  const checked = allowed.length === 0 || allowed.includes(opt.series);
+                                  return (
+                                    <label key={opt.series} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.78rem', color: 'var(--navy-700)' }}>
+                                      <input type="checkbox" checked={checked}
+                                        style={{ accentColor: cfg.accentColor, cursor: 'pointer' }}
+                                        onChange={() => {
+                                          setAccess(a => a.map(v => {
+                                            if (v.vendorId !== vendor.vendorId) return v;
+                                            const cur = v.allowedShiplabelSeries?.length
+                                              ? v.allowedShiplabelSeries
+                                              : (v.shiplabelSeries || []).map(s => s.series);
+                                            const next = cur.includes(opt.series)
+                                              ? cur.filter(s => s !== opt.series)
+                                              : [...cur, opt.series];
+                                            return { ...v, allowedShiplabelSeries: next };
+                                          }));
+                                        }}
+                                      />
+                                      <span style={{ fontWeight: 600 }}>{opt.series}</span>
+                                      {opt.name && <span style={{ color: 'var(--navy-400)' }}>— {opt.name}</span>}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

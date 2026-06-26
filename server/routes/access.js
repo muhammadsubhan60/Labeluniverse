@@ -24,16 +24,25 @@ async function buildAccessList(userId, isAdmin = false) {
   for (const v of vendors) {
     const key = `${v._id.toString()}:${v.carrier}`;
     const rec = accessMap[key];
+    const allSeries = v.shiplabelSeries || [];
+    // Admin sees all series; users see only their allowed ones (empty allowedShiplabelSeries = all)
+    const allowed = rec ? (rec.allowedShiplabelSeries || []) : [];
+    const userSeries = isAdmin || allowed.length === 0
+      ? allSeries
+      : allSeries.filter(s => allowed.includes(s.series));
+
     result.push({
-      vendorId:        v._id,
-      vendorName:      v.name,
-      carrier:         v.carrier,
-      vendorType:      v.vendorType || 'api',
-      shippingService: v.shippingService || '',
-      baseRate:        v.rate,
-      isAllowed:       isAdmin ? true : (rec ? rec.isAllowed : false),
-      rateTiers:       rec ? rec.rateTiers : [],
-      portal:          v.source === 'labelcrow' ? 'labelcrow' : v.source === 'shiplabel' ? 'shiplabel' : 'shippershub',
+      vendorId:               v._id,
+      vendorName:             v.name,
+      carrier:                v.carrier,
+      vendorType:             v.vendorType || 'api',
+      shippingService:        v.shippingService || '',
+      baseRate:               v.rate,
+      isAllowed:              isAdmin ? true : (rec ? rec.isAllowed : false),
+      rateTiers:              rec ? rec.rateTiers : [],
+      portal:                 v.source === 'labelcrow' ? 'labelcrow' : v.source === 'shiplabel' ? 'shiplabel' : 'shippershub',
+      shiplabelSeries:        userSeries,
+      allowedShiplabelSeries: isAdmin ? allSeries.map(s => s.series) : allowed,
     });
   }
   return result;
@@ -214,11 +223,12 @@ router.put('/:userId/bulk/save', authenticateToken, authorize('admin', 'reseller
       updateOne: {
         filter: { user: userId, vendor: r.vendorId, carrier: r.carrier },
         update: { $set: {
-          user:      userId,
-          vendor:    r.vendorId,
-          carrier:   r.carrier,
-          isAllowed: r.isAllowed,
-          rateTiers: r.rateTiers || [],
+          user:                   userId,
+          vendor:                 r.vendorId,
+          carrier:                r.carrier,
+          isAllowed:              r.isAllowed,
+          rateTiers:              r.rateTiers || [],
+          allowedShiplabelSeries: r.allowedShiplabelSeries || [],
         }},
         upsert: true,
       }

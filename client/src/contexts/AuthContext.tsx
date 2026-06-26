@@ -211,10 +211,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         payload: { user, token },
       });
     } catch (error: any) {
-      console.error('Login error:', error);
       const message = error.response?.data?.message || 'Login failed';
       dispatch({ type: 'AUTH_FAILURE', payload: message });
-      throw new Error(message);
+      throw error;
     }
   };
 

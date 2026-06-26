@@ -48,6 +48,9 @@ const userSchema = new mongoose.Schema({
   },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+  emailVerified: { type: Boolean, default: true },
+  emailVerificationToken: String,
+  emailVerificationExpire: Date,
   // For resellers - track their clients
   clients: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -123,6 +126,8 @@ userSchema.set('toJSON', {
     delete ret.password;
     delete ret.resetPasswordToken;
     delete ret.resetPasswordExpire;
+    delete ret.emailVerificationToken;
+    delete ret.emailVerificationExpire;
     return ret;
   }
 });

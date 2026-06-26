@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
   PlusIcon, PencilIcon, TrashIcon, XMarkIcon,
-  AdjustmentsHorizontalIcon, TagIcon,
-  ArrowDownTrayIcon, EyeIcon, ChevronLeftIcon, ChevronRightIcon,
+  TagIcon, ArrowDownTrayIcon, EyeIcon,
+  ChevronLeftIcon, ChevronRightIcon, BookOpenIcon,
 } from '@heroicons/react/24/outline';
+
+const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +105,12 @@ const CashBook: React.FC = () => {
   const [editCatId,     setEditCatId]     = useState<string | null>(null);
   const [savingCat,     setSavingCat]     = useState(false);
 
+  // ── Payment Log Edit Modal ────────────────────────────────────────────────
+  const [showPmtModal, setShowPmtModal] = useState(false);
+  const [editPmt,      setEditPmt]      = useState<CashBookEntry | null>(null);
+  const [pmtForm,      setPmtForm]      = useState({ amountUSD: '', date: '', note: '', walletId: '' });
+  const [savingPmt,    setSavingPmt]    = useState(false);
+
   // ── Screenshot lightbox ───────────────────────────────────────────────────
   const [lightboxUrls,  setLightboxUrls]  = useState<string[]>([]);
   const [lightboxIdx,   setLightboxIdx]   = useState(0);
@@ -154,7 +163,7 @@ const CashBook: React.FC = () => {
   const fetchCategories = useCallback(async () => {
     try {
       const { data } = await axios.get('/expense-categories');
-      setCategories(data.categories || []);
+      setCategories(Array.isArray(data) ? data : (data.categories || []));
     } catch {}
   }, []);
 
@@ -243,6 +252,47 @@ const CashBook: React.FC = () => {
     }
   };
 
+  const deletePaymentLog = async (id: string) => {
+    if (!window.confirm('Delete this payment log? This cannot be undone.')) return;
+    try {
+      await axios.delete(`/payment-logs/${id}`);
+      fetchEntries();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Cannot delete payment log');
+    }
+  };
+
+  const openPmtModal = (e: CashBookEntry) => {
+    setEditPmt(e);
+    setPmtForm({
+      amountUSD: String(e.amountUSD ?? ''),
+      date:      e.date.slice(0, 10),
+      note:      e.description || '',
+      walletId:  e.wallet?._id ?? '',
+    });
+    setShowPmtModal(true);
+  };
+
+  const submitPmt = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!editPmt) return;
+    setSavingPmt(true);
+    try {
+      const fd = new FormData();
+      fd.append('amount',   pmtForm.amountUSD);
+      fd.append('date',     pmtForm.date);
+      fd.append('note',     pmtForm.note);
+      fd.append('walletId', pmtForm.walletId);
+      await axios.put(`/payment-logs/${editPmt._id}`, fd);
+      setShowPmtModal(false);
+      fetchEntries();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update payment log');
+    } finally {
+      setSavingPmt(false);
+    }
+  };
+
   // ── Category CRUD ─────────────────────────────────────────────────────────
 
   const submitCategory = async () => {
@@ -283,138 +333,159 @@ const CashBook: React.FC = () => {
   const netIsPositive = summary.netFlow >= 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontFamily: FONT }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 className="page-title">Cash Book</h1>
-          <p className="page-subtitle">Master ledger — all debits, credits and wallet flows</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {/* Month Navigator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-card)', border: '1px solid var(--navy-200)', borderRadius: 'var(--radius-md)', padding: '0.375rem 0.75rem', boxShadow: 'var(--shadow-xs)' }}>
-            <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-500)', fontSize: '1rem', padding: '2px 4px', borderRadius: 4 }}>‹</button>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--navy-800)', minWidth: 130, textAlign: 'center' }}>
-              {MONTHS[selectedMonth - 1]} {selectedYear}
-            </span>
-            <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-500)', fontSize: '1rem', padding: '2px 4px', borderRadius: 4 }}>›</button>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--navy-200)', borderRadius: 14, padding: '1.25rem 1.75rem' }}>
+
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--navy-100)', border: '1px solid var(--navy-200)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <BookOpenIcon style={{ width: 18, height: 18, color: 'var(--navy-500)' }} />
+            </div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.02em', lineHeight: 1.1, fontFamily: FONT }}>Cash Book</h1>
+              <p style={{ margin: '2px 0 0', fontSize: '0.71rem', color: 'var(--navy-400)', fontFamily: FONT }}>Master ledger — debits, credits & wallet flows</p>
+            </div>
           </div>
 
-          <button className="btn btn-ghost btn-sm" onClick={() => { setCatForm({ name: '', type: 'expense' }); setEditCatId(null); setShowCatModal(true); }}>
-            <TagIcon style={{ width: 14, height: 14 }} /> Categories
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => openEntryModal()}>
-            <PlusIcon style={{ width: 14, height: 14 }} /> Add Entry
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {/* Month navigator */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', borderRadius: 8, padding: '0.25rem 0.35rem' }}>
+              <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-500)', padding: '3px 6px', borderRadius: 5, display: 'flex', alignItems: 'center' }}>
+                <ChevronLeftIcon style={{ width: 14, height: 14 }} />
+              </button>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy-800)', minWidth: 118, textAlign: 'center', fontFamily: FONT }}>
+                {MONTHS[selectedMonth - 1]} {selectedYear}
+              </span>
+              <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-500)', padding: '3px 6px', borderRadius: 5, display: 'flex', alignItems: 'center' }}>
+                <ChevronRightIcon style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+
+            <button
+              onClick={() => { setCatForm({ name: '', type: 'expense' }); setEditCatId(null); setShowCatModal(true); }}
+              className="btn btn-ghost btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+            >
+              <TagIcon style={{ width: 13, height: 13 }} /> Categories
+            </button>
+
+            <button
+              onClick={() => openEntryModal()}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0.4rem 0.85rem', background: 'var(--navy-800)', border: 'none', borderRadius: 8, color: '#fff', fontSize: '0.79rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}
+            >
+              <PlusIcon style={{ width: 13, height: 13 }} /> Add Entry
+            </button>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+          {[
+            { label: 'Total Credits', value: fmtPKR(summary.totalCredits), color: '#15803d' },
+            { label: 'Total Debits',  value: fmtPKR(summary.totalDebits),  color: '#dc2626' },
+            { label: 'Net Flow',      value: `${netIsPositive ? '+' : '−'}${fmtPKR(Math.abs(summary.netFlow))}`, color: netIsPositive ? '#15803d' : '#dc2626' },
+            { label: 'Entries',       value: String(entries.length),        color: 'var(--navy-800)' },
+          ].map(({ label, value, color }) => (
+            <div key={label} style={{ padding: '0.75rem 1rem', background: 'var(--navy-50)', border: '1px solid var(--navy-200)', borderRadius: 10 }}>
+              <div style={{ fontSize: '0.61rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT, marginBottom: 5 }}>{label}</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color, letterSpacing: '-0.02em', fontFamily: FONT }}>{value}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* ── KPI Cards ──────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-        {/* Credits */}
-        <div style={{
-          background: 'var(--bg-card)', borderRadius: 16, padding: '1.5rem 1.75rem',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(21,128,61,0.08)',
-          border: '1px solid #dcfce7', position: 'relative', overflow: 'hidden',
-        }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg, #16a34a, #4ade80)' }} />
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#166534', letterSpacing: '0.07em', textTransform: 'uppercase' }}>Total In</span>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#16a34a,#4ade80)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-            </div>
+      {/* ── Filter + Table card ─────────────────────────────────────────────── */}
+      <div className="db-card" style={{ overflow: 'hidden', padding: 0 }}>
+
+        {/* Filter strip */}
+        <div style={{ padding: '0.7rem 1.25rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', background: 'var(--navy-25)' }}>
+
+          {/* Type pill tabs */}
+          <div style={{ display: 'flex', gap: 2, background: 'var(--navy-100)', padding: '3px', borderRadius: 9, flexShrink: 0 }}>
+            {[
+              { value: '',       label: 'All' },
+              { value: 'credit', label: 'Credits' },
+              { value: 'debit',  label: 'Debits' },
+            ].map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => setFilterType(tab.value)}
+                style={{
+                  padding: '0.28rem 0.7rem', borderRadius: 7, border: 'none', cursor: 'pointer', fontFamily: FONT,
+                  fontSize: '0.75rem', fontWeight: filterType === tab.value ? 700 : 500,
+                  background: filterType === tab.value ? 'var(--bg-card)' : 'transparent',
+                  color: filterType === tab.value ? 'var(--navy-800)' : 'var(--navy-400)',
+                  boxShadow: filterType === tab.value ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.12s',
+                }}
+              >{tab.label}</button>
+            ))}
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#15803d', lineHeight: 1, letterSpacing: '-0.02em' }}>{fmtPKR(summary.totalCredits)}</div>
-          <div style={{ fontSize: '0.75rem', color: '#4ade80', marginTop: '0.375rem', fontWeight: 500 }}>credits received</div>
+
+          <div style={{ width: 1, height: 20, background: 'var(--navy-200)', flexShrink: 0 }} />
+
+          <select className="form-input" style={{ width: 'auto', fontSize: '0.78rem', padding: '0.28rem 0.6rem' }}
+            value={filterWallet} onChange={e => setFilterWallet(e.target.value)}>
+            <option value="">All Wallets</option>
+            {wallets.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
+          </select>
+
+          <select className="form-input" style={{ width: 'auto', fontSize: '0.78rem', padding: '0.28rem 0.6rem' }}
+            value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+            <option value="">All Categories</option>
+            {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+          </select>
+
+          {(filterType || filterWallet || filterCategory) && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setFilterType(''); setFilterWallet(''); setFilterCategory(''); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.75rem' }}>
+              <XMarkIcon style={{ width: 11, height: 11 }} /> Clear
+            </button>
+          )}
+
+          <div style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--navy-400)', fontWeight: 600, fontFamily: FONT, flexShrink: 0 }}>
+            {loading ? '…' : `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}
+          </div>
         </div>
 
-        {/* Debits */}
-        <div style={{
-          background: 'var(--bg-card)', borderRadius: 16, padding: '1.5rem 1.75rem',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(220,38,38,0.08)',
-          border: '1px solid #fee2e2', position: 'relative', overflow: 'hidden',
-        }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg, #dc2626, #f87171)' }} />
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#991b1b', letterSpacing: '0.07em', textTransform: 'uppercase' }}>Total Out</span>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#dc2626,#f87171)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-          </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#dc2626', lineHeight: 1, letterSpacing: '-0.02em' }}>{fmtPKR(summary.totalDebits)}</div>
-          <div style={{ fontSize: '0.75rem', color: '#f87171', marginTop: '0.375rem', fontWeight: 500 }}>debits recorded</div>
-        </div>
-
-        {/* Net Flow */}
-        <div style={{
-          background: netIsPositive
-            ? 'linear-gradient(135deg, #052e16 0%, #14532d 100%)'
-            : 'linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%)',
-          borderRadius: 16, padding: '1.5rem 1.75rem',
-          boxShadow: netIsPositive
-            ? '0 4px 24px rgba(21,128,61,0.35)'
-            : '0 4px 24px rgba(220,38,38,0.35)',
-          border: 'none', position: 'relative', overflow: 'hidden',
-        }}>
-          <div style={{ position: 'absolute', top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
-          <div style={{ position: 'absolute', bottom: -20, left: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>Net Flow</span>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><polyline points="17 7 12 2 7 7"/><polyline points="7 17 12 22 17 17"/></svg>
-            </div>
-          </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#fff', lineHeight: 1, letterSpacing: '-0.02em' }}>
-            {netIsPositive ? '+' : '−'}{fmtPKR(Math.abs(summary.netFlow))}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.375rem', fontWeight: 500 }}>
-            {netIsPositive ? 'surplus this period' : 'deficit this period'}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Filter Bar ─────────────────────────────────────────────────────── */}
-      <div className="sh-card" style={{ padding: '0.75rem 1rem', display: 'flex', gap: '0.625rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <AdjustmentsHorizontalIcon style={{ width: 16, height: 16, color: 'var(--navy-400)' }} />
-        <select className="form-input" style={{ width: 'auto', fontSize: '0.82rem', padding: '0.3rem 0.6rem' }}
-          value={filterType} onChange={e => setFilterType(e.target.value)}>
-          <option value="">All Types</option>
-          <option value="credit">Credits</option>
-          <option value="debit">Debits</option>
-        </select>
-        <select className="form-input" style={{ width: 'auto', fontSize: '0.82rem', padding: '0.3rem 0.6rem' }}
-          value={filterWallet} onChange={e => setFilterWallet(e.target.value)}>
-          <option value="">All Wallets</option>
-          {wallets.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
-        </select>
-        <select className="form-input" style={{ width: 'auto', fontSize: '0.82rem', padding: '0.3rem 0.6rem' }}
-          value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
-          <option value="">All Categories</option>
-          {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
-        </select>
-        {(filterType || filterWallet || filterCategory) && (
-          <button className="btn btn-ghost btn-sm" onClick={() => { setFilterType(''); setFilterWallet(''); setFilterCategory(''); }}>
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* ── Transactions Table ─────────────────────────────────────────────── */}
-      <div className="sh-card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* Table body */}
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+            <div className="spinner" />
+          </div>
         ) : entries.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--navy-400)' }}>
-            No entries for this period.
+          <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+            <div style={{ width: 52, height: 52, borderRadius: 16, background: 'var(--navy-50)', border: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.875rem' }}>
+              <BookOpenIcon style={{ width: 24, height: 24, color: 'var(--navy-300)' }} />
+            </div>
+            <h3 style={{ fontWeight: 700, color: 'var(--navy-700)', margin: '0 0 5px', fontFamily: FONT, fontSize: '0.95rem' }}>No entries this period</h3>
+            <p style={{ color: 'var(--navy-400)', fontSize: '0.8rem', margin: 0, fontFamily: FONT }}>
+              Add a manual entry or log a client payment to get started.
+            </p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: 'var(--navy-25)', borderBottom: '1px solid var(--navy-100)' }}>
-                  {['Date', 'Type', 'Amount', 'Wallet', 'Category', 'Description', 'By', ''].map(h => (
-                    <th key={h} style={{ padding: '0.625rem 0.875rem', textAlign: 'left', fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-500)', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                <tr style={{ borderBottom: '1px solid var(--navy-100)' }}>
+                  {[
+                    { label: 'Date',        align: 'left'  as const },
+                    { label: 'Description', align: 'left'  as const },
+                    { label: 'Category',    align: 'left'  as const },
+                    { label: 'Wallet',      align: 'left'  as const },
+                    { label: 'Logged by',   align: 'left'  as const },
+                    { label: 'Amount',      align: 'right' as const },
+                    { label: '',            align: 'right' as const },
+                  ].map(col => (
+                    <th key={col.label} style={{
+                      padding: '0.6rem 1rem', textAlign: col.align,
+                      fontSize: '0.65rem', fontWeight: 700, color: 'var(--navy-400)',
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      background: 'var(--navy-25)', whiteSpace: 'nowrap',
+                    }}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
@@ -422,131 +493,124 @@ const CashBook: React.FC = () => {
                 {entries.map((e, i) => {
                   const isCredit = e.entryType === 'credit';
                   return (
-                    <tr key={e._id} style={{ borderBottom: i < entries.length - 1 ? '1px solid var(--navy-50)' : 'none', background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--navy-25)' }}>
-                      <td style={{ padding: '0.625rem 0.875rem', fontSize: '0.82rem', color: 'var(--navy-700)', whiteSpace: 'nowrap' }}>
-                        {new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td style={{ padding: '0.625rem 0.875rem' }}>
-                        <span style={{
-                          fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em',
-                          padding: '2px 8px', borderRadius: 4,
-                          background: isCredit ? '#dcfce7' : '#fee2e2',
-                          color: isCredit ? '#15803d' : '#dc2626',
-                        }}>
-                          {isCredit ? '▲ CREDIT' : '▼ DEBIT'}
-                        </span>
-                        {e.source === 'payment_log' && (
-                          <span style={{ fontSize: '0.62rem', color: 'var(--success-700)', background: 'var(--success-50)', border: '1px solid var(--success-100)', padding: '1px 5px', borderRadius: 3, marginLeft: 4 }}>pmt</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.625rem 0.875rem', whiteSpace: 'nowrap' }}>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isCredit ? '#15803d' : '#dc2626' }}>
-                          {isCredit ? '+' : '−'}{fmtPKR(e.amountPKR)}
+                    <tr
+                      key={e._id}
+                      style={{ borderBottom: i < entries.length - 1 ? '1px solid var(--navy-50)' : 'none', transition: 'background 0.1s' }}
+                      onMouseEnter={ev => (ev.currentTarget.style.background = 'var(--navy-25)')}
+                      onMouseLeave={ev => (ev.currentTarget.style.background = '')}
+                    >
+                      {/* Date */}
+                      <td style={{ padding: '0.8rem 1rem', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--navy-800)', fontFamily: FONT, lineHeight: 1.2 }}>
+                          {new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                         </div>
-                        {e.amountUSD != null && (
-                          <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)' }}>${e.amountUSD.toFixed(2)}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', fontFamily: FONT, marginTop: 2 }}>
+                          {new Date(e.date).getFullYear()}
+                        </div>
+                      </td>
+
+                      {/* Description */}
+                      <td style={{ padding: '0.8rem 1rem', maxWidth: 240, verticalAlign: 'middle' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--navy-800)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>
+                          {e.clientName || e.description || <span style={{ color: 'var(--navy-300)' }}>—</span>}
+                        </div>
+                        {e.clientName && e.description && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--navy-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT, marginTop: 2 }}>
+                            {e.description}
+                          </div>
+                        )}
+                        {e.screenshots && e.screenshots.length > 0 && (
+                          <div style={{ display: 'flex', gap: 3, marginTop: 5, alignItems: 'center' }}>
+                            {e.screenshots.slice(0, 3).map((url, si) => (
+                              <button key={url} onClick={() => openLightbox(e.screenshots!, si)}
+                                style={{ background: 'none', border: '1px solid var(--navy-200)', borderRadius: 4, padding: 1, cursor: 'pointer', lineHeight: 0, flexShrink: 0 }}>
+                                <img src={toAbsoluteUrl(url)} alt="" style={{ width: 20, height: 20, objectFit: 'cover', borderRadius: 3, display: 'block' }}
+                                  onError={ev => { (ev.target as HTMLImageElement).style.display = 'none'; }} />
+                              </button>
+                            ))}
+                            {e.screenshots.length > 3 && (
+                              <button onClick={() => openLightbox(e.screenshots!, 0)}
+                                style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', background: 'var(--navy-100)', border: '1px solid var(--navy-200)', borderRadius: 4, padding: '1px 5px', cursor: 'pointer', fontFamily: FONT }}>
+                                +{e.screenshots.length - 3}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
-                      <td style={{ padding: '0.625rem 0.875rem' }}>
-                        {e.wallet ? (
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(79,70,229,0.1)', color: 'var(--accent-600)', padding: '2px 7px', borderRadius: 4 }}>
-                            {e.wallet.name}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--navy-300)' }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.625rem 0.875rem' }}>
+
+                      {/* Category */}
+                      <td style={{ padding: '0.8rem 1rem', verticalAlign: 'middle' }}>
                         {e.source === 'payment_log' ? (
-                          <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: 'var(--success-100)', color: 'var(--success-700)' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: 'var(--navy-100)', color: 'var(--navy-600)', border: '1px solid var(--navy-200)', fontFamily: FONT, whiteSpace: 'nowrap' }}>
                             Client Payment
                           </span>
                         ) : e.category ? (
-                          <span style={{
-                            fontSize: '0.72rem', fontWeight: 600,
-                            padding: '2px 7px', borderRadius: 4,
-                            background: `${CAT_TYPE_COLORS[e.category.type] || '#64748b'}18`,
-                            color: CAT_TYPE_COLORS[e.category.type] || '#64748b',
-                          }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: 'var(--navy-100)', color: 'var(--navy-600)', border: '1px solid var(--navy-200)', fontFamily: FONT, whiteSpace: 'nowrap' }}>
                             {e.category.name}
                           </span>
                         ) : (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--navy-300)' }}>—</span>
+                          <span style={{ color: 'var(--navy-300)', fontSize: '0.75rem' }}>—</span>
                         )}
                       </td>
-                      <td style={{ padding: '0.625rem 0.875rem', fontSize: '0.82rem', color: 'var(--navy-700)', maxWidth: 220 }}>
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {e.clientName ? (
-                            <span style={{ fontWeight: 600 }}>{e.clientName}</span>
-                          ) : e.description ? (
-                            e.description
-                          ) : (
-                            <span style={{ color: 'var(--navy-300)' }}>—</span>
-                          )}
+
+                      {/* Wallet */}
+                      <td style={{ padding: '0.8rem 1rem', verticalAlign: 'middle' }}>
+                        {e.wallet ? (
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, background: 'var(--navy-100)', color: 'var(--navy-600)', padding: '2px 8px', borderRadius: 5, border: '1px solid var(--navy-200)', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                            {e.wallet.name}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--navy-300)', fontSize: '0.75rem' }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Logged by */}
+                      <td style={{ padding: '0.8rem 1rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        {e.enteredBy ? (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--navy-600)', fontFamily: FONT }}>
+                            {e.enteredBy.firstName} {e.enteredBy.lastName}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--navy-300)', fontSize: '0.75rem' }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Amount */}
+                      <td style={{ padding: '0.8rem 1rem', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.97rem', fontWeight: 900, color: isCredit ? '#15803d' : '#dc2626', letterSpacing: '-0.025em', fontFamily: FONT }}>
+                          {isCredit ? '+' : '−'}{fmtPKR(e.amountPKR)}
                         </div>
-                        {e.clientName && e.description && (
-                          <div style={{ fontSize: '0.72rem', color: 'var(--navy-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description}</div>
+                        {e.amountUSD != null && (
+                          <div style={{ fontSize: '0.67rem', color: 'var(--navy-400)', fontFamily: FONT, marginTop: 2 }}>
+                            ${e.amountUSD.toFixed(2)}
+                          </div>
                         )}
                       </td>
-                      <td style={{ padding: '0.625rem 0.875rem', fontSize: '0.75rem', color: 'var(--navy-500)', whiteSpace: 'nowrap' }}>
-                        {e.enteredBy ? `${e.enteredBy.firstName} ${e.enteredBy.lastName}` : '—'}
-                      </td>
-                      <td style={{ padding: '0.625rem 0.875rem', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          {/* Screenshot thumbnails (payment log entries) */}
+
+                      {/* Actions */}
+                      <td style={{ padding: '0.8rem 1rem', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
                           {e.screenshots && e.screenshots.length > 0 && (
+                            <button className="btn btn-ghost btn-sm" title="View screenshots" onClick={() => openLightbox(e.screenshots!, 0)}>
+                              <EyeIcon style={{ width: 12, height: 12 }} />
+                            </button>
+                          )}
+                          {e.source === 'payment_log' ? (
                             <>
-                              {e.screenshots.slice(0, 2).map((url, si) => (
-                                <button
-                                  key={url}
-                                  title="View screenshot"
-                                  onClick={() => openLightbox(e.screenshots!, si)}
-                                  style={{ background: 'none', border: '1px solid var(--navy-200)', borderRadius: 5, padding: 1, cursor: 'pointer', lineHeight: 0, position: 'relative' }}
-                                >
-                                  <img
-                                    src={toAbsoluteUrl(url)}
-                                    alt=""
-                                    style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4, display: 'block' }}
-                                    onError={e => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                      (e.target as HTMLImageElement).parentElement!.innerHTML = '<span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--navy-50);border-radius:4px;font-size:11px">📄</span>';
-                                    }}
-                                  />
-                                </button>
-                              ))}
-                              {e.screenshots.length > 2 && (
-                                <button
-                                  title={`View all ${e.screenshots.length} screenshots`}
-                                  onClick={() => openLightbox(e.screenshots!, 0)}
-                                  style={{ background: 'var(--navy-100)', border: '1px solid var(--navy-200)', borderRadius: 5, padding: '0 6px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, color: 'var(--navy-600)', height: 30 }}
-                                >
-                                  +{e.screenshots.length - 2}
-                                </button>
-                              )}
-                              <button
-                                className="btn btn-ghost btn-sm"
-                                title="View all"
-                                onClick={() => openLightbox(e.screenshots!, 0)}
-                              >
-                                <EyeIcon style={{ width: 13, height: 13 }} />
+                              <button className="btn btn-ghost btn-sm" title="Edit payment log" onClick={() => openPmtModal(e)}>
+                                <PencilIcon style={{ width: 12, height: 12 }} />
                               </button>
-                              <button
-                                className="btn btn-ghost btn-sm"
-                                title="Download all"
-                                onClick={() => e.screenshots!.forEach(url => downloadFile(url))}
-                              >
-                                <ArrowDownTrayIcon style={{ width: 13, height: 13 }} />
+                              <button className="btn btn-ghost btn-sm" title="Delete payment log" style={{ color: '#dc2626' }} onClick={() => deletePaymentLog(e._id)}>
+                                <TrashIcon style={{ width: 12, height: 12 }} />
                               </button>
                             </>
-                          )}
-                          {/* Edit / Delete for manual entries */}
-                          {!e.isAutoEntry && (
+                          ) : !e.isAutoEntry && (
                             <>
                               <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => openEntryModal(e)}>
-                                <PencilIcon style={{ width: 13, height: 13 }} />
+                                <PencilIcon style={{ width: 12, height: 12 }} />
                               </button>
                               <button className="btn btn-ghost btn-sm" title="Delete" style={{ color: '#dc2626' }} onClick={() => deleteEntry(e._id)}>
-                                <TrashIcon style={{ width: 13, height: 13 }} />
+                                <TrashIcon style={{ width: 12, height: 12 }} />
                               </button>
                             </>
                           )}
@@ -701,12 +765,84 @@ const CashBook: React.FC = () => {
         </div>
       )}
 
+      {/* ── Edit Payment Log Modal ────────────────────────────────────────── */}
+      {showPmtModal && editPmt && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowPmtModal(false); }}>
+          <div className="modal-box" style={{ maxWidth: 440 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div>
+                <h2 className="modal-title" style={{ margin: 0 }}>Edit Payment Log</h2>
+                {editPmt.clientName && (
+                  <p style={{ fontSize: '0.78rem', color: 'var(--navy-400)', margin: '3px 0 0' }}>
+                    Client: <strong style={{ color: 'var(--navy-700)' }}>{editPmt.clientName}</strong>
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setShowPmtModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', fontSize: '1.1rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={submitPmt} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem' }}>
+                <div>
+                  <label className="form-label">Amount (USD) *</label>
+                  <input
+                    type="number" step="0.01" min="0.01" required className="form-input"
+                    value={pmtForm.amountUSD}
+                    onChange={e => setPmtForm(f => ({ ...f, amountUSD: e.target.value }))}
+                    placeholder="0.00" autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Date *</label>
+                  <input
+                    type="date" required className="form-input"
+                    value={pmtForm.date}
+                    onChange={e => setPmtForm(f => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label">Wallet</label>
+                <select
+                  className="form-input"
+                  value={pmtForm.walletId}
+                  onChange={e => setPmtForm(f => ({ ...f, walletId: e.target.value }))}
+                >
+                  <option value="">— None —</option>
+                  {wallets.filter(w => w.isActive).map(w => (
+                    <option key={w._id} value={w._id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label">Note</label>
+                <input
+                  type="text" className="form-input"
+                  value={pmtForm.note}
+                  onChange={e => setPmtForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="e.g. Invoice #123, partial payment…"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.25rem' }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowPmtModal(false)}>Cancel</button>
+                <button type="submit" disabled={savingPmt} className="btn btn-primary" style={{ flex: 1 }}>
+                  {savingPmt ? 'Saving…' : 'Update Payment Log'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ── Screenshot Lightbox ────────────────────────────────────────────── */}
-      {lightboxUrls.length > 0 && (
+      {lightboxUrls.length > 0 && ReactDOM.createPortal(
         <div
           onClick={closeLightbox}
           style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
+            position: 'fixed', inset: 0, zIndex: 9999,
             background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(4px)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           }}
@@ -795,7 +931,7 @@ const CashBook: React.FC = () => {
             )}
           </div>
         </div>
-      )}
+      , document.body)}
 
     </div>
   );

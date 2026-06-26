@@ -8,11 +8,13 @@ import Layout from './components/Layout';
 import VendorLayout from './components/VendorLayout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import Profile from './pages/Profile';
-import Announcements from './pages/Announcements';
 import LabelGenerator from './pages/LabelGenerator';
 import LabelHistory from './pages/LabelHistory';
 import BulkLabels from './pages/BulkLabels';
@@ -44,6 +46,7 @@ import Finance             from './pages/Finance';
 import CashBook            from './pages/CashBook';
 import FinancialDashboard  from './pages/FinancialDashboard';
 import Settings            from './pages/Settings';
+import Announcements from './pages/Announcements';
 import Leaderboard         from './pages/Leaderboard';
 import Suggestions        from './pages/Suggestions';
 import Orders             from './pages/Orders';
@@ -74,8 +77,11 @@ function App() {
               <div className="App">
               <Routes>
                 {/* Public routes */}
-                <Route path="/login"  element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
+                <Route path="/login"            element={<Login />} />
+                <Route path="/signup"           element={<Signup />} />
+                <Route path="/verify-email"     element={<VerifyEmail />} />
+                <Route path="/forgot-password"  element={<ForgotPassword />} />
+                <Route path="/reset-password"   element={<ResetPassword />} />
 
                 {/* ── Super Admin (standalone, no Layout) ──────────────── */}
                 {/* No auth wrapper here — the component handles setup vs. authenticated views internally */}

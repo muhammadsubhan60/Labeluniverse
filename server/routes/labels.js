@@ -253,7 +253,32 @@ router.post('/single', authenticateToken, [
       pdfUrl     = shippershubResult?.awsPath || shippershubResult?.pdfUrl || null;
 
     } else if (vendor.source === 'shiplabel') {
-      const slSvc    = require('../services/shiplabel');
+      const slSvc = require('../services/shiplabel');
+
+      // User-selected series (from multi-series picker) takes priority over vendor defaults
+      let activeSeries = labelFields.shiplabel_series || vendor.shiplabelLabelSeries || '';
+      let activeFormat = labelFields.shiplabel_format || vendor.shiplabelLabelFormat || '';
+
+      // If vendor has a multi-series list, validate user's selection
+      if (vendor.shiplabelSeries && vendor.shiplabelSeries.length > 0) {
+        if (!activeSeries) {
+          return res.status(400).json({ message: 'Select a label series before generating.' });
+        }
+        const seriesEntry = vendor.shiplabelSeries.find(s => s.series === activeSeries);
+        if (!seriesEntry) {
+          return res.status(400).json({ message: `Series "${activeSeries}" is not configured on this vendor.` });
+        }
+        // For non-admin: check user's allowed series
+        if (!isAdmin) {
+          const accessRec = await UserVendorAccess.findOne({ user: req.user._id, vendor: vendorId });
+          const allowed = accessRec?.allowedShiplabelSeries || [];
+          if (allowed.length > 0 && !allowed.includes(activeSeries)) {
+            return res.status(403).json({ message: `You are not allowed to use series "${activeSeries}".` });
+          }
+        }
+        activeFormat = seriesEntry.format;
+      }
+
       const slResult = await slSvc.createOrder({
         label_id:     vendor.shiplabelServiceId,
         fromName:     labelFields.from_name     || '',
@@ -276,9 +301,12 @@ router.post('/single', authenticateToken, [
         length: parseFloat(labelFields.length) || 0,
         height: parseFloat(labelFields.height) || 0,
         width:  parseFloat(labelFields.width)  || 0,
-        ...(vendor.shiplabelLabelSeries ? { label_series: vendor.shiplabelLabelSeries } : {}),
-        ...(vendor.shiplabelLabelFormat ? { label_format: vendor.shiplabelLabelFormat } : {}),
+        ...(activeSeries ? { label_series: activeSeries } : {}),
+        ...(activeFormat ? { label_format: activeFormat } : {}),
       });
+      if (slResult.label_created === 'fail') {
+        throw new Error('ShipLabel rejected this label — the series/format combination is not valid for your account. Try a different series or format in Admin → Vendors.');
+      }
       const slKeys    = Object.keys(slResult);
       const slTrkKey  = slKeys.find(k => /track|barcode/i.test(k) && slResult[k]);
       const slPdfKey  = slKeys.find(k => /^(pdf|label(_url|_pdf)?|label_link|download)$/i.test(k) && slResult[k]);
@@ -288,9 +316,6 @@ router.post('/single', authenticateToken, [
       pdfUrl = slResult.pdf || slResult.label_url || slResult.label
         || slResult.pdf_url || slResult.label_pdf
         || (slPdfKey ? String(slResult[slPdfKey]) : '') || null;
-      if (!trackingId) {
-        console.warn('[ShipLabel single] no tracking found. keys:', slKeys, '| full result:', JSON.stringify(slResult));
-      }
     }
 
     // Deduct balance
@@ -605,10 +630,11 @@ router.post('/bulk', authenticateToken, [
       })));
 
       // Process labels sequentially — ShipLabel API rejects concurrent requests with the same key
-      const userId      = req.user._id;
-      const _labelDocs  = labelDocs;
-      const _labelRows  = labelRows;
-      const _vendor     = vendor;
+      const userId          = req.user._id;
+      const _labelDocs      = labelDocs;
+      const _labelRows      = labelRows;
+      const _vendor         = vendor;
+      const _reqSeries      = req.body.shiplabel_series || '';
       setImmediate(async () => {
         console.log(`[SL setImmediate] starting — ${_labelDocs.length} labels`);
         for (let i = 0; i < _labelDocs.length; i++) {
@@ -639,10 +665,19 @@ router.post('/bulk', authenticateToken, [
                 length:       parseFloat(row.length) || 0,
                 height:       parseFloat(row.height) || 0,
                 width:        parseFloat(row.width)  || 0,
-                ...(_vendor.shiplabelLabelSeries ? { label_series: _vendor.shiplabelLabelSeries } : {}),
-                ...(_vendor.shiplabelLabelFormat ? { label_format: _vendor.shiplabelLabelFormat } : {}),
+                ...(() => {
+                  const s = _reqSeries || _vendor.shiplabelLabelSeries || '';
+                  const entry = s && _vendor.shiplabelSeries?.length
+                    ? _vendor.shiplabelSeries.find(x => x.series === s)
+                    : null;
+                  const f = entry ? entry.format : (_vendor.shiplabelLabelFormat || '');
+                  return { ...(s ? { label_series: s } : {}), ...(f ? { label_format: f } : {}) };
+                })(),
               };
-              const result = await shiplabel.createOrder(payload, req.user.tenantId || req.user._id);
+              const result = await shiplabel.createOrder(payload, userId);
+              if (result.label_created === 'fail') {
+                throw new Error('ShipLabel rejected this label — invalid series/format combination for your account');
+              }
               // Auto-scan result keys for tracking number and PDF URL
               const keys = Object.keys(result);
               const trackKey = keys.find(k => /track|barcode/i.test(k) && result[k]);

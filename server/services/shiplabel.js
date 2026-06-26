@@ -111,7 +111,6 @@ async function getServices(tenantId = null) {
   // Response shape: { success: { labels: [...] } }
   const raw = (res.success && res.success.labels) || res.data || [];
   return raw
-    .filter(s => s.name !== 'Custom Label (Series & Format)')
     .map(s => ({
       ...s,
       inferredSeries: parseSeriesFromName(s.name),

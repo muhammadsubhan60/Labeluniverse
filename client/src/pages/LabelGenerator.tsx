@@ -25,12 +25,14 @@ interface AddressSuggestion {
   zip: string;
 }
 
+interface SlSeriesOption { series: string; format: string; name: string; }
 interface AccessItem {
   vendorId: string; vendorName: string; carrier: string;
   vendorType: 'api' | 'manifest'; shippingService: string;
   baseRate: number; isAllowed: boolean;
   portal?: 'shippershub' | 'labelcrow' | 'shiplabel';
   rateTiers: Array<{ minLbs: number; maxLbs: number | null; rate: number }>;
+  shiplabelSeries?: SlSeriesOption[];
 }
 interface Warehouse {
   id: string; label: string;
@@ -181,6 +183,7 @@ const LabelGenerator: React.FC = () => {
   const [selectedPortal,    setSelectedPortal]    = useState<'shippershub' | 'labelcrow' | 'shiplabel'>('shippershub');
   const [selectedCarrier,   setSelectedCarrier]   = useState<string>(prefill?.carrier ?? '');
   const [selectedVendorId,  setSelectedVendorId]  = useState('');
+  const [selectedSeries,    setSelectedSeries]    = useState('');
   const [showManifestModal, setShowManifestModal] = useState(false);
   const [isLoading,         setIsLoading]         = useState(false);
   const [error,             setError]             = useState('');
@@ -344,12 +347,12 @@ const LabelGenerator: React.FC = () => {
   };
 
   const handlePortalSelect = (portal: typeof selectedPortal) => {
-    setSelectedPortal(portal); setSelectedCarrier(''); setSelectedVendorId('');
+    setSelectedPortal(portal); setSelectedCarrier(''); setSelectedVendorId(''); setSelectedSeries('');
     setError('');
   };
 
   const handleCarrierSelect = (carrier: string) => {
-    setSelectedCarrier(carrier); setSelectedVendorId('');
+    setSelectedCarrier(carrier); setSelectedVendorId(''); setSelectedSeries('');
     setError('');
   };
 
@@ -360,7 +363,8 @@ const LabelGenerator: React.FC = () => {
 
   const handleVendorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const vid = e.target.value;
-    if (!vid) { setSelectedVendorId(''); return; }
+    if (!vid) { setSelectedVendorId(''); setSelectedSeries(''); return; }
+    setSelectedSeries('');
     const item = accessList.find(a => a.vendorId === vid);
     if (item?.vendorType === 'manifest') { setShowManifestModal(true); return; }
     setSelectedVendorId(vid); setError('');
@@ -377,7 +381,9 @@ const LabelGenerator: React.FC = () => {
   };
 
   const effectiveRate = getEffectiveRate(weight);
-  const canSubmit     = !!selectedVendorId && !isLoading;
+  const activeSeriesOptions = selectedAccess?.shiplabelSeries || [];
+  const needsSeriesPick = activeSeriesOptions.length > 0;
+  const canSubmit = !!selectedVendorId && !isLoading && (!needsSeriesPick || !!selectedSeries);
 
   const uspsSaving = useMemo(() => {
     if (selectedCarrier !== 'USPS' || weight <= 0) return null;
@@ -523,7 +529,11 @@ const LabelGenerator: React.FC = () => {
     if (!selectedVendorId) { setError('Select a carrier and vendor first.'); return; }
     setIsLoading(true); setError('');
     try {
-      const res = await axios.post('/labels/single', { vendorId: selectedVendorId, ...form });
+      const res = await axios.post('/labels/single', {
+        vendorId: selectedVendorId,
+        ...form,
+        ...(selectedSeries ? { shiplabel_series: selectedSeries } : {}),
+      });
       const labelId  = res.data.label?.id;
       const tracking = res.data.label?.trackingId || Date.now();
       if (labelId) {
@@ -717,6 +727,21 @@ const LabelGenerator: React.FC = () => {
                       </option>
                     ))}
                   </select>
+
+                  {needsSeriesPick && (
+                    <select
+                      value={selectedSeries}
+                      onChange={e => setSelectedSeries(e.target.value)}
+                      style={{ height: 36, padding: '0 10px', border: `1.5px solid ${selectedSeries ? '#059669' : '#f59e0b'}`, borderRadius: 8, fontSize: '0.82rem', fontFamily: FONT, color: 'var(--navy-800)', background: '#fff', cursor: 'pointer', outline: 'none', minWidth: 160 }}
+                    >
+                      <option value="">— select series —</option>
+                      {activeSeriesOptions.map(opt => (
+                        <option key={opt.series} value={opt.series}>
+                          {opt.name ? `${opt.name} (${opt.series})` : opt.series}
+                        </option>
+                      ))}
+                    </select>
+                  )}
 
                   {selectedAccess && weight > 0 && (
                     <span style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0', borderRadius: 7, padding: '4px 11px', fontSize: '0.85rem', fontWeight: 800, fontFamily: FONT, whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>

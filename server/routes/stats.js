@@ -109,9 +109,9 @@ async function adminStats(tenantId, { from, to } = {}) {
       { $addFields: { portal: { $ifNull: [{ $arrayElemAt: ['$_v.source', 0] }, 'shippershub'] } } },
       { $group: { _id: '$portal', count: { $sum: 1 }, revenue: { $sum: '$price' } } },
     ]),
-    // Tracking status breakdown — scoped to tenant
+    // Tracking status breakdown — scoped to tenant (include pending so async labels count)
     Label.aggregate([
-      { $match: { tenantId: tenantOid, status: 'generated', ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
+      { $match: { tenantId: tenantOid, status: { $in: ['generated', 'pending'] }, ...(hasPeriod ? { createdAt: periodFilter } : {}) } },
       { $group: { _id: '$trackingStatus', count: { $sum: 1 } } },
     ]),
     // Alert: users with balance < $50 — scoped to tenant
@@ -195,7 +195,8 @@ async function adminStats(tenantId, { from, to } = {}) {
     exception_problem: 0, returned_to_sender: 0, pending_pickup: 0, delayed: 0, voided: 0,
   };
   for (const g of trackingGroups) {
-    if (g._id in trackingStatus) trackingStatus[g._id] = g.count;
+    const key = g._id || 'not_scanned_yet';
+    if (key in trackingStatus) trackingStatus[key] = g.count;
   }
 
   return {

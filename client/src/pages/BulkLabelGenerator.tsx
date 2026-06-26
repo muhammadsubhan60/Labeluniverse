@@ -22,6 +22,7 @@ const EXT_HDR = { 'x-api-key': 'sh-public-2024-gama' };
 const AUTO_VENDOR_ID = '__auto__';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+interface SlSeriesOption { series: string; format: string; name: string; }
 interface AccessItem {
   vendorId:        string;
   vendorName:      string;
@@ -32,6 +33,7 @@ interface AccessItem {
   isAllowed:       boolean;
   rateTiers:       { minLbs: number; maxLbs: number | null; rate: number }[];
   portal:          'shippershub' | 'labelcrow' | 'shiplabel';
+  shiplabelSeries?: SlSeriesOption[];
 }
 
 interface LcAsyncJob {
@@ -477,7 +479,8 @@ const BulkLabelGenerator: React.FC = () => {
   const [downloadingZip, setDownloadingZip] = useState(false);
 
   // ── Portal state ────────────────────────────────────────────
-  const [selectedPortal, setSelectedPortal] = useState<'shippershub' | 'labelcrow' | 'shiplabel' | ''>('');
+  const [selectedPortal,  setSelectedPortal]  = useState<'shippershub' | 'labelcrow' | 'shiplabel' | ''>('');
+  const [selectedSeries,  setSelectedSeries]  = useState('');
 
   // ── Label Crow async state ───────────────────────────────────
   const [lcAsyncJob,    setLcAsyncJob]    = useState<LcAsyncJob | null>(null);
@@ -790,7 +793,7 @@ const BulkLabelGenerator: React.FC = () => {
     }
 
     try {
-      const res = await axios.post('/labels/bulk', { vendorId: selectedVendor.vendorId, labels: rows, bulkFileName: nickName.trim() || fileName });
+      const res = await axios.post('/labels/bulk', { vendorId: selectedVendor.vendorId, labels: rows, bulkFileName: nickName.trim() || fileName, ...(selectedSeries ? { shiplabel_series: selectedSeries } : {}) });
 
       if (isLC) {
         console.group('[LC] Submit response');
@@ -1773,8 +1776,8 @@ const BulkLabelGenerator: React.FC = () => {
                 <div
                   key={p.id}
                   onClick={() => {
-                    if (isSel) { setSelectedPortal(''); setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false); clearFile(); return; }
-                    setSelectedPortal(p.id); setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false); clearFile();
+                    if (isSel) { setSelectedPortal(''); setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false); setSelectedSeries(''); clearFile(); return; }
+                    setSelectedPortal(p.id); setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false); setSelectedSeries(''); clearFile();
                   }}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1808,8 +1811,8 @@ const BulkLabelGenerator: React.FC = () => {
                   key={c.name}
                   onClick={() => {
                     if (!isEnabled) return;
-                    if (isSelected) { setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false); clearFile(); return; }
-                    setSelectedCarrier(c.name); setSelectedVendor(null); setIsAutoMode(false); clearFile();
+                    if (isSelected) { setSelectedCarrier(''); setSelectedVendor(null); setIsAutoMode(false); setSelectedSeries(''); clearFile(); return; }
+                    setSelectedCarrier(c.name); setSelectedVendor(null); setIsAutoMode(false); setSelectedSeries(''); clearFile();
                   }}
                   title={isEnabled ? `${c.name} · ${allowed.length} vendor${allowed.length !== 1 ? 's' : ''}` : 'No access'}
                   style={{
@@ -1847,6 +1850,7 @@ const BulkLabelGenerator: React.FC = () => {
                   const v = vendorsForCarrier.find(x => x.vendorId === val) || null;
                   setSelectedVendor(v);
                   setIsAutoMode(false);
+                  setSelectedSeries('');
                   clearFile();
                 }
               }}
@@ -1865,6 +1869,20 @@ const BulkLabelGenerator: React.FC = () => {
                 </option>
               ))}
             </select>
+            {selectedVendor?.shiplabelSeries && selectedVendor.shiplabelSeries.length > 0 && (
+              <select
+                value={selectedSeries}
+                onChange={e => setSelectedSeries(e.target.value)}
+                style={{ padding: '0.45rem 2rem 0.45rem 0.75rem', fontSize: '0.82rem', cursor: 'pointer', border: `1.5px solid ${selectedSeries ? '#059669' : '#f59e0b'}`, borderRadius: 8, background: '#fff', outline: 'none' }}
+              >
+                <option value="">— select series —</option>
+                {selectedVendor.shiplabelSeries.map(opt => (
+                  <option key={opt.series} value={opt.series}>
+                    {opt.name ? `${opt.name} (${opt.series})` : opt.series}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Vendor / auto badges */}

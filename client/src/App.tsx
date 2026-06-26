@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { VendorAuthProvider } from './contexts/VendorAuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -57,6 +57,13 @@ import SuperAdminDashboard  from './pages/SuperAdminDashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './App.css';
 
+// Smart root redirect: authenticated → dashboard, visitors → signup
+const RootRedirect = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return null;
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/signup'} replace />;
+};
+
 // Shorthand wrappers to keep JSX clean
 const AdminOnly = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute roles={['admin']}>{children}</ProtectedRoute>
@@ -108,8 +115,8 @@ function App() {
                   <Route path="earnings"  element={<VendorEarnings />} />
                 </Route>
 
-                {/* Root redirects to login */}
-                <Route path="/" element={<Navigate to="/login" replace />} />
+                {/* Root: authenticated → dashboard, visitors → signup */}
+                <Route path="/" element={<RootRedirect />} />
 
                 {/* ── Main portal (LABEL UNIVERSE users) ─────────────────────── */}
                 <Route element={

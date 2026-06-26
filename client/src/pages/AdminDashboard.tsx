@@ -764,50 +764,114 @@ const AdminDashboard: React.FC = () => {
 
       {/* ── Label Tracking Status ───────────────────────────────────────────── */}
       {(() => {
-        const TRACKING = [
-          { key: 'delivered',          label: 'Delivered',           color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   icon: '✓' },
-          { key: 'in_transit',         label: 'In Transit',          color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)',  icon: '→' },
-          { key: 'out_for_delivery',   label: 'Out for Delivery',    color: '#6366f1', bg: 'rgba(99,102,241,0.08)',  icon: '⟳' },
-          { key: 'not_scanned_yet',    label: 'Not Scanned Yet',     color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', icon: '○' },
-          { key: 'pending_pickup',     label: 'Pending Pickup',      color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  icon: '⏳' },
-          { key: 'delayed',            label: 'Delayed',             color: '#f97316', bg: 'rgba(249,115,22,0.08)',  icon: '!' },
-          { key: 'exception_problem',  label: 'Exception / Problem', color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   icon: '✕' },
-          { key: 'returned_to_sender', label: 'Returned to Sender',  color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', icon: '↩' },
-          { key: 'voided',             label: 'Voided',              color: '#64748b', bg: 'rgba(100,116,139,0.08)', icon: '∅' },
+        const ts = trackingStatus || {} as Record<string, number>;
+
+        const journeyStages = [
+          { key: 'not_scanned_yet',  label: 'Not Scanned',     color: '#64748B', bg: '#F8FAFC', border: '#CBD5E1' },
+          { key: 'in_transit',       label: 'In Transit',       color: '#0ea5e9', bg: '#F0F9FF', border: '#7DD3FC' },
+          { key: 'out_for_delivery', label: 'Out for Delivery', color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
+          { key: 'delivered',        label: 'Delivered',        color: '#15803D', bg: '#F0FDF4', border: '#86EFAC' },
         ] as const;
 
-        const ts = trackingStatus || {};
-        const tsTotal = TRACKING.reduce((s, t) => s + (ts[t.key] || 0), 0) || 1;
+        const issueItems = [
+          { key: 'exception_problem',  label: 'Exception', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+          { key: 'returned_to_sender', label: 'Returned',  color: '#BE123C', bg: '#FFF1F2', border: '#FECDD3' },
+          { key: 'delayed',            label: 'Delayed',   color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+          { key: 'pending_pickup',     label: 'Pending',   color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA' },
+        ] as const;
+
+        const tsDelivered  = ts.delivered ?? 0;
+        const tsVoided     = ts.voided ?? 0;
+        const tsTotal      = Object.values(ts).reduce((s, v) => s + v, 0);
+        const tsActive     = tsTotal - tsVoided;
+        const deliveryRate = tsActive > 0 ? Math.round((tsDelivered / tsActive) * 100) : 0;
+        const tsIssueTotal = (ts.exception_problem ?? 0) + (ts.returned_to_sender ?? 0) + (ts.delayed ?? 0) + (ts.pending_pickup ?? 0);
 
         return (
-          <div className="db-card" style={{ padding: '1.1rem 1.3rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <SLabel text="Label Tracking Status" accent="#0ea5e9" />
                 <span style={{ fontSize: '0.67rem', color: 'var(--navy-400)', background: 'var(--navy-100)', padding: '2px 7px', borderRadius: 99, fontWeight: 600, fontFamily: FONT }}>
                   {fmtN(tsTotal)} labels
                 </span>
               </div>
+              {tsVoided > 0 && (
+                <span style={{ fontSize: '0.65rem', color: 'var(--navy-400)', background: 'var(--navy-100)', border: '1px solid var(--navy-200)', padding: '2px 8px', borderRadius: 99, fontWeight: 600, fontFamily: FONT }}>
+                  {fmtN(tsVoided)} voided
+                </span>
+              )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-              {TRACKING.map(({ key, label, color, bg, icon }) => {
-                const count = ts[key] || 0;
-                const pct   = Math.round((count / tsTotal) * 100);
-                return (
-                  <div key={key} style={{ background: bg, border: `1px solid ${color}22`, borderRadius: 12, padding: '0.85rem 1rem', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, opacity: 0.7 }} />
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: '0.67rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: FONT }}>{label}</span>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color, background: `${color}18`, border: `1px solid ${color}30`, borderRadius: 99, padding: '1px 7px', fontFamily: FONT }}>{pct}%</span>
-                    </div>
-                    <div style={{ fontSize: '1.55rem', fontWeight: 900, color: 'var(--navy-900)', letterSpacing: '-0.04em', lineHeight: 1, marginBottom: 6 }}>{fmtN(count)}</div>
-                    <div style={{ height: 4, background: `${color}20`, borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.5s ease' }} />
-                    </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+              {/* Delivery rate headline */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--navy-100)' }}>
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#15803D', letterSpacing: '-0.045em', lineHeight: 1, fontFamily: FONT }}>
+                    {deliveryRate}<span style={{ fontSize: '1.1rem' }}>%</span>
                   </div>
-                );
-              })}
+                  <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em', marginTop: 2, fontFamily: FONT }}>Delivery Rate</div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ height: 8, background: 'var(--navy-100)', borderRadius: 99, overflow: 'hidden', marginBottom: 5 }}>
+                    <div style={{ width: `${deliveryRate}%`, height: '100%', background: 'linear-gradient(90deg,#22c55e,#16a34a)', borderRadius: 99, transition: 'width 0.6s ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.63rem', color: 'var(--navy-400)', fontFamily: FONT }}>{fmtN(tsDelivered)} delivered</span>
+                    <span style={{ fontSize: '0.63rem', color: 'var(--navy-400)', fontFamily: FONT }}>{fmtN(tsActive)} active labels</span>
+                  </div>
+                </div>
+                {tsIssueTotal > 0 && (
+                  <div style={{ flexShrink: 0, textAlign: 'center', padding: '6px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10 }}>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#DC2626', lineHeight: 1, fontFamily: FONT }}>{fmtN(tsIssueTotal)}</div>
+                    <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 2, fontFamily: FONT }}>Issues</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Shipment journey pipeline */}
+              <div>
+                <div style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8, fontFamily: FONT }}>Shipment Journey</div>
+                <div style={{ display: 'flex' }}>
+                  {journeyStages.map(({ key, label, color, bg, border }, idx) => {
+                    const count = ts[key] ?? 0;
+                    const isLast = idx === journeyStages.length - 1;
+                    return (
+                      <React.Fragment key={key}>
+                        <div style={{ flex: 1, padding: '0.7rem 0.8rem', background: count > 0 ? bg : 'var(--navy-50)', border: `1px solid ${count > 0 ? border : 'var(--navy-100)'}`, borderRight: !isLast ? 'none' : undefined, borderRadius: idx === 0 ? '9px 0 0 9px' : isLast ? '0 9px 9px 0' : 0 }}>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: count > 0 ? color : 'var(--navy-300)', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{fmtN(count)}</div>
+                          <div style={{ fontSize: '0.58rem', fontWeight: 700, color: count > 0 ? color : 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4, fontFamily: FONT }}>{label}</div>
+                        </div>
+                        {!isLast && (
+                          <div style={{ width: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy-100)', flexShrink: 0 }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--navy-300)', lineHeight: 1 }}>›</span>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Needs attention */}
+              {tsIssueTotal > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8, fontFamily: FONT }}>Needs Attention</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                    {issueItems.map(({ key, label, color, bg, border }) => {
+                      const count = ts[key] ?? 0;
+                      return (
+                        <div key={key} style={{ padding: '0.55rem 0.7rem', background: count > 0 ? bg : 'var(--navy-50)', border: `1px solid ${count > 0 ? border : 'var(--navy-100)'}`, borderRadius: 9, opacity: count > 0 ? 1 : 0.38 }}>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 800, color: count > 0 ? color : 'var(--navy-400)', letterSpacing: '-0.03em', lineHeight: 1, fontFamily: FONT }}>{fmtN(count)}</div>
+                          <div style={{ fontSize: '0.58rem', fontWeight: 700, color: count > 0 ? color : 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3, fontFamily: FONT }}>{label}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         );

@@ -43,6 +43,8 @@ interface ResellerStats {
   };
 }
 
+type PeriodPreset = 'all' | 'this_month' | 'last_month' | 'last_3m' | 'custom';
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt$ = (v: number) =>
   `$${(v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -521,35 +523,64 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   const [showLossModal, setShowLossModal]   = useState(false);
   const [lossPerItem, setLossPerItem] = useState<number>(() => parseFloat(localStorage.getItem(LOSS_KEY) ?? '0') || 0);
 
-  const currentMonthStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; })();
-  const [tsMonth,  setTsMonth]  = useState(currentMonthStr);
+  const toISO = (d: Date) => d.toISOString().slice(0, 10);
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('this_month');
+  const [periodFrom,   setPeriodFrom]   = useState('');
+  const [periodTo,     setPeriodTo]     = useState('');
   const [tsCounts, setTsCounts] = useState<UserStats['trackingStatus'] | null>(null);
   const [tsLoad,   setTsLoad]   = useState(false);
 
-  const tsMonthOpts = (() => {
-    const opts: { value: string; label: string }[] = [];
+  const getPeriodRange = useCallback((preset: PeriodPreset, pFrom = periodFrom, pTo = periodTo) => {
     const n = new Date();
-    for (let i = 0; i < 13; i++) {
-      const d = new Date(n.getFullYear(), n.getMonth() - i, 1);
-      opts.push({ value: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) });
+    if (preset === 'this_month') {
+      const f = new Date(n.getFullYear(), n.getMonth(), 1);
+      const t = new Date(n.getFullYear(), n.getMonth() + 1, 0, 23, 59, 59);
+      return { from: toISO(f), to: toISO(t) };
     }
-    return opts;
-  })();
+    if (preset === 'last_month') {
+      const f = new Date(n.getFullYear(), n.getMonth() - 1, 1);
+      const t = new Date(n.getFullYear(), n.getMonth(), 0, 23, 59, 59);
+      return { from: toISO(f), to: toISO(t) };
+    }
+    if (preset === 'last_3m') {
+      const f = new Date(n.getFullYear(), n.getMonth() - 2, 1);
+      return { from: toISO(f), to: toISO(n) };
+    }
+    if (preset === 'custom') return { from: pFrom, to: pTo };
+    return { from: '', to: '' };
+  }, [periodFrom, periodTo]);
 
-  useEffect(() => {
-    setTsLoad(true);
-    axios.get(tsMonth ? `/stats/tracking-status?month=${tsMonth}` : '/stats/tracking-status')
-      .then(r => setTsCounts(r.data)).catch(() => {}).finally(() => setTsLoad(false));
-  }, [tsMonth]);
+  const deriveTsMonth = useCallback((preset: PeriodPreset, pFrom = periodFrom): string => {
+    const n = new Date();
+    const pad = (x: number) => String(x).padStart(2, '0');
+    if (preset === 'this_month') return `${n.getFullYear()}-${pad(n.getMonth() + 1)}`;
+    if (preset === 'last_month') { const d = new Date(n.getFullYear(), n.getMonth() - 1, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
+    if (preset === 'custom' && pFrom) return pFrom.slice(0, 7);
+    return '';
+  }, [periodFrom]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preset = periodPreset, pFrom = periodFrom, pTo = periodTo) => {
     try {
-      const [s, a] = await Promise.all([axios.get('/stats'), axios.get('/access/me').catch(() => ({ data: { access: [] } }))]);
+      const { from, to } = getPeriodRange(preset, pFrom, pTo);
+      const params: Record<string, string> = {};
+      if (from) params.from = from;
+      if (to)   params.to   = to;
+      const [s, a] = await Promise.all([
+        axios.get('/stats', { params }),
+        axios.get('/access/me').catch(() => ({ data: { access: [] } })),
+      ]);
       setStats(s.data);
       setVendorAccess((a.data?.access || []).filter((v: VendorAccessItem) => v.isAllowed));
+      setTsLoad(true);
+      const tsM = deriveTsMonth(preset, pFrom);
+      axios.get(tsM ? `/stats/tracking-status?month=${tsM}` : '/stats/tracking-status')
+        .then(r => setTsCounts(r.data)).catch(() => {}).finally(() => setTsLoad(false));
     } catch { } finally { setLoading(false); }
-  }, []);
+  }, [periodPreset, periodFrom, periodTo, getPeriodRange, deriveTsMonth]);
   useEffect(() => { load(); }, [load]);
+
+  const applyPeriodPreset = (key: PeriodPreset) => { setPeriodPreset(key); load(key, periodFrom, periodTo); };
+  const applyCustomPeriod = () => { if (!periodFrom || !periodTo) return; setPeriodPreset('custom'); load('custom', periodFrom, periodTo); };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="spinner" /></div>;
   if (!stats) return null;
@@ -576,22 +607,73 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
     if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi;
   });
 
-  const trackTiles = [
-    { key: 'not_scanned_yet',    label: 'Not Scanned',   color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
-    { key: 'in_transit',         label: 'In Transit',     color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' },
-    { key: 'out_for_delivery',   label: 'Out for Delivery', color: '#6D28D9', bg: '#F5F3FF', border: '#DDD6FE' },
-    { key: 'delivered',          label: 'Delivered',      color: '#15803D', bg: '#F0FDF4', border: '#BBF7D0' },
-    { key: 'exception_problem',  label: 'Exception',      color: '#DC2626', bg: '#FFF5F5', border: '#FECACA' },
-    { key: 'returned_to_sender', label: 'Returned',       color: '#BE123C', bg: '#FFF1F2', border: '#FECDD3' },
-    { key: 'pending_pickup',     label: 'Pending',        color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA' },
-    { key: 'delayed',            label: 'Delayed',        color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+  const tsTotal        = tsCounts ? Object.values(tsCounts).reduce((s, v) => s + v, 0) : 0;
+  const tsDelivered    = tsCounts?.delivered ?? 0;
+  const deliveryRate   = tsTotal > 0 ? Math.round((tsDelivered / tsTotal) * 100) : 0;
+  const tsIssueTotal   = (tsCounts?.exception_problem ?? 0) + (tsCounts?.returned_to_sender ?? 0) + (tsCounts?.delayed ?? 0) + (tsCounts?.pending_pickup ?? 0);
+  const periodLabel    = periodPreset === 'all' ? 'All time' : periodPreset === 'this_month' ? 'This month' : periodPreset === 'last_month' ? 'Last month' : periodPreset === 'last_3m' ? 'Last 3 months' : 'Custom range';
+
+  const journeyStages = [
+    { key: 'not_scanned_yet',  label: 'Not Scanned',     color: '#64748B', bg: '#F8FAFC', border: '#CBD5E1' },
+    { key: 'in_transit',       label: 'In Transit',       color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD' },
+    { key: 'out_for_delivery', label: 'Out for Delivery', color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
+    { key: 'delivered',        label: 'Delivered',        color: '#15803D', bg: '#F0FDF4', border: '#86EFAC' },
+  ] as const;
+
+  const issueItems = [
+    { key: 'exception_problem',  label: 'Exception', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+    { key: 'returned_to_sender', label: 'Returned',  color: '#BE123C', bg: '#FFF1F2', border: '#FECDD3' },
+    { key: 'delayed',            label: 'Delayed',   color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
+    { key: 'pending_pickup',     label: 'Pending',   color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA' },
   ] as const;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontFamily: FONT }}>
 
-      {/* Hero */}
-      <Hero greeting={greeting} name={firstName} date={dateLabel} />
+      {/* ── Hero + Period filter ─────────────────────────────────────────────── */}
+      <div style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)', borderRadius: 18, overflow: 'hidden', position: 'relative' }}>
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.06, backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '22px 22px', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 50% 90% at 8% 50%, rgba(59,130,246,0.14) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ padding: '1.4rem 2rem', position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' }}>
+          <div>
+            <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: '0.7rem', fontWeight: 500, margin: '0 0 4px', letterSpacing: '0.03em', fontFamily: FONT }}>{dateLabel}</p>
+            <h1 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 3px', lineHeight: 1.15, fontFamily: FONT }}>
+              {greeting}, <span style={{ color: '#60A5FA' }}>{firstName}</span>
+            </h1>
+            <p style={{ color: '#64748B', fontSize: '0.78rem', margin: 0, fontFamily: FONT }}>Your shipping overview is ready.</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.63rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0, fontFamily: FONT }}>Period</span>
+            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: 2, gap: 1 }}>
+              {([
+                { key: 'all',        label: 'All Time'   },
+                { key: 'this_month', label: 'This Month' },
+                { key: 'last_month', label: 'Last Month' },
+                { key: 'last_3m',    label: 'Last 3M'   },
+              ] as const).map(p => (
+                <button key={p.key} onClick={() => applyPeriodPreset(p.key)} style={{
+                  padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  fontSize: '0.71rem', fontWeight: 700, fontFamily: FONT, transition: 'all 0.12s',
+                  background: periodPreset === p.key ? 'rgba(255,255,255,0.14)' : 'transparent',
+                  color:      periodPreset === p.key ? '#fff' : 'rgba(255,255,255,0.38)',
+                  boxShadow:  periodPreset === p.key ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
+                }}>{p.label}</button>
+              ))}
+            </div>
+            <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)}
+                style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' as any }} />
+              <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>–</span>
+              <input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)}
+                style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 7, padding: '3px 7px', fontSize: '0.73rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontFamily: FONT, colorScheme: 'dark' as any }} />
+              <button onClick={applyCustomPeriod} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
+                Go
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── 2-column layout ── */}
       <div className="dashboard-layout">
@@ -606,39 +688,14 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
             <KpiCard label="Total Spent"       value={fmt$(balance.totalSpent)} sub="Labels + manifests"    color="#6366f1" Icon={CurrencyDollarIcon} />
           </div>
 
-          {/* Savings + ROI */}
-          <div className="dashboard-kpi-2col">
-            <KpiCard
-              label="Total Savings" value={fmt$(adjustedSavings)} color="#10b981" Icon={SparklesIcon}
-              sub={lossPerItem > 0 ? `Adjusted · ${exceptionCount} exceptions × ${fmt$(lossPerItem)}` : savings?.labelCount ? `vs USPS retail · ${savings.labelCount} labels` : 'vs USPS retail'}
-              infoTooltip={SAVINGS_TIP}
-              ActionIcon={ArrowUpTrayIcon} onAction={() => setShowLossModal(true)}
-            />
-            <KpiCard label="ROI" value={`${roi.toFixed(1)}%`} sub={`${fmt$(adjustedSavings)} saved`} color="#8b5cf6" Icon={ArrowTrendingUpIcon} />
-          </div>
-
           {/* Tracking Status */}
           <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>
             <SLabel
               text="Label Tracking Status"
               accent="#1D4ED8"
               action={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <CalendarDaysIcon style={{ position: 'absolute', left: 8, width: 12, height: 12, color: tsMonth ? '#1D4ED8' : 'var(--navy-400)', pointerEvents: 'none' }} />
-                    <select
-                      value={tsMonth} onChange={e => setTsMonth(e.target.value)}
-                      style={{ height: 29, paddingLeft: 25, paddingRight: tsMonth ? 26 : 8, border: `1px solid ${tsMonth ? '#BFDBFE' : 'var(--navy-200)'}`, borderRadius: 7, background: tsMonth ? '#EFF6FF' : 'var(--bg-card)', color: tsMonth ? '#1D4ED8' : 'var(--navy-600)', fontSize: '0.7rem', fontWeight: 600, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', outline: 'none', fontFamily: FONT }}
-                    >
-                      <option value="">All Time</option>
-                      {tsMonthOpts.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                    {tsMonth && (
-                      <button onClick={() => setTsMonth('')} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', padding: 1, cursor: 'pointer', color: '#1D4ED8', display: 'flex' }}>
-                        <XMarkIcon style={{ width: 10, height: 10 }} />
-                      </button>
-                    )}
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '0.67rem', color: 'var(--navy-400)', fontFamily: FONT }}>{periodLabel}</span>
                   <GhostBtn onClick={() => navigate('/labels/history')}>View Labels →</GhostBtn>
                 </div>
               }
@@ -646,19 +703,75 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
             {tsLoad ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem 0' }}><div className="spinner" /></div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem' }}>
-                {trackTiles.map(({ key, label, color, bg, border }) => {
-                  const count = tsCounts?.[key] ?? 0;
-                  return (
-                    <div key={key} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: '0.75rem 0.9rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
-                      </div>
-                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color, letterSpacing: '-0.04em', lineHeight: 1 }}>{count}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+                {/* Delivery rate headline */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--navy-100)' }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 900, color: '#15803D', letterSpacing: '-0.045em', lineHeight: 1, fontFamily: FONT }}>
+                      {deliveryRate}<span style={{ fontSize: '1.1rem' }}>%</span>
                     </div>
-                  );
-                })}
+                    <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em', marginTop: 2, fontFamily: FONT }}>Delivery Rate</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ height: 8, background: 'var(--navy-100)', borderRadius: 99, overflow: 'hidden', marginBottom: 5 }}>
+                      <div style={{ width: `${deliveryRate}%`, height: '100%', background: 'linear-gradient(90deg,#22c55e,#16a34a)', borderRadius: 99, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.63rem', color: 'var(--navy-400)', fontFamily: FONT }}>{tsDelivered.toLocaleString()} delivered</span>
+                      <span style={{ fontSize: '0.63rem', color: 'var(--navy-400)', fontFamily: FONT }}>{tsTotal.toLocaleString()} total</span>
+                    </div>
+                  </div>
+                  {tsIssueTotal > 0 && (
+                    <div style={{ flexShrink: 0, textAlign: 'center', padding: '6px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10 }}>
+                      <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#DC2626', lineHeight: 1, fontFamily: FONT }}>{tsIssueTotal}</div>
+                      <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 2, fontFamily: FONT }}>Issues</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Shipment journey pipeline */}
+                <div>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8, fontFamily: FONT }}>Shipment Journey</div>
+                  <div style={{ display: 'flex' }}>
+                    {journeyStages.map(({ key, label, color, bg, border }, idx) => {
+                      const count = tsCounts?.[key] ?? 0;
+                      const isLast = idx === journeyStages.length - 1;
+                      return (
+                        <React.Fragment key={key}>
+                          <div style={{ flex: 1, padding: '0.7rem 0.8rem', background: count > 0 ? bg : 'var(--navy-50)', border: `1px solid ${count > 0 ? border : 'var(--navy-100)'}`, borderRight: !isLast ? 'none' : undefined, borderRadius: idx === 0 ? '9px 0 0 9px' : isLast ? '0 9px 9px 0' : 0 }}>
+                            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: count > 0 ? color : 'var(--navy-300)', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{count.toLocaleString()}</div>
+                            <div style={{ fontSize: '0.58rem', fontWeight: 700, color: count > 0 ? color : 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4, fontFamily: FONT }}>{label}</div>
+                          </div>
+                          {!isLast && (
+                            <div style={{ width: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy-100)', flexShrink: 0 }}>
+                              <span style={{ fontSize: '0.85rem', color: 'var(--navy-300)', lineHeight: 1 }}>›</span>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Needs attention */}
+                {tsIssueTotal > 0 && (
+                  <div>
+                    <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8, fontFamily: FONT }}>Needs Attention</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                      {issueItems.map(({ key, label, color, bg, border }) => {
+                        const count = tsCounts?.[key] ?? 0;
+                        return (
+                          <div key={key} style={{ padding: '0.55rem 0.7rem', background: count > 0 ? bg : 'var(--navy-50)', border: `1px solid ${count > 0 ? border : 'var(--navy-100)'}`, borderRadius: 9, opacity: count > 0 ? 1 : 0.38 }}>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: count > 0 ? color : 'var(--navy-400)', letterSpacing: '-0.03em', lineHeight: 1, fontFamily: FONT }}>{count}</div>
+                            <div style={{ fontSize: '0.58rem', fontWeight: 700, color: count > 0 ? color : 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3, fontFamily: FONT }}>{label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
           </div>
@@ -709,30 +822,15 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
             onAdd={() => setShowAddBalance(true)}
           />
 
-          {/* Labels by Carrier */}
-          <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>
-            <SLabel text="Labels by Carrier" accent="#1D4ED8" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-              {['USPS', 'UPS', 'FedEx', 'DHL'].map(c => {
-                const count = labels.byCarrier[c] || 0;
-                const pct = Math.round((count / totalLabels) * 100);
-                return (
-                  <div key={c}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <span style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--navy-700)' }}>{c}</span>
-                      <span style={{ fontSize: '0.73rem', color: 'var(--navy-500)' }}>{count} · {pct}%</span>
-                    </div>
-                    <div style={{ height: 7, background: 'var(--navy-100)', borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: CARRIER_GRADIENT[c] || CARRIER_COLORS[c], borderRadius: 99, transition: 'width 0.4s ease' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: '0.875rem', paddingTop: '0.75rem', borderTop: '1px solid var(--navy-100)', display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.74rem', color: 'var(--navy-500)' }}>Total</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--navy-800)' }}>{labels.total.toLocaleString()}</span>
-            </div>
+          {/* Savings + ROI */}
+          <div className="dashboard-kpi-2col">
+            <KpiCard
+              label="Total Savings" value={fmt$(adjustedSavings)} color="#10b981" Icon={SparklesIcon}
+              sub={lossPerItem > 0 ? `Adjusted · ${exceptionCount} exc × ${fmt$(lossPerItem)}` : savings?.labelCount ? `${savings.labelCount} labels` : 'vs retail'}
+              infoTooltip={SAVINGS_TIP}
+              ActionIcon={ArrowUpTrayIcon} onAction={() => setShowLossModal(true)}
+            />
+            <KpiCard label="ROI" value={`${roi.toFixed(1)}%`} sub={`${fmt$(adjustedSavings)} saved`} color="#8b5cf6" Icon={ArrowTrendingUpIcon} />
           </div>
 
           {/* Active Manifests */}
@@ -770,16 +868,6 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Quick Actions */}
-          <div className="db-card" style={{ padding: '1.2rem 1.4rem' }}>
-            <SLabel text="Quick Actions" accent="var(--accent-500)" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <QAction label="Single Label"  sub="Generate one now"         Icon={TagIcon}                   color="#0ea5e9" onClick={() => navigate('/labels/single')} />
-              <QAction label="Bulk Labels"   sub="Upload CSV for many"      Icon={ClipboardDocumentListIcon} color="#6366f1" onClick={() => navigate('/labels/bulk')} />
-              <QAction label="Label History" sub="Browse all generated"     Icon={ClockIcon}                 color="#f59e0b" onClick={() => navigate('/labels/history')} />
-            </div>
           </div>
 
         </div>{/* end right sidebar */}

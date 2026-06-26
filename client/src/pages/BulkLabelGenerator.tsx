@@ -13,6 +13,7 @@ import {
   ArrowLeftIcon, SparklesIcon, BoltIcon,
 } from '@heroicons/react/24/outline';
 import { getUspsZone1Rate } from '../utils/uspsRates';
+import { lookupZip } from '../utils/zipLookup';
 
 // ── External state analytics API ─────────────────────────────────────────────
 const EXT     = 'https://shippers-hub-tracking-command-cente.vercel.app/api/public';
@@ -392,6 +393,23 @@ function validateRow(row: LabelRow): string[] {
     if (!row[col]?.trim()) errs.push(`${col.replace(/_/g,' ')} required`);
   }
   if (row.weight && isNaN(parseFloat(row.weight))) errs.push('weight must be a number');
+
+  for (const side of ['from', 'to'] as const) {
+    const zip   = (row[`${side}_zip`] ?? '').trim();
+    const state = (row[`${side}_state`] ?? '').trim().toUpperCase();
+    const city  = (row[`${side}_city`] ?? '').trim();
+    if (!/^\d{5}$/.test(zip)) continue;
+    const hit = lookupZip(zip);
+    const label = side === 'from' ? 'From' : 'To';
+    if (!hit) { errs.push(`${label} ZIP ${zip} is not a valid US zip code`); continue; }
+    if (state && hit.state !== state) {
+      errs.push(`${label} ZIP ${zip} → state should be ${hit.state} (got ${state})`);
+    }
+    if (city && hit.city.toLowerCase() !== city.toLowerCase()) {
+      errs.push(`${label} ZIP ${zip} → city suggestion: "${hit.city}" (entered: "${city}")`);
+    }
+  }
+
   return errs;
 }
 
@@ -2068,9 +2086,16 @@ const BulkLabelGenerator: React.FC = () => {
                   const hasRowError = errs.length > 0;
                   const assignment  = isAutoMode ? rowAssignments[rowIdx] : null;
                   const vendorError = isAutoMode && !autoLoading && rowAssignments.length > rowIdx && !assignment;
+                  const zipErrCells = new Set<string>();
+                  errs.forEach(e => {
+                    if (e.startsWith('From ZIP') && e.includes('state should be')) zipErrCells.add('from_state');
+                    if (e.startsWith('To ZIP')   && e.includes('state should be')) zipErrCells.add('to_state');
+                    if (e.startsWith('From ZIP') && e.includes('city suggestion'))  zipErrCells.add('from_city');
+                    if (e.startsWith('To ZIP')   && e.includes('city suggestion'))  zipErrCells.add('to_city');
+                  });
                   return (
+                    <React.Fragment key={rowIdx}>
                     <tr
-                      key={rowIdx}
                       style={{ borderBottom: '1px solid var(--navy-50)', background: hasRowError ? 'rgba(239,68,68,0.025)' : 'transparent' }}
                     >
                       <td style={{ padding: '0.25rem 0.5rem', color: 'var(--navy-500)', fontWeight: 600, fontSize: '0.75rem', verticalAlign: 'middle' }}>
@@ -2081,7 +2106,7 @@ const BulkLabelGenerator: React.FC = () => {
                       {TABLE_COLS.map(col => {
                         const isEmpty     = col.required && !row[col.key]?.trim();
                         const isWeightErr = col.key === 'weight' && row[col.key] && isNaN(parseFloat(row[col.key]));
-                        const cellError   = isEmpty || isWeightErr;
+                        const cellError   = isEmpty || isWeightErr || zipErrCells.has(col.key);
                         return (
                           <td key={col.key} style={{ padding: '0.2rem 0.25rem', verticalAlign: 'middle' }}>
                             <input
@@ -2143,6 +2168,21 @@ const BulkLabelGenerator: React.FC = () => {
                         </button>
                       </td>
                     </tr>
+                    {hasRowError && (
+                      <tr style={{ background: 'rgba(239,68,68,0.04)' }}>
+                        <td />
+                        <td colSpan={TABLE_COLS.length + (isAutoMode ? 1 : 0) + 1} style={{ padding: '2px 6px 5px' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {errs.map((e, ei) => (
+                              <span key={ei} style={{ fontSize: '0.68rem', color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 4, padding: '1px 7px', fontFamily: FONT }}>
+                                {e}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

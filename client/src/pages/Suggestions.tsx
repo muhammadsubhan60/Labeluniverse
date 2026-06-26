@@ -494,67 +494,76 @@ const Suggestions: React.FC = () => {
   return (
     <div style={{ fontFamily: FONT }}>
 
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)',
-        margin: '-2rem -2rem 1.5rem',
-        padding: '2.5rem 2rem 2rem',
-        position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px)', backgroundSize: '24px 24px', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 50% at 80% 100%, rgba(99,102,241,0.25) 0%, transparent 70%)', pointerEvents: 'none' }} />
-
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div style={{ width: 3, height: 18, background: '#818cf8', borderRadius: 99 }} />
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: FONT }}>
-                  Community
-                </span>
-              </div>
-              <h1 style={{ fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.8px', marginBottom: 6, fontFamily: FONT }}>
-                Feedback Board
-              </h1>
-              <p style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.5)', fontFamily: FONT, maxWidth: 400, lineHeight: 1.6 }}>
-                Share your ideas, report issues, and vote on what you'd like to see built next.
-              </p>
-            </div>
-            <button
-              onClick={openSubmit}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: '0.6rem 1.2rem',
-                background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
-                border: 'none', borderRadius: 9, color: '#fff',
-                fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
-                fontFamily: FONT, flexShrink: 0,
-              }}
-            >
-              <LightBulbIcon style={{ width: 16, height: 16 }} />
-              Submit Idea
-            </button>
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.025em', margin: 0, fontFamily: FONT }}>
+              Feedback Board
+            </h1>
+            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: 99, background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const, fontFamily: FONT, border: '1px solid rgba(99,102,241,0.2)' }}>
+              Community
+            </span>
           </div>
-
-          {/* Stat chips */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
+          <p style={{ fontSize: '0.82rem', color: 'var(--navy-500)', margin: '0 0 10px', fontFamily: FONT }}>
+            Share ideas, report issues, and vote on what gets built next.
+          </p>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[
-              { label: 'Total Ideas', value: stats.total },
-              { label: 'Under Review', value: stats.underReview },
-              { label: 'Implemented', value: stats.implemented },
-            ].map(({ label, value }) => (
-              <div key={label} style={{
-                padding: '5px 14px', background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 99,
-                display: 'flex', alignItems: 'center', gap: 7,
-              }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff', fontFamily: FONT }}>{value}</span>
-                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontFamily: FONT }}>{label}</span>
+              { label: 'Total Ideas',   value: stats.total,       color: '#6366f1', bg: 'rgba(99,102,241,0.08)',  border: 'rgba(99,102,241,0.18)' },
+              { label: 'Under Review',  value: stats.underReview, color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.18)' },
+              { label: 'Implemented',   value: stats.implemented, color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.18)' },
+            ].map(({ label, value, color, bg, border }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 11px', background: bg, border: `1px solid ${border}`, borderRadius: 99 }}>
+                <span style={{ fontSize: '0.88rem', fontWeight: 800, color, fontFamily: FONT }}>{value}</span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--navy-500)', fontFamily: FONT }}>{label}</span>
               </div>
             ))}
           </div>
         </div>
+        <button
+          onClick={openSubmit}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '0.6rem 1.2rem',
+            background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+            border: 'none', borderRadius: 9, color: '#fff',
+            fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(99,102,241,0.28)',
+            fontFamily: FONT, flexShrink: 0, alignSelf: 'flex-start',
+          }}
+        >
+          <LightBulbIcon style={{ width: 16, height: 16 }} />
+          Submit Idea
+        </button>
+      </div>
+
+      {/* ── How it works strip ───────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.7rem', marginBottom: '1.25rem' }}>
+        {[
+          { Icon: ChevronUpIcon,        color: '#6366f1', bg: 'rgba(99,102,241,0.07)',  border: 'rgba(99,102,241,0.15)', title: 'Upvote',   desc: 'Vote on ideas you want to see shipped' },
+          { Icon: ChatBubbleLeftIcon,   color: '#0ea5e9', bg: 'rgba(14,165,233,0.07)',  border: 'rgba(14,165,233,0.15)', title: 'Discuss',  desc: 'Comment to add context or ask questions' },
+          { Icon: LightBulbIcon,        color: '#f59e0b', bg: 'rgba(245,158,11,0.07)',  border: 'rgba(245,158,11,0.15)', title: 'Submit',   desc: 'Got an idea? Hit "Submit Idea" above', cta: true },
+        ].map(({ Icon, color, bg, border, title, desc, cta }) => (
+          <div
+            key={title}
+            onClick={cta ? openSubmit : undefined}
+            style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              padding: '0.75rem 1rem',
+              background: bg, border: `1px solid ${border}`,
+              borderRadius: 12, cursor: cta ? 'pointer' : 'default',
+            }}
+          >
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}18`, border: `1px solid ${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon style={{ width: 15, height: 15, color }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-800)', fontFamily: FONT, marginBottom: 2 }}>{title}</div>
+              <div style={{ fontSize: '0.71rem', color: 'var(--navy-500)', fontFamily: FONT, lineHeight: 1.45 }}>{desc}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ── Filter bar ───────────────────────────────────────────────────── */}

@@ -20,9 +20,6 @@ function useViewport() {
   return w;
 }
 
-const API_BASE = process.env.REACT_APP_API_URL
-  || (window.location.hostname === 'localhost' ? 'http://localhost:5001/api' : '/api');
-
 const Login: React.FC = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);

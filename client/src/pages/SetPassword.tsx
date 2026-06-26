@@ -27,7 +27,7 @@ const lbl: React.CSSProperties = {
 function checkRules(pw: string) {
   return {
     length:  pw.length >= 5,
-    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(pw),
+    special: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(pw),
   };
 }
 

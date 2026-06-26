@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   ShieldCheckIcon, ClockIcon, TruckIcon,
-  EnvelopeIcon, ExclamationCircleIcon,
+  ExclamationCircleIcon,
 } from '@heroicons/react/24/outline';
 import BrandMonogram from '../components/BrandMonogram';
 

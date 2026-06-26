@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "outputDirectory": "build",
+  "outputDirectory": "client/build",
   "framework": null,
   "rewrites": [
     {

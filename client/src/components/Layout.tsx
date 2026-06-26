@@ -264,8 +264,8 @@ const Layout: React.FC = () => {
 
   const sections: NavSection[] = [
     { key: 'overview',    label: 'Overview',    items: overviewNav },
-    { key: 'mystore',     label: 'My Store',    items: storeNav },
     { key: 'labels',      label: 'Labels',      items: labelsNav },
+    { key: 'mystore',     label: 'My Store',    items: storeNav },
     ...(ccItems.length > 0           ? [{ key: 'cc',         label: 'Command Center', items: ccItems }]          : []),
     ...(adminOpsItems.length > 0     ? [{ key: 'operations', label: 'Operations',  items: adminOpsItems }]     : []),
     ...(adminFinanceItems.length > 0 ? [{ key: 'finance',    label: 'Finance',     items: adminFinanceItems }] : []),

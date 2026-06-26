@@ -85,6 +85,31 @@ const PlatformLogo: React.FC<{ id: string; size?: number }> = ({ id, size = 44 }
           </svg>
         </Box>
       );
+    case 'dhl':
+      return (
+        <Box bg="#FFCC00">
+          <svg width={is} height={is} viewBox="0 0 32 12" aria-hidden>
+            <text x="1" y="10" fontSize="11" fontWeight="900" fontFamily="Arial,sans-serif" fill="#D40511">DHL</text>
+          </svg>
+        </Box>
+      );
+    case 'fedex':
+      return (
+        <Box bg="#4D148C">
+          <svg width={is} height={is} viewBox="0 0 40 14" aria-hidden>
+            <text x="1" y="11" fontSize="11" fontWeight="900" fontFamily="Arial,sans-serif" fill="white">Fed</text>
+            <text x="21" y="11" fontSize="11" fontWeight="900" fontFamily="Arial,sans-serif" fill="#FF6600">Ex</text>
+          </svg>
+        </Box>
+      );
+    case 'ups':
+      return (
+        <Box bg="#351C15">
+          <svg width={is} height={is} viewBox="0 0 32 14" aria-hidden>
+            <text x="2" y="11" fontSize="11" fontWeight="900" fontFamily="Arial,sans-serif" fill="#FFB500">UPS</text>
+          </svg>
+        </Box>
+      );
     default:
       return <div style={{ width: size, height: size, borderRadius: r, background: 'var(--navy-100)', flexShrink: 0 }} />;
   }
@@ -161,6 +186,39 @@ const PLATFORMS: Platform[] = [
     bgColor: 'rgba(255,153,0,0.08)',
     chipColor: '#c45000',
     features: ['FBA & FBM orders', 'Multi-region support', 'ASIN tracking', 'Return management'],
+  },
+  {
+    id: 'dhl',
+    name: 'DHL',
+    tagline: 'Global shipping carrier',
+    description: 'Print DHL Express and eCommerce labels directly from the portal with real-time rate shopping and tracking.',
+    status: 'coming',
+    accentColor: '#D40511',
+    bgColor: 'rgba(212,5,17,0.07)',
+    chipColor: '#b91c1c',
+    features: ['Express & eCommerce labels', 'Real-time rates', 'Live tracking', 'International shipments'],
+  },
+  {
+    id: 'fedex',
+    name: 'FedEx',
+    tagline: 'Express & ground shipping',
+    description: 'Generate FedEx Ground, Home Delivery, and Express labels with discounted rates negotiated through the platform.',
+    status: 'coming',
+    accentColor: '#4D148C',
+    bgColor: 'rgba(77,20,140,0.07)',
+    chipColor: '#4D148C',
+    features: ['Ground & Express labels', 'Discounted rates', 'Pickup scheduling', 'Proof of delivery'],
+  },
+  {
+    id: 'ups',
+    name: 'UPS',
+    tagline: 'Reliable parcel delivery',
+    description: 'Access UPS Ground, 2nd Day Air, and Next Day Air at platform rates. Generate labels and schedule pickups in one click.',
+    status: 'coming',
+    accentColor: '#FFB500',
+    bgColor: 'rgba(255,181,0,0.08)',
+    chipColor: '#92400e',
+    features: ['Ground & Air labels', 'Platform rate access', 'Pickup scheduling', 'Returns management'],
   },
 ];
 

@@ -48,7 +48,6 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setNeedsVerification(false);
-    setResendMsg('');
     try {
       await login(formData.email, formData.password);
     } catch (err: any) {

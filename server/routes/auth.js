@@ -75,7 +75,7 @@ router.post('/register', [
     try {
       await sendMail({
         to:      user.email,
-        subject: 'Your Label Universe verification code',
+        subject: 'Your Label Flow verification code',
         html:    otpEmailHtml(user.firstName, otp),
       });
     } catch (mailErr) {
@@ -206,7 +206,7 @@ router.post('/resend-otp', [
     try {
       await sendMail({
         to:      user.email,
-        subject: 'Your Label Universe verification code',
+        subject: 'Your Label Flow verification code',
         html:    otpEmailHtml(user.firstName, otp),
       });
     } catch (mailErr) {
@@ -338,7 +338,7 @@ router.post('/forgot-password', [
     try {
       await sendMail({
         to:      user.email,
-        subject: 'Password Reset Request — Label Universe',
+        subject: 'Password Reset Request — Label Flow',
         html:    resetPasswordHtml(user.firstName, resetUrl),
       });
     } catch (mailErr) {

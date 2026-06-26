@@ -41,7 +41,7 @@ const VerifyEmail: React.FC = () => {
             <div style={{ width: 34, height: 34, background: '#0F172A', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BrandMonogram size={18} color="#fff" strokeWidth={2.2} />
             </div>
-            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.4px' }}>Label Universe</span>
+            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.4px' }}>Label Flow</span>
           </div>
         </div>
 

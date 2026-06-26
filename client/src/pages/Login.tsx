@@ -263,7 +263,7 @@ const Login: React.FC = () => {
               Welcome back
             </h3>
             <p style={{ fontSize: '0.83rem', color: 'var(--navy-500)', fontWeight: 400, fontFamily: FONT }}>
-              Sign in to your Label Universe account
+              Sign in to your Label Flow account
             </p>
           </div>
 

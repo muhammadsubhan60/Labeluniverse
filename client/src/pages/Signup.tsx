@@ -112,7 +112,7 @@ const Signup: React.FC = () => {
               Create your<br /><span style={{ color: '#818cf8' }}>free account.</span>
             </h2>
             <p style={{ fontSize: '0.87rem', color: 'rgba(255,255,255,0.44)', lineHeight: 1.72, marginBottom: 32, fontWeight: 400, maxWidth: 320 }}>
-              Get access to Label Universe and start managing your shipping operation.
+              Get access to Label Flow and start managing your shipping operation.
             </p>
             {sideFeatures.map(({ icon: Icon, text }) => (
               <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>

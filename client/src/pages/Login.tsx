@@ -27,8 +27,6 @@ const Login: React.FC = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendMsg, setResendMsg] = useState('');
   const { login, isAuthenticated, isLoading, error, user } = useAuth();
   const navigate = useNavigate();
   const vw = useViewport();
@@ -60,19 +58,6 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleResendVerification = async () => {
-    setResendLoading(true);
-    setResendMsg('');
-    try {
-      const axios = (await import('axios')).default;
-      await axios.post(`${API_BASE}/auth/resend-verification`, { email: formData.email });
-      setResendMsg('Verification email sent. Check your inbox.');
-    } catch {
-      setResendMsg('Failed to resend. Please try again.');
-    } finally {
-      setResendLoading(false);
-    }
-  };
 
   const features = [
     { icon: CubeTransparentIcon, title: 'Fully centralized',   desc: 'Orders, labels, balances, and team access — all under one roof.' },
@@ -370,11 +355,13 @@ const Login: React.FC = () => {
             {needsVerification && (
               <div style={{ padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: '0.82rem', color: '#92400e', fontFamily: FONT }}>
                 <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Email not verified</p>
-                <p style={{ margin: '0 0 8px', fontWeight: 400 }}>Please verify your email before signing in.</p>
-                {resendMsg
-                  ? <p style={{ margin: 0, fontWeight: 600, color: resendMsg.includes('sent') ? '#15803d' : '#dc2626' }}>{resendMsg}</p>
-                  : <button onClick={handleResendVerification} disabled={resendLoading} style={{ background: 'none', border: 'none', padding: 0, color: '#6366f1', fontWeight: 700, cursor: resendLoading ? 'not-allowed' : 'pointer', fontSize: '0.82rem', fontFamily: FONT }}>{resendLoading ? 'Sending...' : 'Resend verification email'}</button>
-                }
+                <p style={{ margin: '0 0 8px', fontWeight: 400 }}>Please verify your email with the code we sent you.</p>
+                <Link
+                  to={`/verify-otp?email=${encodeURIComponent(formData.email)}`}
+                  style={{ color: '#6366f1', fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none' }}
+                >
+                  Enter verification code →
+                </Link>
               </div>
             )}
 

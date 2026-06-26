@@ -24,7 +24,6 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
     minlength: [5, 'Password must be at least 5 characters'],
     select: false
   },
@@ -49,8 +48,8 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   emailVerified: { type: Boolean, default: true },
-  emailVerificationToken: String,
-  emailVerificationExpire: Date,
+  otp: String,
+  otpExpire: Date,
   // For resellers - track their clients
   clients: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -126,8 +125,8 @@ userSchema.set('toJSON', {
     delete ret.password;
     delete ret.resetPasswordToken;
     delete ret.resetPasswordExpire;
-    delete ret.emailVerificationToken;
-    delete ret.emailVerificationExpire;
+    delete ret.otp;
+    delete ret.otpExpire;
     return ret;
   }
 });

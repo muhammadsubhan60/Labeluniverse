@@ -8,7 +8,8 @@ import Layout from './components/Layout';
 import VendorLayout from './components/VendorLayout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-import VerifyEmail from './pages/VerifyEmail';
+import VerifyOTP from './pages/VerifyOTP';
+import SetPassword from './pages/SetPassword';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
@@ -79,7 +80,8 @@ function App() {
                 {/* Public routes */}
                 <Route path="/login"            element={<Login />} />
                 <Route path="/signup"           element={<Signup />} />
-                <Route path="/verify-email"     element={<VerifyEmail />} />
+                <Route path="/verify-otp"       element={<VerifyOTP />} />
+                <Route path="/set-password"     element={<SetPassword />} />
                 <Route path="/forgot-password"  element={<ForgotPassword />} />
                 <Route path="/reset-password"   element={<ResetPassword />} />
 

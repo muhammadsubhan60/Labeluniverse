@@ -31,6 +31,7 @@ interface AuthContextType extends AuthState {
   logout: () => void;
   clearError: () => void;
   updateUser: (userData: Partial<User>) => void;
+  authenticateWithToken: (token: string, user: User) => void;
 }
 
 interface RegisterData {
@@ -248,9 +249,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     dispatch({ type: 'CLEAR_ERROR' });
   }, []);
 
-  // Update user function
   const updateUser = (userData: Partial<User>) => {
     dispatch({ type: 'UPDATE_USER', payload: userData });
+  };
+
+  const authenticateWithToken = (token: string, user: User) => {
+    localStorage.setItem('token', token);
+    dispatch({ type: 'AUTH_SUCCESS', payload: { user, token } });
   };
 
   const value: AuthContextType = {
@@ -260,6 +265,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logout,
     clearError,
     updateUser,
+    authenticateWithToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

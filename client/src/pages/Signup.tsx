@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-  EyeIcon, EyeSlashIcon,
   ShieldCheckIcon, ClockIcon, TruckIcon,
   EnvelopeIcon, ExclamationCircleIcon,
 } from '@heroicons/react/24/outline';
@@ -63,13 +62,10 @@ const Signup: React.FC = () => {
   const isMobile = vw < 768;
   const isTablet = vw >= 768 && vw < 1024;
 
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
-  const [showPw, setShowPw] = useState(false);
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [resendMsg, setResendMsg] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -81,24 +77,11 @@ const Signup: React.FC = () => {
     setLoading(true);
     try {
       await axios.post(`${API_BASE}/auth/register`, form);
-      setSent(true);
+      navigate(`/verify-otp?email=${encodeURIComponent(form.email)}`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setResending(true);
-    setResendMsg('');
-    try {
-      await axios.post(`${API_BASE}/auth/resend-verification`, { email: form.email });
-      setResendMsg('Verification email resent. Check your inbox.');
-    } catch {
-      setResendMsg('Failed to resend. Please try again.');
-    } finally {
-      setResending(false);
     }
   };
 
@@ -174,37 +157,10 @@ const Signup: React.FC = () => {
           boxShadow: isMobile ? 'none' : 'var(--shadow-lg)',
         }}>
 
-          {sent ? (
-            /* ── Email sent state ── */
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-                <div style={{ width: 60, height: 60, borderRadius: 16, background: 'linear-gradient(135deg, #f0f4ff, #e8eeff)', border: '1.5px solid #c7d2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <EnvelopeIcon style={{ width: 28, height: 28, color: '#6366f1' }} />
-                </div>
-              </div>
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.5px', marginBottom: 8 }}>Check your inbox</h3>
-              <p style={{ fontSize: '0.875rem', color: 'var(--navy-500)', lineHeight: 1.65, marginBottom: 24 }}>
-                We sent a verification link to <strong style={{ color: 'var(--navy-700)' }}>{form.email}</strong>. Click it to activate your account.
-              </p>
-              {resendMsg && (
-                <p style={{ fontSize: '0.8rem', color: resendMsg.includes('resent') ? '#16a34a' : '#dc2626', marginBottom: 16 }}>{resendMsg}</p>
-              )}
-              <button
-                onClick={handleResend}
-                disabled={resending}
-                style={{ background: 'none', border: '1px solid var(--navy-200)', borderRadius: 8, padding: '8px 18px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--navy-600)', cursor: resending ? 'not-allowed' : 'pointer', fontFamily: FONT, marginBottom: 20 }}
-              >
-                {resending ? 'Resending...' : 'Resend verification email'}
-              </button>
-              <div style={{ height: 1, background: 'var(--navy-100)', margin: '0 0 18px' }} />
-              <Link to="/login" style={{ fontSize: '0.85rem', color: '#6366f1', fontWeight: 700, textDecoration: 'none' }}>Back to sign in</Link>
-            </div>
-          ) : (
-            /* ── Registration form ── */
-            <>
+          <>
               <div style={{ marginBottom: 24 }}>
                 <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.6px', marginBottom: 4 }}>Create account</h3>
-                <p style={{ fontSize: '0.83rem', color: 'var(--navy-500)', fontWeight: 400 }}>Sign up for your Label Universe account</p>
+                <p style={{ fontSize: '0.83rem', color: 'var(--navy-500)', fontWeight: 400 }}>We'll send a 6-digit code to verify your email</p>
               </div>
 
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -222,22 +178,6 @@ const Signup: React.FC = () => {
                 <div>
                   <label style={lbl}>Email Address</label>
                   <input name="email" type="email" required style={inp} placeholder="you@example.com" value={form.email} onChange={handleChange} onFocus={focusI} onBlur={blurI} />
-                </div>
-
-                <div>
-                  <label style={lbl}>Password</label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      name="password" type={showPw ? 'text' : 'password'} required
-                      style={{ ...inp, paddingRight: '2.4rem' }}
-                      placeholder="Min. 12 characters"
-                      value={form.password} onChange={handleChange} onFocus={focusI} onBlur={blurI}
-                    />
-                    <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 0, display: 'flex' }}>
-                      {showPw ? <EyeSlashIcon style={{ width: 16, height: 16 }} /> : <EyeIcon style={{ width: 16, height: 16 }} />}
-                    </button>
-                  </div>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: 'var(--navy-400)', fontFamily: FONT }}>Minimum 12 characters</p>
                 </div>
 
                 {error && (
@@ -263,9 +203,9 @@ const Signup: React.FC = () => {
                   {loading ? (
                     <>
                       <div style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.75s linear infinite' }} />
-                      Creating account...
+                      Sending code...
                     </>
-                  ) : 'Create Account'}
+                  ) : 'Send Verification Code'}
                 </button>
               </form>
 
@@ -275,7 +215,6 @@ const Signup: React.FC = () => {
                 <Link to="/login" style={{ color: 'var(--accent-500)', fontWeight: 700, textDecoration: 'none' }}>Sign in</Link>
               </p>
             </>
-          )}
         </div>
       </div>
     </div>

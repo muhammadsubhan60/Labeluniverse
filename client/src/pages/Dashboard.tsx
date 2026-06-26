@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import {
   CurrencyDollarIcon, TagIcon, ClipboardDocumentListIcon,
-  UserGroupIcon, ArrowUpRightIcon, ClockIcon, SparklesIcon,
+  UserGroupIcon, ArrowUpRightIcon, SparklesIcon,
   InformationCircleIcon, ArrowTrendingUpIcon, ChevronDownIcon,
   ArrowUpTrayIcon, CalendarDaysIcon, XMarkIcon,
   ArrowPathIcon, BellAlertIcon, BanknotesIcon, ExclamationCircleIcon,
@@ -309,42 +309,6 @@ const DashboardFAQ = () => {
   );
 };
 
-// ── Hero ──────────────────────────────────────────────────────────────────────
-const Hero = ({ greeting, name, date }: { greeting: string; name: string; date: string }) => (
-  <div style={{
-    background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 58%, #1e3a8a 100%)',
-    borderRadius: 18, padding: '1.5rem 2rem',
-    position: 'relative', overflow: 'hidden',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    fontFamily: FONT,
-  }}>
-    <div style={{ position: 'absolute', inset: 0, opacity: 0.07,
-      backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-      backgroundSize: '22px 22px', pointerEvents: 'none' }} />
-    <div style={{ position: 'absolute', inset: 0, background:
-      'radial-gradient(ellipse 50% 90% at 8% 50%, rgba(59,130,246,0.14) 0%, transparent 70%)',
-      pointerEvents: 'none' }} />
-    <div style={{ position: 'relative', zIndex: 1 }}>
-      <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: '0.72rem', fontWeight: 500, margin: '0 0 5px', letterSpacing: '0.03em' }}>
-        {date}
-      </p>
-      <h1 style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 4px', lineHeight: 1.15 }}>
-        {greeting}, <span style={{ color: '#60A5FA' }}>{name}</span>!
-      </h1>
-      <p style={{ color: '#64748B', fontSize: '0.81rem', margin: 0 }}>
-        Your shipping overview is ready.
-      </p>
-    </div>
-    <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 8 }}>
-      <div style={{ textAlign: 'center', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '0.6rem 1.1rem' }}>
-        <SparklesIcon style={{ width: 16, height: 16, color: '#22C55E', margin: '0 auto 4px' }} />
-        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Status</p>
-        <p style={{ color: '#22C55E', fontSize: '0.8rem', fontWeight: 700, margin: 0 }}>Active</p>
-      </div>
-    </div>
-  </div>
-);
-
 // ── AddBalanceModal ───────────────────────────────────────────────────────────
 const AddBalanceModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   if (!open) return null;
@@ -586,7 +550,6 @@ const UserDashboard: React.FC<{ firstName: string }> = ({ firstName }) => {
   if (!stats) return null;
 
   const { balance, labels, manifests, savings, recentLabels, activeManifests } = stats;
-  const totalLabels     = labels.total || 1;
   const exceptionCount  = stats.trackingStatus?.exception_problem ?? 0;
   const rawSavings      = savings?.total ?? 0;
   const adjustedSavings = rawSavings - exceptionCount * lossPerItem;

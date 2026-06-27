@@ -66,6 +66,7 @@ const SetPassword: React.FC = () => {
       sessionStorage.removeItem('setupToken');
       authenticateWithToken(res.data.token, res.data.user);
       (window as any).gtag?.('event', 'sign_up', { method: 'email' });
+      (window as any).fbq?.('track', 'CompleteRegistration');
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to set password. Please try again.');

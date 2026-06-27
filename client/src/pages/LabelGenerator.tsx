@@ -537,6 +537,7 @@ const LabelGenerator: React.FC = () => {
       const labelId  = res.data.label?.id;
       const tracking = res.data.label?.trackingId || Date.now();
       (window as any).gtag?.('event', 'label_created', { carrier: res.data.label?.carrier ?? 'unknown' });
+      (window as any).fbq?.('track', 'Purchase', { value: res.data.label?.cost ?? 0, currency: 'USD' });
       if (labelId) {
         try {
           const pdfRes = await axios.get(`/labels/${labelId}/pdf`, { responseType: 'blob' });

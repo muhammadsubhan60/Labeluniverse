@@ -78,6 +78,7 @@ const Signup: React.FC = () => {
     try {
       await axios.post(`${API_BASE}/auth/register`, form);
       (window as any).gtag?.('event', 'signup_started', { method: 'email' });
+      (window as any).fbq?.('track', 'Lead');
       navigate(`/verify-otp?email=${encodeURIComponent(form.email)}`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');

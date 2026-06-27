@@ -1425,57 +1425,39 @@ footer a:hover{color:#fff}
         <h3 style="font-size:22px;font-weight:900;color:var(--gray-900);margin-bottom:10px;letter-spacing:-.3px">ZIP validated against city &amp; state on import</h3>
         <p style="font-size:15px;color:var(--gray-600);margin-bottom:20px;line-height:1.65">Every row in your CSV or XLSX is checked on upload. Invalid ZIPs, wrong states, and city mismatches are flagged with exact error messages — right in the table, before you generate a single label.</p>
 
-        <!-- Bulk error mockup -->
-        <div style="background:#0F172A;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.08)">
-          <div style="background:#1E293B;padding:10px 16px;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.07)">
-            <div style="width:10px;height:10px;border-radius:50%;background:#EF4444"></div>
-            <div style="width:10px;height:10px;border-radius:50%;background:#F59E0B"></div>
-            <div style="width:10px;height:10px;border-radius:50%;background:#22C55E"></div>
-            <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,.4);margin-left:6px">Bulk Labels — 3 rows uploaded</span>
-            <span style="margin-left:auto;font-size:11px;font-weight:700;color:#F87171;background:rgba(239,68,68,.15);padding:2px 9px;border-radius:100px;border:1px solid rgba(239,68,68,.25)">2 ZIP errors</span>
-          </div>
+        <!-- Bulk ZIP animated demo -->
+        <style>
+        @keyframes bvspin{to{transform:rotate(360deg)}}
+        .bv-sp{width:10px;height:10px;border:2px solid rgba(99,102,241,.2);border-top-color:#a5b4fc;border-radius:50%;animation:bvspin .7s linear infinite;flex-shrink:0;display:inline-block}
+        @keyframes bvcur2{0%,100%{opacity:1}50%{opacity:0}}
+        .bv-cur{display:inline-block;width:1.5px;height:10px;background:#a5b4fc;margin-left:1px;vertical-align:middle;animation:bvcur2 .85s step-end infinite}
+        .bv-rgrid{display:grid;grid-template-columns:16px 54px 80px 62px 78px;gap:5px;padding:8px 14px;font-size:11px;align-items:center;opacity:0;transform:translateX(-6px);transition:opacity 220ms,transform 220ms}
+        .bv-rgrid.bvr-v{opacity:1;transform:none}
+        .bv-errs{overflow:hidden;max-height:0;padding:0 14px 0 34px;transition:max-height 380ms ease,padding-bottom 380ms}
+        .bv-errs.bve-open{max-height:62px;padding-bottom:6px}
+        .bv-etag{font-size:10px;border-radius:4px;padding:1px 7px;display:inline-block;margin:1px 0}
+        </style>
 
-          <!-- Header -->
-          <div style="display:grid;grid-template-columns:24px 70px 90px 70px 50px;gap:6px;padding:7px 14px;font-size:10px;font-weight:700;color:rgba(255,255,255,.3);letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.06)">
-            <div></div><div>To Name</div><div>T. Addr</div><div>T. City</div><div>T. State / ZIP</div>
+        <div id="bv-root" style="background:#0f172a;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.08)">
+          <!-- chrome bar -->
+          <div style="background:#1e293b;padding:10px 14px;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.07)">
+            <div style="width:10px;height:10px;border-radius:50%;background:#ef4444"></div>
+            <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b"></div>
+            <div style="width:10px;height:10px;border-radius:50%;background:#22c55e"></div>
+            <span id="bv-hdr" style="font-size:11px;font-weight:600;color:rgba(255,255,255,.4);margin-left:4px;flex:1">Bulk Labels — scanning 5 rows…</span>
+            <div id="bv-badge" style="display:none;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px"></div>
+            <span id="bv-spill" style="font-size:9px;font-weight:700;color:rgba(255,255,255,.18);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:99px;padding:2px 8px;white-space:nowrap;flex-shrink:0">Scene 1 / 3</span>
           </div>
-
-          <!-- Valid row -->
-          <div style="display:grid;grid-template-columns:24px 70px 90px 70px 50px;gap:6px;padding:8px 14px;font-size:11px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-            <div style="color:rgba(255,255,255,.75);font-weight:500">Jane S.</div>
-            <div style="color:rgba(255,255,255,.55)">456 Oak Ave</div>
-            <div style="color:rgba(255,255,255,.55)">Los Angeles</div>
-            <div style="color:rgba(255,255,255,.55)">CA / 90001</div>
+          <!-- col headers -->
+          <div style="display:grid;grid-template-columns:16px 54px 80px 62px 78px;gap:5px;padding:6px 14px;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.22);letter-spacing:.7px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div></div><div>To Name</div><div>Address</div><div>City</div><div>State / ZIP</div>
           </div>
-
-          <!-- Invalid ZIP row -->
-          <div style="background:rgba(239,68,68,.06);border-left:3px solid #EF4444">
-            <div style="display:grid;grid-template-columns:24px 70px 90px 70px 50px;gap:6px;padding:8px 14px;font-size:11px;border-bottom:1px solid rgba(239,68,68,.1);align-items:center">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <div style="color:rgba(255,255,255,.75);font-weight:500">Bob L.</div>
-              <div style="color:rgba(255,255,255,.55)">789 Pine Rd</div>
-              <div style="color:rgba(255,255,255,.55)">Houston</div>
-              <div style="color:#F87171;font-weight:700">TX / 00001</div>
-            </div>
-            <div style="padding:4px 14px 7px 40px">
-              <span style="font-size:10px;color:#F87171;background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.3);border-radius:4px;padding:1px 7px">To ZIP 00001 is not a valid US zip code</span>
-            </div>
-          </div>
-
-          <!-- Wrong state row -->
-          <div style="background:rgba(239,68,68,.06);border-left:3px solid #EF4444">
-            <div style="display:grid;grid-template-columns:24px 70px 90px 70px 50px;gap:6px;padding:8px 14px;font-size:11px;border-bottom:1px solid rgba(239,68,68,.1);align-items:center">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <div style="color:rgba(255,255,255,.75);font-weight:500">Alice M.</div>
-              <div style="color:rgba(255,255,255,.55)">100 Park Blvd</div>
-              <div style="color:rgba(255,255,255,.55)">New York</div>
-              <div style="color:#F87171;font-weight:700">CA / 10001</div>
-            </div>
-            <div style="padding:4px 14px 7px 40px;display:flex;gap:6px;flex-wrap:wrap">
-              <span style="font-size:10px;color:#F87171;background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.3);border-radius:4px;padding:1px 7px">To ZIP 10001 → state should be NY (got CA)</span>
-              <span style="font-size:10px;color:#FBBF24;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);border-radius:4px;padding:1px 7px">To ZIP 10001 → city suggestion: "New York"</span>
-            </div>
+          <!-- rows injected by JS -->
+          <div id="bv-rows"></div>
+          <!-- bottom bar -->
+          <div id="bv-bar" style="display:none;padding:9px 14px;background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05);align-items:center;justify-content:space-between">
+            <span style="font-size:11px;color:rgba(255,255,255,.3);font-weight:600">5 rows loaded</span>
+            <button id="bv-genbtn" style="height:28px;padding:0 14px;border-radius:7px;background:rgba(99,102,241,.1);color:rgba(165,180,252,.4);font-size:11px;font-weight:700;border:1px solid rgba(99,102,241,.18);cursor:default;opacity:.5;font-family:inherit;transition:all 400ms">Generate 5 Labels</button>
           </div>
         </div>
       </div>
@@ -1649,6 +1631,172 @@ footer a:hover{color:#fff}
   },{threshold:0.25});
   var el=g('zp-card');
   if(el) obs.observe(el);
+})();
+</script>
+<script>
+(function(){
+  var DATA=[
+    {n:'Jane S.', a:'456 Oak Ave',   c:'Los Angeles', sz:'CA / 90001', ok:true},
+    {n:'Bob L.',  a:'789 Pine Rd',   c:'Houston',     sz:'TX / 00001', ok:false,
+     errs:[{t:'err',m:'ZIP 00001 is not a valid US ZIP code'},{t:'warn',m:'Suggestion: use 77002 for Houston, TX'}],
+     fixOld:'TX / 00001',fixNew:'TX / 77002'},
+    {n:'Alice M.',a:'100 Park Blvd', c:'New York',    sz:'CA / 10001', ok:false,
+     errs:[{t:'err',m:'ZIP 10001 → state should be NY (got CA)'},{t:'warn',m:'Suggestion: city "New York", state NY'}],
+     fixOld:'CA / 10001',fixNew:'NY / 10001'},
+    {n:'Mike R.', a:'321 Elm St',    c:'Chicago',     sz:'IL / 60601', ok:true},
+    {n:'Sara T.', a:'55 Cedar Dr',   c:'Austin',      sz:'TX / 73301', ok:true},
+  ];
+
+  var OK_ICO='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  var ERR_ICO='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+
+  function g(id){return document.getElementById(id);}
+  function delay(ms){return new Promise(function(r){setTimeout(r,ms);});}
+
+  function buildRows(){
+    var c=g('bv-rows');c.innerHTML='';
+    DATA.forEach(function(r,i){
+      var wrap=document.createElement('div');
+      wrap.id='bvwrap-'+i;
+      wrap.style.cssText='border-bottom:1px solid rgba(255,255,255,.04);transition:background 350ms,border-left 350ms';
+      var row=document.createElement('div');
+      row.className='bv-rgrid';row.id='bvrow-'+i;
+      row.innerHTML=
+        '<div id="bvico-'+i+'"><div class="bv-sp"></div></div>'+
+        '<div style="color:rgba(255,255,255,.7);font-weight:500">'+r.n+'</div>'+
+        '<div style="color:rgba(255,255,255,.4);font-size:10.5px">'+r.a+'</div>'+
+        '<div style="color:rgba(255,255,255,.4);font-size:10.5px">'+r.c+'</div>'+
+        '<div id="bvsz-'+i+'" style="color:rgba(255,255,255,.45);font-size:10.5px;font-weight:500">'+r.sz+'</div>';
+      var errc=document.createElement('div');
+      errc.className='bv-errs';errc.id='bverr-'+i;
+      if(r.errs){
+        r.errs.forEach(function(e){
+          var s=document.createElement('span');s.className='bv-etag';
+          s.style.cssText=e.t==='err'?'color:#f87171;background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.3)':'color:#fbbf24;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25)';
+          s.textContent=e.m;
+          errc.appendChild(s);errc.appendChild(document.createElement('br'));
+        });
+      }
+      wrap.appendChild(row);wrap.appendChild(errc);c.appendChild(wrap);
+    });
+  }
+
+  function setBadge(type,text){
+    var b=g('bv-badge');b.style.display='block';
+    b.style.color=type==='err'?'#f87171':'#4ade80';
+    b.style.background=type==='err'?'rgba(239,68,68,.15)':'rgba(74,222,128,.1)';
+    b.style.border=type==='err'?'1px solid rgba(239,68,68,.25)':'1px solid rgba(74,222,128,.2)';
+    b.textContent=text;
+  }
+
+  async function scene1(){
+    buildRows();
+    g('bv-badge').style.display='none';
+    g('bv-bar').style.display='none';
+    g('bv-spill').textContent='Scene 1 / 3';
+    g('bv-hdr').textContent='Bulk Labels — scanning 5 rows…';
+    // rows pop in
+    for(var i=0;i<DATA.length;i++){
+      await delay(280);
+      g('bvrow-'+i).classList.add('bvr-v');
+    }
+    await delay(350);
+    // spinners resolve
+    for(var j=0;j<DATA.length;j++){
+      (function(idx){
+        setTimeout(function(){
+          var ico=g('bvico-'+idx),sz=g('bvsz-'+idx),wrap=g('bvwrap-'+idx);
+          if(DATA[idx].ok){
+            ico.innerHTML=OK_ICO;
+          } else {
+            ico.innerHTML=ERR_ICO;
+            sz.style.color='#f87171';sz.style.fontWeight='700';
+            wrap.style.background='rgba(239,68,68,.06)';
+            wrap.style.borderLeft='3px solid #ef4444';
+          }
+        },idx*150);
+      })(j);
+    }
+    await delay(DATA.length*150+500);
+    g('bv-hdr').textContent='Bulk Labels — 5 rows uploaded';
+    setBadge('err','2 ZIP errors');
+    g('bv-bar').style.display='flex';
+    await delay(2000);
+  }
+
+  async function scene2(){
+    g('bv-spill').textContent='Scene 2 / 3';
+    // expand error detail badges
+    DATA.forEach(function(r,i){
+      if(!r.ok){var e=g('bverr-'+i);if(e)e.classList.add('bve-open');}
+    });
+    await delay(2500);
+  }
+
+  async function scene3(){
+    g('bv-spill').textContent='Scene 3 / 3';
+    await fixRow(1);  // Bob — invalid ZIP
+    await delay(350);
+    await fixRow(2);  // Alice — wrong state
+    await delay(350);
+    // all good
+    setBadge('ok','5 / 5 valid');
+    g('bv-hdr').textContent='Bulk Labels — all rows valid';
+    var btn=g('bv-genbtn');
+    btn.style.background='linear-gradient(135deg,rgba(99,102,241,.45),rgba(79,70,229,.35))';
+    btn.style.color='#a5b4fc';btn.style.opacity='1';
+    btn.style.border='1px solid rgba(99,102,241,.4)';
+    btn.style.boxShadow='0 0 0 3px rgba(99,102,241,.12)';
+    await delay(2800);
+  }
+
+  async function fixRow(idx){
+    var r=DATA[idx];
+    var szEl=g('bvsz-'+idx),wrap=g('bvwrap-'+idx),ico=g('bvico-'+idx),err=g('bverr-'+idx);
+    // highlight cell for editing
+    szEl.style.color='#a5b4fc';szEl.style.background='rgba(99,102,241,.14)';szEl.style.borderRadius='4px';szEl.style.padding='1px 5px';
+    await delay(300);
+    // backspace old
+    var old=r.fixOld;
+    for(var i=old.length;i>=0;i--){
+      await delay(75);
+      szEl.innerHTML=old.slice(0,i)+'<span class="bv-cur"></span>';
+    }
+    await delay(220);
+    // type new
+    var nw=r.fixNew;
+    for(var j=0;j<=nw.length;j++){
+      await delay(85);
+      szEl.innerHTML=nw.slice(0,j)+(j<nw.length?'<span class="bv-cur"></span>':'');
+    }
+    szEl.textContent=nw;
+    // resolve to green
+    szEl.style.background='rgba(74,222,128,.08)';szEl.style.color='#4ade80';szEl.style.padding='';szEl.style.fontWeight='700';
+    if(err) err.classList.remove('bve-open');
+    wrap.style.background='rgba(74,222,128,.04)';wrap.style.borderLeft='3px solid rgba(74,222,128,.4)';
+    ico.innerHTML=OK_ICO;
+  }
+
+  async function runBulk(){
+    await scene1();
+    await scene2();
+    await scene3();
+    var root=g('bv-root');
+    root.style.opacity='0';root.style.transition='opacity 400ms';
+    await delay(450);
+    root.style.opacity='1';root.style.transition='opacity 300ms';
+    await delay(100);
+    runBulk();
+  }
+
+  var bvStarted=false;
+  var bvObs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting&&!bvStarted){bvStarted=true;runBulk();bvObs.disconnect();}
+    });
+  },{threshold:0.15});
+  var bvEl=g('bv-root');
+  if(bvEl) bvObs.observe(bvEl);
 })();
 </script>
 

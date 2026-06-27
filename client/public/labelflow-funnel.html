@@ -1358,10 +1358,10 @@ footer a:hover{color:#fff}
       <p class="sub mx-auto" style="max-width:660px">A mismatched ZIP code is the #1 cause of carrier rejections and failed deliveries. Label Flow cross-checks every ZIP against a built-in US database — auto-filling city and state on single labels, and blocking bad rows in bulk uploads before a single label is generated.</p>
     </div>
 
-    <div class="two-col-grid" style="margin-top:48px">
+    <div style="margin-top:48px;display:flex;flex-direction:column;gap:56px">
 
-      <!-- LEFT: Single label auto-fill -->
-      <div>
+      <!-- Single label -->
+      <div style="max-width:580px;margin:0 auto;width:100%">
         <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);border-radius:100px;font-size:11px;font-weight:800;color:#16A34A;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="#16A34A" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
           Single Label
@@ -1416,8 +1416,18 @@ footer a:hover{color:#fff}
         </div>
       </div>
 
-      <!-- RIGHT: Bulk validation -->
-      <div>
+      <!-- flow connector -->
+      <div style="display:flex;align-items:center;gap:14px;max-width:580px;margin:-28px auto;width:100%">
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gray-200))"></div>
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:99px;font-size:11px;font-weight:700;color:var(--gray-500);white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          Now in bulk CSV upload
+        </div>
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,var(--gray-200),transparent)"></div>
+      </div>
+
+      <!-- Bulk validation -->
+      <div style="max-width:580px;margin:0 auto;width:100%">
         <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:100px;font-size:11px;font-weight:800;color:#DC2626;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="#DC2626" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
           Bulk Upload

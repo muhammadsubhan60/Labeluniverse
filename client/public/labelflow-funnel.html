@@ -905,143 +905,236 @@ footer a:hover{color:#fff}
 </section>
 
 <!-- ═══════════════════════════════════════════════════════
-     6. BULK OPERATIONS — ANIMATED
+     6. BULK OPERATIONS — REALISTIC DEMO
 ═══════════════════════════════════════════════════════ -->
 <style>
-/* ── BULK ANIMATION DEMO ── */
-.bulk-demo{background:#0a0f1c;border-radius:16px;overflow:hidden;border:1px solid rgba(99,102,241,.2);box-shadow:0 24px 64px rgba(0,0,0,.5);margin-top:48px;user-select:none}
-.bulk-chrome{background:#111827;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
-.bchr-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
-.bchr-title{font-size:12px;font-weight:600;color:rgba(255,255,255,.4);margin-left:4px;flex:1}
-/* Stepper */
-.bulk-stepper{display:flex;align-items:center;gap:0;margin-left:auto}
-.bstep{font-size:11px;font-weight:700;color:rgba(255,255,255,.2);padding:4px 10px;border-radius:4px;transition:color 400ms,background 400ms;white-space:nowrap}
-.bstep.s-active{color:#a5b4fc;background:rgba(99,102,241,.15)}
-.bstep.s-done{color:#4ade80}
-.bstep-sep{font-size:11px;color:rgba(255,255,255,.15);padding:0 2px}
-/* Toolbar */
-.bulk-bar{background:#0f172a;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05);flex-wrap:wrap}
-.bulk-phase-label{font-size:12px;font-weight:700;color:rgba(255,255,255,.35);min-width:160px;transition:color 300ms}
-.bulk-phase-label.pl-active{color:#a5b4fc}
-.bulk-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;opacity:0;transition:opacity 300ms}
-.bb-valid{background:rgba(74,222,128,.1);color:#4ade80;border:1px solid rgba(74,222,128,.2)}
-.bb-err{background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.2)}
-.bb-gen{background:rgba(99,102,241,.12);color:#a5b4fc;border:1px solid rgba(99,102,241,.25);margin-left:auto;padding:5px 14px;font-size:12px;cursor:default;transition:opacity 300ms,background 300ms}
-.bb-gen.gen-active{background:rgba(99,102,241,.25);color:#c7d2fe}
-/* Progress bar */
-.bulk-prog-wrap{height:3px;background:rgba(255,255,255,.04);overflow:hidden}
-.bulk-prog-bar{height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#a5b4fc);transition:width 50ms linear}
-/* Table */
-.bulk-tbl{padding:0}
-.bulk-th{display:grid;grid-template-columns:70px 1fr 100px 110px 150px;gap:12px;padding:8px 16px;font-size:10px;font-weight:700;color:rgba(255,255,255,.25);letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.05)}
-.bulk-row{display:grid;grid-template-columns:70px 1fr 100px 110px 150px;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;opacity:0;transform:translateX(-10px);transition:opacity 300ms,transform 300ms,background 300ms}
-.bulk-row.br-visible{opacity:1;transform:none}
-.bulk-row.br-error{background:rgba(239,68,68,.05);border-left:2px solid rgba(239,68,68,.4)}
-.bulk-row.br-fixing{background:rgba(99,102,241,.07);border-left:2px solid rgba(99,102,241,.5)}
-.bulk-row.br-done{background:rgba(74,222,128,.03);border-left:2px solid rgba(74,222,128,.3)}
-.br-id{color:rgba(255,255,255,.3);font-size:11px;font-weight:600;font-family:monospace}
-.br-addr{font-size:12px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 300ms}
-.br-addr.addr-err{color:#f87171}
-.br-addr.addr-fix{color:#a5b4fc}
-.br-addr.addr-ok{color:rgba(255,255,255,.75)}
-.br-carrier{font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;width:fit-content;background:rgba(0,75,135,.3);color:#93c5fd}
-.br-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;min-width:80px;transition:color 300ms}
-.brs-idle{color:rgba(255,255,255,.2)}
-.brs-scan{color:#a5b4fc}
-.brs-ok{color:#4ade80}
-.brs-err{color:#f87171}
-.brs-fix{color:#a5b4fc}
-.brs-gen{color:#fbbf24}
-.brs-done{color:#4ade80}
-.br-label{font-size:10px;font-family:monospace;color:rgba(255,255,255,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 300ms}
-.br-label.lbl-done{color:#4ade80}
-/* Scanning spinner */
-@keyframes bspin{to{transform:rotate(360deg)}}
-.bspinner{width:11px;height:11px;border:2px solid rgba(99,102,241,.3);border-top-color:#a5b4fc;border-radius:50%;animation:bspin .7s linear infinite;flex-shrink:0}
-/* Cursor blink for typing effect */
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-.bcursor{display:inline-block;width:1px;height:11px;background:#a5b4fc;margin-left:1px;animation:blink .8s step-end infinite;vertical-align:middle}
-/* Phase label */
-.phase-info{padding:10px 16px;font-size:12px;color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.04);min-height:36px;transition:color 300ms}
-.phase-info.pi-active{color:rgba(255,255,255,.55)}
-@media(max-width:760px){
-  .bulk-th,.bulk-row{grid-template-columns:60px 1fr 90px 90px}
-  .bulk-th>*:nth-child(5),.bulk-row>*:nth-child(5){display:none}
-  .bulk-stepper{display:none}
-}
-@media(max-width:520px){
-  .bulk-th,.bulk-row{grid-template-columns:55px 1fr 80px}
-  .bulk-th>*:nth-child(4),.bulk-row>*:nth-child(4),.bulk-th>*:nth-child(5),.bulk-row>*:nth-child(5){display:none}
-}
+/* ── BULK REALISTIC DEMO ── */
+.bd-wrap{border-radius:16px;overflow:hidden;border:1px solid rgba(99,102,241,.22);box-shadow:0 24px 64px rgba(0,0,0,.55);margin-top:48px;user-select:none;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif}
+/* browser chrome */
+.bd-chrome{background:#1e293b;padding:9px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.bd-chrome-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.bd-chrome-url{flex:1;background:rgba(255,255,255,.07);border-radius:6px;padding:5px 12px;font-size:11px;color:rgba(255,255,255,.4);font-weight:500;text-align:center;max-width:280px;margin:0 auto;border:1px solid rgba(255,255,255,.08)}
+/* app shell (white) */
+.bd-app{background:#f8fafc;padding:16px}
+.bd-card{background:#fff;border-radius:12px;border:1.5px solid #e2e8f0;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.04)}
+/* page header */
+.bd-phdr{padding:14px 18px 12px;border-bottom:1.5px solid #f1f5f9}
+.bd-phdr-title{font-size:16px;font-weight:800;color:#0f172a;letter-spacing:-.3px}
+.bd-phdr-sub{font-size:12px;color:#64748b;margin-top:2px}
+/* 5-step wizard */
+.bd-wizard{display:flex;align-items:flex-start;padding:14px 18px 12px;border-bottom:1.5px solid #f1f5f9;gap:0;overflow:hidden}
+.bd-step{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
+.bd-sdot{width:26px;height:26px;border-radius:50%;border:2px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#94a3b8;transition:all 350ms;flex-shrink:0}
+.bd-sdot.s-act{background:#6366f1;border-color:#6366f1;color:#fff;box-shadow:0 0 0 4px rgba(99,102,241,.14)}
+.bd-sdot.s-dn{background:#10b981;border-color:#10b981;color:#fff}
+.bd-slbl{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;transition:color 350ms}
+.bd-slbl.sl-act{color:#6366f1}
+.bd-slbl.sl-dn{color:#059669}
+.bd-sline{flex:1;height:2px;background:#e2e8f0;border-radius:2px;margin:12px 6px 0;transition:background 350ms;align-self:flex-start;min-width:14px}
+.bd-sline.sl-dn{background:#10b981}
+/* service selection rows */
+.bd-row{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap}
+.bd-rlbl{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;flex-shrink:0;min-width:44px}
+/* portal pills */
+.bd-pill{height:30px;padding:0 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;display:inline-flex;align-items:center;font-size:11px;font-weight:700;color:#64748b;transition:all 220ms;cursor:default;white-space:nowrap}
+.bd-pill.pp-sh{border-color:#1d4ed8;background:#eff6ff;color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.1)}
+.bd-pill.pp-lc{border-color:#7c3aed;background:#f5f3ff;color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.1)}
+.bd-pill.pp-sl{border-color:#059669;background:#ecfdf5;color:#059669;box-shadow:0 0 0 3px rgba(5,150,105,.1)}
+/* carrier cards */
+.bd-car{height:40px;min-width:66px;padding:4px 10px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#64748b;transition:all 220ms;cursor:default}
+.bd-car.cp-usps{border-color:#1d4ed8;background:#eff6ff;color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.1)}
+.bd-car.cp-dim{opacity:.28}
+/* vendor dropdown */
+.bd-vsel{height:32px;padding:0 10px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;font-size:11px;font-weight:600;color:#94a3b8;display:inline-flex;align-items:center;gap:6px;min-width:240px;transition:all 250ms}
+.bd-vsel.vs-filled{color:#0f172a;border-color:#6366f1;background:#fafafe}
+.bd-vsel .vsa{color:#94a3b8;font-size:9px;margin-left:auto}
+/* upload zone */
+.bd-zone{margin:14px;border:2px dashed #e2e8f0;border-radius:10px;padding:28px 16px;text-align:center;transition:all 300ms}
+.bd-zone.z-active{border-color:#6366f1;background:rgba(99,102,241,.04)}
+.bd-zone.z-done{border-color:#10b981;background:rgba(16,185,129,.04);border-style:solid}
+.bd-zico{width:38px;height:38px;border-radius:10px;background:#f8fafc;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.bd-ztit{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:3px}
+.bd-zsub{font-size:11px;color:#94a3b8}
+.bd-zfile{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:8px;font-size:11px;font-weight:700;color:#4f46e5;margin-top:10px}
+/* data table */
+.bd-tbl-wrap{overflow-x:auto;max-height:196px;overflow-y:auto}
+.bd-tbl{width:100%;border-collapse:collapse;font-size:10.5px}
+.bd-tbl th{padding:6px 10px;text-align:left;font-weight:700;color:#64748b;border-bottom:2px solid #f1f5f9;white-space:nowrap;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;background:#f8fafc;position:sticky;top:0}
+.bd-tbl td{padding:6px 10px;color:#1e293b;border-bottom:1px solid #f8fafc;white-space:nowrap;vertical-align:middle}
+.bd-tbl tbody tr{opacity:0;transform:translateY(5px);transition:opacity 250ms,transform 250ms}
+.bd-tbl tbody tr.tr-vis{opacity:1;transform:none}
+.bd-tbadge-usps{display:inline-flex;align-items:center;padding:1px 7px;border-radius:99px;font-size:9.5px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+/* bottom toolbar */
+.bd-bar{padding:10px 14px;background:#f8fafc;border-top:1.5px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.bd-cnt{font-size:11px;color:#64748b;font-weight:600}
+.bd-genbtn{height:34px;padding:0 16px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:12px;font-weight:700;border:none;cursor:default;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(99,102,241,.28);transition:box-shadow 300ms,transform 200ms;font-family:inherit}
+.bd-genbtn.btn-click{transform:scale(.97);box-shadow:0 1px 4px rgba(99,102,241,.18)}
+/* progress screen */
+.bd-prog{padding:28px 20px;text-align:center}
+.bd-prog-count{font-size:38px;font-weight:900;color:#6366f1;letter-spacing:-.5px;line-height:1}
+.bd-prog-sub{font-size:12px;color:#64748b;margin-top:4px;font-weight:500}
+.bd-prog-bar-w{height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden;margin:16px auto;max-width:380px}
+.bd-prog-bar{height:100%;background:linear-gradient(90deg,#6366f1,#a5b4fc);border-radius:99px;width:0;transition:width 80ms linear}
+.bd-prog-log{background:#0f172a;border-radius:8px;margin:0 0 4px;padding:10px 12px;text-align:left;max-height:70px;overflow:hidden;font-family:monospace;font-size:10px;line-height:1.7;color:rgba(255,255,255,.5)}
+.bd-log-line{color:#a5b4fc;display:block}
+/* result screen */
+.bd-res-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px}
+.bd-scard{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center}
+.bd-sv{font-size:26px;font-weight:900;letter-spacing:-.5px}
+.bd-sl{font-size:10px;color:#64748b;font-weight:700;margin-top:2px;text-transform:uppercase;letter-spacing:.06em}
+.bd-rtbl-wrap{margin:0 14px 14px;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden}
+.bd-rtbl{width:100%;border-collapse:collapse;font-size:10.5px}
+.bd-rtbl th{padding:7px 10px;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;color:#64748b;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left}
+.bd-rtbl td{padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#1e293b}
+.bd-rtbl tr:last-child td{border-bottom:none}
+.bd-rtbl tbody tr{opacity:0;transition:opacity 250ms}
+.bd-rtbl tbody tr.tr-vis{opacity:1}
+.bd-tid{font-family:monospace;font-size:10px;color:#4f46e5}
+.bd-bdl{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border-radius:8px;font-size:11px;font-weight:700;border:none;cursor:default;box-shadow:0 2px 8px rgba(99,102,241,.28);font-family:inherit}
+@keyframes bdspin{to{transform:rotate(360deg)}}
+.bd-spin{width:10px;height:10px;border:2px solid rgba(99,102,241,.2);border-top-color:#6366f1;border-radius:50%;animation:bdspin .7s linear infinite;display:inline-block}
+.bd-hidden{display:none!important}
+@media(max-width:640px){.bd-slbl{display:none}.bd-sline{min-width:8px}}
+@media(max-width:500px){.bd-res-stats{grid-template-columns:repeat(3,1fr)}.bd-tbl td:nth-child(n+5),.bd-tbl th:nth-child(n+5){display:none}}
 </style>
 
-<section class="section section-dark" role="region" aria-labelledby="addr-title">
+<section class="section section-dark" role="region" aria-labelledby="bulk-title">
   <div class="container">
     <div class="lbl lbl-blue">Priority #6 — Bulk Operations</div>
-    <h2 class="h2 h2-white" id="addr-title">Upload. Validate. Fix. Generate. All in One Screen.</h2>
-    <p class="sub sub-white" style="max-width:620px">Drop a CSV and Label Flow handles everything — validates every address, flags errors inline, lets you correct them without re-uploading, then generates all labels in one click.</p>
+    <h2 class="h2 h2-white" id="bulk-title">Select Portal. Pick Carrier. Upload CSV. Done.</h2>
+    <p class="sub sub-white" style="max-width:640px">The same 5-step wizard your team uses every day — pick your portal and carrier, choose a vendor rate, upload your CSV, then generate hundreds of labels in one click with a ZIP ready to print.</p>
 
-    <!-- ANIMATED BULK DEMO -->
-    <div class="bulk-demo" id="bulk-demo" aria-label="Animated bulk label generation demo">
-      <div class="bulk-chrome">
-        <div class="bchr-dot" style="background:#ef4444"></div>
-        <div class="bchr-dot" style="background:#f59e0b"></div>
-        <div class="bchr-dot" style="background:#22c55e"></div>
-        <span class="bchr-title">Label Flow — Bulk Label Generator</span>
-        <div class="bulk-stepper">
-          <div class="bstep" id="bstep-upload">Upload</div>
-          <div class="bstep-sep">›</div>
-          <div class="bstep" id="bstep-validate">Validate</div>
-          <div class="bstep-sep">›</div>
-          <div class="bstep" id="bstep-fix">Fix Errors</div>
-          <div class="bstep-sep">›</div>
-          <div class="bstep" id="bstep-generate">Generate</div>
-          <div class="bstep-sep">›</div>
-          <div class="bstep" id="bstep-done">Done</div>
+    <!-- REALISTIC APP DEMO -->
+    <div class="bd-wrap" id="bd-root" aria-label="Animated bulk label generator demo">
+      <!-- browser chrome -->
+      <div class="bd-chrome">
+        <div class="bd-chrome-dot" style="background:#ef4444"></div>
+        <div class="bd-chrome-dot" style="background:#f59e0b"></div>
+        <div class="bd-chrome-dot" style="background:#22c55e"></div>
+        <div class="bd-chrome-url">labelflow.org/labels/bulk</div>
+      </div>
+      <!-- app shell -->
+      <div class="bd-app">
+        <div class="bd-card">
+          <!-- page header -->
+          <div class="bd-phdr">
+            <div class="bd-phdr-title">Bulk Label Generator</div>
+            <div class="bd-phdr-sub">Upload a CSV or XLSX to generate labels in batch</div>
+          </div>
+          <!-- 5-step wizard -->
+          <div class="bd-wizard" id="bd-wiz">
+            <div class="bd-step"><div class="bd-sdot s-act" id="bsd0">1</div><div class="bd-slbl sl-act" id="bsl0">Portal</div></div>
+            <div class="bd-sline" id="bsl-a"></div>
+            <div class="bd-step"><div class="bd-sdot" id="bsd1">2</div><div class="bd-slbl" id="bsl1">Carrier</div></div>
+            <div class="bd-sline" id="bsl-b"></div>
+            <div class="bd-step"><div class="bd-sdot" id="bsd2">3</div><div class="bd-slbl" id="bsl2">Vendor</div></div>
+            <div class="bd-sline" id="bsl-c"></div>
+            <div class="bd-step"><div class="bd-sdot" id="bsd3">4</div><div class="bd-slbl" id="bsl3">Upload</div></div>
+            <div class="bd-sline" id="bsl-d"></div>
+            <div class="bd-step"><div class="bd-sdot" id="bsd4">5</div><div class="bd-slbl" id="bsl4">Generate</div></div>
+          </div>
+          <!-- selection rows (portal / carrier / vendor) -->
+          <div id="bd-sel">
+            <div class="bd-row">
+              <span class="bd-rlbl">Portal</span>
+              <div class="bd-pill" id="bpp-sh">ShippersHub</div>
+              <div class="bd-pill" id="bpp-lc">Label Crow</div>
+              <div class="bd-pill" id="bpp-sl">ShipLabel</div>
+            </div>
+            <div class="bd-row">
+              <span class="bd-rlbl">Carrier</span>
+              <div class="bd-car" id="bca-usps">USPS</div>
+              <div class="bd-car bd-car-dim cp-dim" id="bca-ups">UPS</div>
+              <div class="bd-car bd-car-dim cp-dim" id="bca-fed">FedEx</div>
+              <div class="bd-car bd-car-dim cp-dim" id="bca-dhl">DHL</div>
+            </div>
+            <div class="bd-row">
+              <span class="bd-rlbl">Vendor</span>
+              <div class="bd-vsel" id="bd-vdrop"><span id="bd-vtxt" style="flex:1">Select a vendor…</span><span class="vsa">▾</span></div>
+              <div class="bd-pill" id="bd-tmpl" style="margin-left:6px;opacity:.45;font-size:10px">↓ Template</div>
+            </div>
+          </div>
+          <!-- upload zone (hidden until step 4) -->
+          <div id="bd-upzone" class="bd-hidden">
+            <div class="bd-zone" id="bd-zone">
+              <div class="bd-zico" id="bd-zico">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div class="bd-ztit" id="bd-ztit">Drag &amp; drop your CSV or XLSX</div>
+              <div class="bd-zsub" id="bd-zsub">or click to browse · Max 5,000 rows</div>
+              <div id="bd-zfile" class="bd-hidden bd-zfile">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                orders.csv — 6 rows
+              </div>
+            </div>
+          </div>
+          <!-- data table (hidden until rows loaded) -->
+          <div id="bd-tcard" class="bd-hidden">
+            <div class="bd-tbl-wrap">
+              <table class="bd-tbl">
+                <thead>
+                  <tr><th>#</th><th>From Name</th><th>From Addr</th><th>To Name</th><th>To Addr</th><th>City/St</th><th>Wt</th><th>Carrier</th></tr>
+                </thead>
+                <tbody id="bd-tbody"></tbody>
+              </table>
+            </div>
+            <div class="bd-bar">
+              <span class="bd-cnt" id="bd-cnt">6 rows loaded</span>
+              <button class="bd-genbtn" id="bd-genbtn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Generate 6 Labels
+              </button>
+            </div>
+          </div>
+          <!-- progress screen -->
+          <div id="bd-progcard" class="bd-hidden">
+            <div class="bd-prog">
+              <div class="bd-prog-count" id="bd-pc">0 / 6</div>
+              <div class="bd-prog-sub">labels generated</div>
+              <div class="bd-prog-bar-w"><div class="bd-prog-bar" id="bd-pb"></div></div>
+              <div class="bd-prog-log" id="bd-log"></div>
+            </div>
+          </div>
+          <!-- result screen -->
+          <div id="bd-rescard" class="bd-hidden">
+            <div class="bd-res-stats">
+              <div class="bd-scard"><div class="bd-sv" style="color:#059669">6</div><div class="bd-sl">Generated</div></div>
+              <div class="bd-scard"><div class="bd-sv" style="color:#94a3b8">0</div><div class="bd-sl">Failed</div></div>
+              <div class="bd-scard"><div class="bd-sv" style="color:#6366f1">$31.20</div><div class="bd-sl">Balance</div></div>
+            </div>
+            <div class="bd-rtbl-wrap">
+              <table class="bd-rtbl">
+                <thead><tr><th>#</th><th>To Name</th><th>Tracking ID</th><th>Status</th></tr></thead>
+                <tbody id="bd-rtbody"></tbody>
+              </table>
+            </div>
+            <div style="padding:0 14px 14px;display:flex;gap:8px">
+              <button class="bd-bdl">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download All Labels (ZIP)
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="bulk-bar">
-        <span class="bulk-phase-label" id="bulk-phase-lbl">Waiting for CSV upload…</span>
-        <div class="bulk-badge bb-valid" id="bb-valid">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <span id="bb-valid-count">0</span> valid
-        </div>
-        <div class="bulk-badge bb-err" id="bb-err">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-          <span id="bb-err-count">0</span> errors
-        </div>
-        <div class="bulk-badge bb-gen" id="bb-gen">Generate 248 Labels</div>
-      </div>
-      <div class="bulk-prog-wrap"><div class="bulk-prog-bar" id="bulk-prog"></div></div>
-      <div class="bulk-tbl">
-        <div class="bulk-th">
-          <div>Order</div>
-          <div>Address</div>
-          <div>Carrier</div>
-          <div>Status</div>
-          <div>Label ID</div>
-        </div>
-        <div id="bulk-rows"></div>
-      </div>
-      <div class="phase-info" id="phase-info">Drop orders.csv to begin…</div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:28px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-top:28px">
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">USPS address validation</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.4)">Every row cross-checked on import — bad addresses flagged before a label is created</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">Multi-portal support</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">Route each batch through ShippersHub, Label Crow, or ShipLabel — pick the cheapest rate per run</div>
       </div>
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">Inline edit, no re-upload</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.4)">Fix typos directly in the table row and save — zero round-trips to Excel</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">CSV template included</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">Download the exact column layout, fill it out, upload — no format guessing</div>
       </div>
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">One-click batch generate</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.4)">Generate 250 labels in under 30 seconds and download as a single ZIP</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">Live generation log</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">Watch each label submit in real time with a progress counter and per-label status</div>
       </div>
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">Instant ZIP download</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.4)">All PDFs bundled and ready — print directly or forward to your fulfillment team</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">One-click ZIP download</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">All PDFs bundled instantly — print from your computer or forward to your warehouse</div>
       </div>
     </div>
   </div>
@@ -1049,194 +1142,208 @@ footer a:hover{color:#fff}
 
 <script>
 (function(){
-  var ROWS = [
-    { id:'#5104', addr:'412 Maple Ave, Austin TX 78701',      carrier:'USPS', label:'9400 1118 9922 3456 7890', valid:true  },
-    { id:'#5105', addr:'88 Comerce Blvd, Chicago IL 60601',   carrier:'USPS', label:'9400 1118 9922 3456 7891', valid:false, fixed:'88 Commerce Blvd, Chicago IL 60601' },
-    { id:'#5106', addr:'100 Agency Dr Suite 4B, New York NY', carrier:'USPS', label:'9400 1118 9922 3456 7892', valid:true  },
-    { id:'#5107', addr:'29 Oak Str, Miamii FL 33101',         carrier:'USPS', label:'9400 1118 9922 3456 7893', valid:false, fixed:'29 Oak St, Miami FL 33101' },
-    { id:'#5108', addr:'55 Pine Rd, Seattle WA 98101',        carrier:'USPS', label:'9400 1118 9922 3456 7894', valid:true  },
-    { id:'#5109', addr:'7 Harbor Blvd, San Diego CA 92101',   carrier:'USPS', label:'9400 1118 9922 3456 7895', valid:true  },
+  var ROWS=[
+    {fn:'Sarah Miller',fa:'555 Maple Ave',tn:'John Doe',ta:'123 Main St',tc:'New York',ts:'NY',wt:'1.2',tid:'9400 1118 9922 3456 7890 12'},
+    {fn:'Acme Corp',fa:'789 Commerce Blvd',tn:'Jane Smith',ta:'456 Oak Ave',tc:'Los Angeles',ts:'CA',wt:'2.4',tid:'9400 1118 9922 3456 7891 23'},
+    {fn:'Tom Garcia',fa:'99 River Rd',tn:'Lisa Chen',ta:'1400 Harbor Blvd',tc:'San Diego',ts:'CA',wt:'0.8',tid:'9400 1118 9922 3456 7892 34'},
+    {fn:'Sarah Miller',fa:'555 Maple Ave',tn:'Mike Torres',ta:'2200 Lake Shore Dr',tc:'Denver',ts:'CO',wt:'3.1',tid:'9400 1118 9922 3456 7893 45'},
+    {fn:'Acme Corp',fa:'789 Commerce Blvd',tn:'Amy Wilson',ta:'333 5th Ave',tc:'Phoenix',ts:'AZ',wt:'1.5',tid:'9400 1118 9922 3456 7894 56'},
+    {fn:'Tom Garcia',fa:'99 River Rd',tn:'Bob Johnson',ta:'321 Pine Dr',tc:'Houston',ts:'TX',wt:'2.0',tid:'9400 1118 9922 3456 7895 67'},
+  ];
+  var LOG_LINES=[
+    'Connecting to USPS API…',
+    'Auth OK · Submitting batch #1 (6 labels)',
+    '[1/6] John Doe · New York NY · OK',
+    '[2/6] Jane Smith · Los Angeles CA · OK',
+    '[3/6] Lisa Chen · San Diego CA · OK',
+    '[4/6] Mike Torres · Denver CO · OK',
+    '[5/6] Amy Wilson · Phoenix AZ · OK',
+    '[6/6] Bob Johnson · Houston TX · OK',
+    'Batch complete · Bundling PDFs into ZIP…',
   ];
 
-  var container = document.getElementById('bulk-rows');
-  var phaseLbl  = document.getElementById('bulk-phase-lbl');
-  var phaseInfo = document.getElementById('phase-info');
-  var progBar   = document.getElementById('bulk-prog');
-  var bbValid   = document.getElementById('bb-valid');
-  var bbErr     = document.getElementById('bb-err');
-  var bbGen     = document.getElementById('bb-gen');
-  var steps     = ['upload','validate','fix','generate','done'];
+  function g(id){return document.getElementById(id);}
+  function delay(ms){return new Promise(function(r){setTimeout(r,ms);});}
 
-  function setStep(active, doneBefore){
-    steps.forEach(function(s,i){
-      var el = document.getElementById('bstep-'+s);
-      if(!el) return;
-      el.className = 'bstep';
-      if(s === active) el.classList.add('s-active');
-      else if(i < steps.indexOf(active)) el.classList.add('s-done');
+  function setWiz(active){
+    // active = 0..4
+    var dots=['bsd0','bsd1','bsd2','bsd3','bsd4'];
+    var lbls=['bsl0','bsl1','bsl2','bsl3','bsl4'];
+    var lines=['bsl-a','bsl-b','bsl-c','bsl-d'];
+    for(var i=0;i<5;i++){
+      var d=g(dots[i]),l=g(lbls[i]);
+      d.className='bd-sdot';l.className='bd-slbl';
+      if(i<active){d.classList.add('s-dn');l.classList.add('sl-dn');d.textContent='✓';}
+      else if(i===active){d.classList.add('s-act');l.classList.add('sl-act');d.textContent=i+1;}
+      else{d.textContent=i+1;}
+    }
+    for(var j=0;j<4;j++){
+      var ln=g(lines[j]);
+      ln.className='bd-sline'+(j<active?' sl-dn':'');
+    }
+  }
+
+  function showOnly(ids){
+    var all=['bd-sel','bd-upzone','bd-tcard','bd-progcard','bd-rescard'];
+    all.forEach(function(id){
+      var el=g(id);
+      if(!el)return;
+      if(ids.indexOf(id)>=0){el.classList.remove('bd-hidden');}
+      else{el.classList.add('bd-hidden');}
     });
   }
-
-  function makeRows(){
-    container.innerHTML = '';
-    ROWS.forEach(function(r, i){
-      var row = document.createElement('div');
-      row.className = 'bulk-row';
-      row.id = 'brow-'+i;
-      row.innerHTML =
-        '<div class="br-id">'+r.id+'</div>'+
-        '<div class="br-addr addr-ok" id="baddr-'+i+'">'+r.addr+'</div>'+
-        '<div class="br-carrier">USPS</div>'+
-        '<div class="br-status brs-idle" id="bstat-'+i+'">—</div>'+
-        '<div class="br-label" id="blbl-'+i+'">—</div>';
-      container.appendChild(row);
-    });
-  }
-
-  function setPhase(text, infoText, active){
-    phaseLbl.textContent = text;
-    phaseLbl.classList.toggle('pl-active', !!active);
-    phaseInfo.textContent = infoText;
-    phaseInfo.classList.toggle('pi-active', !!active);
-  }
-
-  function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
   async function runCycle(){
     // ── RESET ──
-    makeRows();
-    progBar.style.width = '0%';
-    bbValid.style.opacity = '0';
-    bbErr.style.opacity   = '0';
-    bbGen.style.opacity   = '0';
-    bbGen.classList.remove('gen-active');
-    setStep('upload');
-    setPhase('Waiting for CSV upload…', 'Drop orders.csv to begin…', false);
-    await delay(700);
-
-    // ── PHASE 1: UPLOAD ──
-    setStep('upload');
-    setPhase('Importing 248 orders from orders.csv…', 'Parsing rows and resolving carrier accounts…', true);
-    for(var i=0; i<ROWS.length; i++){
-      await delay(220);
-      var row = document.getElementById('brow-'+i);
-      if(row) row.classList.add('br-visible');
-    }
-    await delay(400);
-
-    // ── PHASE 2: VALIDATE ──
-    setStep('validate');
-    setPhase('Validating addresses against USPS database…', 'Cross-checking ZIP codes, city/state pairs, and street formats…', true);
-    for(var j=0; j<ROWS.length; j++){
-      (function(idx){
-        setTimeout(function(){
-          var stat = document.getElementById('bstat-'+idx);
-          var addr = document.getElementById('baddr-'+idx);
-          if(stat){ stat.className='br-status brs-scan'; stat.innerHTML='<div class="bspinner"></div> Checking'; }
-        }, idx*180);
-        setTimeout(function(){
-          var stat = document.getElementById('bstat-'+idx);
-          var addr = document.getElementById('baddr-'+idx);
-          var row  = document.getElementById('brow-'+idx);
-          if(ROWS[idx].valid){
-            if(stat){ stat.className='br-status brs-ok'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Valid'; }
-            if(addr) addr.className='br-addr addr-ok';
-          } else {
-            if(stat){ stat.className='br-status brs-err'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error'; }
-            if(addr) addr.className='br-addr addr-err';
-            if(row)  row.classList.add('br-error');
-          }
-        }, idx*180 + 600);
-      })(j);
-    }
-    await delay(ROWS.length*180 + 900);
-    bbValid.querySelector('span').textContent = '246';
-    bbErr.querySelector('span').textContent = '2';
-    bbValid.style.opacity='1'; bbErr.style.opacity='1';
-
-    // ── PHASE 3: FIX ERRORS ──
-    setStep('fix');
-    setPhase('2 address errors detected — fixing inline…', 'Correcting street name typos without re-uploading the file…', true);
+    showOnly(['bd-sel']);
+    setWiz(0);
+    var pp=g('bpp-sh'),lc=g('bpp-lc'),sl=g('bpp-sl');
+    pp.className='bd-pill';lc.className='bd-pill';sl.className='bd-pill';
+    var cu=g('bca-usps');
+    cu.className='bd-car';g('bca-ups').className='bd-car cp-dim';g('bca-fed').className='bd-car cp-dim';g('bca-dhl').className='bd-car cp-dim';
+    var vt=g('bd-vtxt');vt.textContent='Select a vendor…';vt.style.color='#94a3b8';
+    g('bd-vdrop').classList.remove('vs-filled');
+    g('bd-tbody').innerHTML='';
+    g('bd-rtbody').innerHTML='';
+    g('bd-pb').style.width='0';
+    g('bd-pc').textContent='0 / 6';
+    g('bd-log').innerHTML='';
+    g('bd-genbtn').classList.remove('btn-click');
+    g('bd-zone').className='bd-zone';
+    g('bd-zfile').classList.add('bd-hidden');
+    g('bd-ztit').textContent='Drag & drop your CSV or XLSX';
+    g('bd-zsub').textContent='or click to browse · Max 5,000 rows';
     await delay(600);
 
-    var errorIdxs = ROWS.map(function(r,i){ return r.valid?-1:i; }).filter(function(i){ return i>=0; });
-    for(var ei=0; ei<errorIdxs.length; ei++){
-      var idx = errorIdxs[ei];
-      var row  = document.getElementById('brow-'+idx);
-      var addr = document.getElementById('baddr-'+idx);
-      var stat = document.getElementById('bstat-'+idx);
-      if(row){ row.classList.remove('br-error'); row.classList.add('br-fixing'); }
-      if(stat){ stat.className='br-status brs-fix'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Fixing'; }
-      if(addr){
-        addr.className='br-addr addr-fix';
-        var fixed = ROWS[idx].fixed;
-        var chars = fixed.split('');
-        addr.innerHTML = '';
-        for(var ci=0; ci<chars.length; ci++){
-          await delay(28);
-          addr.innerHTML = fixed.slice(0, ci+1) + '<span class="bcursor"></span>';
-        }
-        await delay(300);
-        addr.innerHTML = fixed;
-        addr.className='br-addr addr-ok';
-        if(stat){ stat.className='br-status brs-ok'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Fixed'; }
-        if(row){ row.classList.remove('br-fixing'); }
-        await delay(350);
+    // ── STEP 1: Portal — ShippersHub ──
+    setWiz(0);
+    await delay(600);
+    pp.className='bd-pill pp-sh';
+    await delay(800);
+
+    // ── STEP 2: Carrier — USPS ──
+    setWiz(1);
+    await delay(500);
+    cu.className='bd-car cp-usps';
+    await delay(700);
+
+    // ── STEP 3: Vendor ──
+    setWiz(2);
+    await delay(500);
+    g('bd-vdrop').classList.add('vs-filled');
+    vt.style.color='#0f172a';
+    vt.textContent='ShippersHub USPS · Priority Mail — $5.20';
+    await delay(800);
+
+    // ── STEP 4: Upload ──
+    setWiz(3);
+    showOnly(['bd-sel','bd-upzone']);
+    await delay(400);
+    var zone=g('bd-zone');
+    zone.className='bd-zone z-active';
+    g('bd-ztit').textContent='Drop to upload…';
+    await delay(700);
+    zone.className='bd-zone z-done';
+    g('bd-ztit').textContent='orders.csv uploaded successfully';
+    g('bd-zsub').textContent='6 rows detected · ready to review';
+    g('bd-zfile').classList.remove('bd-hidden');
+    await delay(700);
+
+    // ── TABLE ROWS POPULATE ──
+    showOnly(['bd-sel','bd-tcard']);
+    var tbody=g('bd-tbody');
+    tbody.innerHTML='';
+    for(var i=0;i<ROWS.length;i++){
+      var r=ROWS[i];
+      var tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td style="color:#64748b;font-size:10px;font-weight:700">'+(i+1)+'</td>'+
+        '<td style="font-weight:600">'+r.fn+'</td>'+
+        '<td style="color:#64748b">'+r.fa+'</td>'+
+        '<td style="font-weight:600">'+r.tn+'</td>'+
+        '<td style="color:#64748b">'+r.ta+'</td>'+
+        '<td style="color:#475569">'+r.tc+', '+r.ts+'</td>'+
+        '<td style="color:#475569">'+r.wt+' lb</td>'+
+        '<td><span class="bd-tbadge-usps">USPS</span></td>';
+      tbody.appendChild(tr);
+      await delay(170);
+      tr.classList.add('tr-vis');
+    }
+    await delay(500);
+
+    // ── GENERATE BUTTON CLICK ──
+    setWiz(4);
+    var genbtn=g('bd-genbtn');
+    genbtn.classList.add('btn-click');
+    await delay(350);
+    genbtn.classList.remove('btn-click');
+    await delay(200);
+
+    // ── PROGRESS SCREEN ──
+    showOnly(['bd-progcard']);
+    var pb=g('bd-pb'),pc=g('bd-pc'),plog=g('bd-log');
+    var prog=0,count=0,total=6;
+    var logIdx=0;
+    async function addLog(){
+      if(logIdx<LOG_LINES.length){
+        var s=document.createElement('span');
+        s.className='bd-log-line';
+        s.textContent=LOG_LINES[logIdx++];
+        plog.appendChild(s);
+        plog.scrollTop=plog.scrollHeight;
       }
     }
-    bbErr.style.opacity='0';
-    bbValid.querySelector('span').textContent='248';
+    await addLog(); // "Connecting…"
     await delay(400);
-
-    // ── PHASE 4: GENERATE ──
-    setStep('generate');
-    bbGen.style.opacity='1'; bbGen.classList.add('gen-active');
-    setPhase('Generating 248 labels…', 'Submitting to USPS API — labels batched in groups of 50…', true);
-    await delay(400);
-    for(var ri=0; ri<ROWS.length; ri++){
-      var s = document.getElementById('bstat-'+ri);
-      if(s){ s.className='br-status brs-gen'; s.innerHTML='<div class="bspinner" style="border-top-color:#fbbf24;border-color:rgba(251,191,36,.3)"></div> Creating'; }
+    await addLog(); // "Auth OK…"
+    await delay(300);
+    for(var li=0;li<total;li++){
+      await delay(280);
+      count++;
+      prog=Math.round(count/total*100);
+      pc.textContent=count+' / '+total;
+      pb.style.width=prog+'%';
+      await addLog();
     }
-    var prog=0, progInt = setInterval(function(){
-      prog = Math.min(prog+2, 100);
-      progBar.style.width = prog+'%';
-      if(prog>=100) clearInterval(progInt);
-    }, 40);
-    await delay(2200);
+    await delay(300);
+    await addLog(); // "Batch complete…"
+    await delay(600);
 
-    // ── PHASE 5: DONE ──
-    setStep('done');
-    setPhase('248 labels generated — ZIP ready to download', 'All PDFs bundled. Tracking numbers assigned.', true);
-    bbGen.textContent='Download ZIP';
-    for(var di=0; di<ROWS.length; di++){
-      await delay(140);
-      var row2 = document.getElementById('brow-'+di);
-      var stat2= document.getElementById('bstat-'+di);
-      var lbl2 = document.getElementById('blbl-'+di);
-      if(stat2){ stat2.className='br-status brs-done'; stat2.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Created'; }
-      if(lbl2){ lbl2.textContent=ROWS[di].label; lbl2.className='br-label lbl-done'; }
-      if(row2){ row2.classList.add('br-done'); }
+    // ── RESULT SCREEN ──
+    showOnly(['bd-rescard']);
+    var rtbody=g('bd-rtbody');
+    rtbody.innerHTML='';
+    for(var ri=0;ri<ROWS.length;ri++){
+      var rr=ROWS[ri];
+      var rtr=document.createElement('tr');
+      rtr.innerHTML=
+        '<td style="color:#64748b;font-size:10px;font-weight:700">'+(ri+1)+'</td>'+
+        '<td style="font-weight:600">'+rr.tn+'</td>'+
+        '<td class="bd-tid">'+rr.tid+'</td>'+
+        '<td><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:9.5px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0">Generated</span></td>';
+      rtbody.appendChild(rtr);
+      await delay(200);
+      rtr.classList.add('tr-vis');
     }
     await delay(3000);
 
     // ── FADE OUT & LOOP ──
-    var demo = document.getElementById('bulk-demo');
-    if(demo){ demo.style.opacity='0'; demo.style.transition='opacity 600ms'; }
-    await delay(650);
-    if(demo){ demo.style.opacity='1'; demo.style.transition='opacity 400ms'; }
-    await delay(200);
+    var root=g('bd-root');
+    if(root){root.style.opacity='0';root.style.transition='opacity 500ms';}
+    await delay(550);
+    if(root){root.style.opacity='1';root.style.transition='opacity 350ms';}
+    await delay(150);
     runCycle();
   }
 
-  // Start when section scrolls into view
-  var started = false;
-  var demoEl  = document.getElementById('bulk-demo');
-  var obs = new IntersectionObserver(function(entries){
+  var started=false;
+  var rootEl=g('bd-root');
+  var obs=new IntersectionObserver(function(entries){
     entries.forEach(function(e){
-      if(e.isIntersecting && !started){ started=true; runCycle(); obs.disconnect(); }
+      if(e.isIntersecting&&!started){started=true;runCycle();obs.disconnect();}
     });
-  }, {threshold:0.2});
-  if(demoEl) obs.observe(demoEl);
+  },{threshold:0.15});
+  if(rootEl) obs.observe(rootEl);
 })();
 </script>
 

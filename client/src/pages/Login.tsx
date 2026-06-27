@@ -33,6 +33,7 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated && user) {
+      (window as any).gtag?.('event', 'login', { method: 'email' });
       if (user.role === 'superadmin') navigate('/superadmin');
       else navigate('/dashboard');
     }

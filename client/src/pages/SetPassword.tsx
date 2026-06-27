@@ -65,6 +65,7 @@ const SetPassword: React.FC = () => {
       const res = await axios.post(`${API_BASE}/auth/set-password`, { setupToken, password });
       sessionStorage.removeItem('setupToken');
       authenticateWithToken(res.data.token, res.data.user);
+      (window as any).gtag?.('event', 'sign_up', { method: 'email' });
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to set password. Please try again.');

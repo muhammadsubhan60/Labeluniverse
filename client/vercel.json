@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "buildCommand": "npm install --include=dev && npm run build",
+  "outputDirectory": "build",
+  "framework": null,
   "routes": [
     {
       "src": "/(.*)",

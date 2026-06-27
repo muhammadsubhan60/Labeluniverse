@@ -349,7 +349,7 @@ const AddBalanceModal = ({ open, onClose }: { open: boolean; onClose: () => void
             <ArrowUpRightIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
             support@shipmehub.com
           </a>
-          <a href="https://wa.me/message/shipmehub" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.75rem 1rem', borderRadius: 10, background: 'var(--success-50)', border: '1px solid var(--success-100)', color: 'var(--success-700)', textDecoration: 'none', fontSize: '0.82rem', fontWeight: 600 }}>
+          <a href="https://wa.me/17747447759" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.75rem 1rem', borderRadius: 10, background: 'var(--success-50)', border: '1px solid var(--success-100)', color: 'var(--success-700)', textDecoration: 'none', fontSize: '0.82rem', fontWeight: 600 }}>
             <SparklesIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
             WhatsApp Support
           </a>

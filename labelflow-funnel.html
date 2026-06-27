@@ -78,15 +78,43 @@ body{font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif
 .ann-bar a{color:#FCD34D;text-decoration:underline;cursor:pointer}
 
 /* ── NAV ── */
-.nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.97);border-bottom:1px solid var(--gray-200);backdrop-filter:blur(8px)}
-.nav-inner{max-width:1100px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between}
-.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
-.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--blue),#6366F1);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.97);border-bottom:1px solid transparent;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transition:border-color 300ms,box-shadow 300ms,background 300ms}
+.nav.scrolled{border-color:rgba(0,0,0,.07);box-shadow:0 4px 24px rgba(0,0,0,.06);background:rgba(255,255,255,.96)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+.logo-icon{width:36px;height:36px;background:#fff;border:1px solid #e5e7eb;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .logo-text{font-size:18px;font-weight:900;color:var(--gray-900);letter-spacing:-.3px}
 .logo-text span{color:var(--blue)}
-.nav-links{display:flex;align-items:center;gap:28px}
-.nav-link{font-size:14px;font-weight:600;color:var(--gray-600);text-decoration:none;transition:color 150ms}
-.nav-link:hover{color:var(--blue)}
+.nav-center{display:flex;align-items:center;gap:2px}
+.nav-link{font-size:14px;font-weight:600;color:var(--gray-500);text-decoration:none;padding:8px 14px;border-radius:8px;transition:color 150ms,background 150ms;white-space:nowrap}
+.nav-link:hover{color:var(--gray-900);background:rgba(0,0,0,.04)}
+.nav-link.active{color:var(--blue);background:rgba(37,99,235,.06)}
+.nav-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.btn-nav-login{font-size:14px;font-weight:700;color:var(--gray-600);text-decoration:none;padding:9px 18px;border-radius:8px;transition:color 150ms,background 150ms;white-space:nowrap}
+.btn-nav-login:hover{color:var(--gray-900);background:rgba(0,0,0,.05)}
+.btn-nav-signup{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--orange),#F05A1A);text-decoration:none;padding:9px 20px;border-radius:8px;transition:transform 150ms,box-shadow 150ms;box-shadow:0 2px 10px rgba(249,115,22,.3);white-space:nowrap}
+.btn-nav-signup:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(249,115,22,.45)}
+.btn-nav-signup .nav-arrow{transition:transform 200ms;display:inline-block}
+.btn-nav-signup:hover .nav-arrow{transform:translateX(3px)}
+.nav-divider{width:1px;height:20px;background:var(--gray-200);margin:0 4px}
+/* Hamburger */
+.nav-burger{display:none;flex-direction:column;gap:5px;background:none;border:1.5px solid var(--gray-200);cursor:pointer;padding:9px 10px;border-radius:8px;transition:background 150ms,border-color 150ms}
+.nav-burger:hover{background:var(--gray-50);border-color:var(--gray-300)}
+.nav-burger span{display:block;width:20px;height:2px;background:var(--gray-700);border-radius:2px;transition:transform 280ms cubic-bezier(.4,0,.2,1),opacity 200ms}
+.nav-burger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.nav-burger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
+.nav-burger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+/* Mobile dropdown */
+.nav-mobile-menu{display:none;flex-direction:column;background:#fff;border-top:1px solid var(--gray-100);padding:12px 20px 20px;gap:2px;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.nav-mobile-menu.open{display:flex;animation:slideDown 200ms ease}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.nav-mobile-link{font-size:15px;font-weight:600;color:var(--gray-600);text-decoration:none;padding:13px 8px;border-bottom:1px solid var(--gray-100);transition:color 150ms;display:flex;align-items:center;justify-content:space-between}
+.nav-mobile-link:last-of-type{border-bottom:none}
+.nav-mobile-link:hover{color:var(--gray-900)}
+.nav-mobile-actions{display:flex;flex-direction:column;gap:10px;margin-top:14px;padding-top:4px}
+.btn-nav-login-m{text-align:center;font-size:15px;font-weight:700;color:var(--gray-700);text-decoration:none;padding:13px;border:1.5px solid var(--gray-200);border-radius:10px;transition:border-color 150ms,color 150ms}
+.btn-nav-login-m:hover{border-color:var(--gray-400);color:var(--gray-900)}
+.btn-nav-signup-m{text-align:center;font-size:15px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--orange),#F05A1A);text-decoration:none;padding:14px;border-radius:10px;box-shadow:0 4px 14px rgba(249,115,22,.35)}
 
 /* ── HERO ── */
 .hero{background:linear-gradient(160deg,#0F172A 0%,#1E3A8A 55%,#312E81 100%);padding:88px 24px 80px;text-align:center;position:relative;overflow:hidden}
@@ -255,6 +283,8 @@ footer a:hover{color:#fff}
 
 /* ── RESPONSIVE: TABLET ── */
 @media(max-width:960px){
+  .nav-center{display:none}
+
   /* Two-col sections → stack */
   .two-col-grid{grid-template-columns:1fr;gap:40px}
 
@@ -281,9 +311,11 @@ footer a:hover{color:#fff}
 
 /* ── RESPONSIVE: MOBILE ── */
 @media(max-width:640px){
-  /* Nav — hide text links, keep CTA */
-  .nav-links .nav-link{display:none}
-  .nav-inner{padding:0 16px}
+  /* Nav mobile */
+  .nav-center{display:none}
+  .nav-actions{display:none}
+  .nav-burger{display:flex}
+  .nav-inner{padding:0 16px;height:56px}
 
   /* Hero */
   .hero{padding:52px 16px 52px}
@@ -364,19 +396,50 @@ footer a:hover{color:#fff}
 </div>
 
 <!-- NAV -->
-<nav class="nav" role="navigation" aria-label="Main">
+<nav class="nav" id="main-nav" role="navigation" aria-label="Main">
   <div class="nav-inner">
-    <a href="#" class="logo" aria-label="Label Flow home">
+    <!-- Logo -->
+    <a href="/" class="logo" aria-label="Label Flow home">
       <div class="logo-icon" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        <svg viewBox="0 0 40 40" width="19" height="19" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6.5" y="6.5" width="27" height="27" rx="7" fill="none" stroke="#111" stroke-width="1.9"/>
+          <path d="M13 12.5 V27.5 H22.5" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M18.5 20 H27" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round"/>
+          <path d="M18.5 27.5 H25.5" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round"/>
+        </svg>
       </div>
       <span class="logo-text">Label<span>Flow</span></span>
     </a>
-    <div class="nav-links">
+    <!-- Center links -->
+    <nav class="nav-center" aria-label="Site sections">
       <a href="#centralize" class="nav-link">Centralize</a>
       <a href="#tracking" class="nav-link">Tracking</a>
       <a href="#calculator" class="nav-link">ROI Calculator</a>
-      <a href="#signup" class="btn-orange" aria-label="Get started free">Get Started Free</a>
+      <a href="#features" class="nav-link">Features</a>
+    </nav>
+    <!-- Action buttons -->
+    <div class="nav-actions">
+      <a href="/login" class="btn-nav-login">Log In</a>
+      <div class="nav-divider" aria-hidden="true"></div>
+      <a href="/signup" class="btn-nav-signup" aria-label="Create free account">
+        Get Started
+        <span class="nav-arrow" aria-hidden="true">→</span>
+      </a>
+    </div>
+    <!-- Mobile hamburger -->
+    <button class="nav-burger" id="nav-burger" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-mobile-menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <!-- Mobile menu -->
+  <div class="nav-mobile-menu" id="nav-mobile-menu" aria-hidden="true" role="menu">
+    <a href="#centralize" class="nav-mobile-link" role="menuitem">Centralize <span style="color:var(--gray-300)">›</span></a>
+    <a href="#tracking" class="nav-mobile-link" role="menuitem">Tracking <span style="color:var(--gray-300)">›</span></a>
+    <a href="#calculator" class="nav-mobile-link" role="menuitem">ROI Calculator <span style="color:var(--gray-300)">›</span></a>
+    <a href="#features" class="nav-mobile-link" role="menuitem">Features <span style="color:var(--gray-300)">›</span></a>
+    <div class="nav-mobile-actions">
+      <a href="/login" class="btn-nav-login-m">Log In</a>
+      <a href="/signup" class="btn-nav-signup-m">Get Started Free →</a>
     </div>
   </div>
 </nav>
@@ -407,7 +470,7 @@ footer a:hover{color:#fff}
     </div>
 
     <div class="hero-cta-group">
-      <a href="#signup" class="btn-orange-lg" aria-label="Create free account">
+      <a href="/signup" class="btn-orange-lg" aria-label="Create free account">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         Create Free Account
       </a>
@@ -1430,13 +1493,12 @@ footer a:hover{color:#fff}
     <h2 id="signup-title">Take Command of Your Shipping Operations</h2>
     <p>One platform. All carriers. Daily tracking. Void recovery. Rate comparison. ROI you can see.</p>
 
-    <form class="signup-form" action="#" method="POST" novalidate aria-label="Create account form">
+    <form class="signup-form" id="funnel-signup-form" novalidate aria-label="Create account form">
       <div class="form-row">
-        <input type="text" name="firstName" class="form-input" placeholder="First name" required autocomplete="given-name" aria-label="First name"/>
-        <input type="text" name="lastName" class="form-input" placeholder="Last name" required autocomplete="family-name" aria-label="Last name"/>
+        <input type="text" name="firstName" class="form-input" placeholder="First name" autocomplete="given-name" aria-label="First name"/>
+        <input type="text" name="lastName" class="form-input" placeholder="Last name" autocomplete="family-name" aria-label="Last name"/>
       </div>
       <input type="email" name="email" class="form-input" placeholder="Work email" required autocomplete="email" aria-label="Work email"/>
-      <input type="text" name="company" class="form-input" placeholder="Company / store name (optional)" autocomplete="organization" aria-label="Company or store name"/>
       <button type="submit" class="btn-orange-lg" style="width:100%;justify-content:center" aria-label="Create free account">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         Create My Free Account — No Card Required
@@ -1467,7 +1529,17 @@ footer a:hover{color:#fff}
 
 <!-- FOOTER -->
 <footer role="contentinfo">
-  <div class="footer-logo">Label<span>Flow</span></div>
+  <div class="footer-logo" style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:10px">
+    <div style="width:34px;height:34px;background:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(0,0,0,0.25)">
+      <svg viewBox="0 0 40 40" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6.5" y="6.5" width="27" height="27" rx="7" fill="none" stroke="#111" stroke-width="1.9"/>
+        <path d="M13 12.5 V27.5 H22.5" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18.5 20 H27" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round"/>
+        <path d="M18.5 27.5 H25.5" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round"/>
+      </svg>
+    </div>
+    Label<span>Flow</span>
+  </div>
   <p style="margin-bottom:12px">The ultimate solution for labels — built for agencies &amp; high-volume sellers.</p>
   <p><a href="#">Privacy Policy</a><a href="#">Terms of Service</a><a href="#">Support</a></p>
   <p style="margin-top:20px;font-size:12px;color:#374151">&copy; 2026 Label Flow. All rights reserved. Savings based on comparison with standard retail carrier rates.</p>
@@ -1518,14 +1590,121 @@ document.querySelectorAll('a[href^="#"]').forEach(function(a){
   });
 });
 
-// ── SIGNUP SUBMIT ─────────────────────────────────────
-document.querySelector('.signup-form').addEventListener('submit', function(e){
-  e.preventDefault();
-  var btn = this.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  btn.textContent = 'Creating your account…';
-  setTimeout(function(){ window.location.href = '/signup'; }, 800);
-});
+// ── SIGNUP FORM → redirect to /signup with pre-filled fields ──
+(function(){
+  var form = document.getElementById('funnel-signup-form');
+  if(!form) return;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    if(typeof fbq !== 'undefined') fbq('track', 'Lead');
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.style.opacity = '0.8';
+    var params = new URLSearchParams();
+    var fn = (form.querySelector('[name="firstName"]').value || '').trim();
+    var ln = (form.querySelector('[name="lastName"]').value || '').trim();
+    var em = (form.querySelector('[name="email"]').value || '').trim();
+    if(fn) params.set('firstName', fn);
+    if(ln) params.set('lastName', ln);
+    if(em) params.set('email', em);
+    var qs = params.toString();
+    window.location.href = '/signup' + (qs ? '?' + qs : '');
+  });
+})();
+
+// ── NAV: scroll shadow + active class ─────────────────
+(function(){
+  var nav = document.getElementById('main-nav');
+  if(!nav) return;
+  function tick(){ nav.classList.toggle('scrolled', window.scrollY > 16); }
+  window.addEventListener('scroll', tick, {passive:true});
+  tick();
+})();
+
+// ── NAV: hamburger toggle ──────────────────────────────
+(function(){
+  var burger = document.getElementById('nav-burger');
+  var menu   = document.getElementById('nav-mobile-menu');
+  if(!burger || !menu) return;
+  burger.addEventListener('click', function(){
+    var open = menu.classList.toggle('open');
+    burger.classList.toggle('open', open);
+    burger.setAttribute('aria-expanded', open);
+    menu.setAttribute('aria-hidden', !open);
+  });
+  menu.querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click', function(){
+      menu.classList.remove('open');
+      burger.classList.remove('open');
+      burger.setAttribute('aria-expanded', false);
+      menu.setAttribute('aria-hidden', true);
+    });
+  });
+  document.addEventListener('click', function(e){
+    if(!nav.contains(e.target)){
+      menu.classList.remove('open');
+      burger.classList.remove('open');
+      burger.setAttribute('aria-expanded', false);
+      menu.setAttribute('aria-hidden', true);
+    }
+  });
+})();
+
+// ── NAV: scroll spy (active link per section) ─────────
+(function(){
+  var links = document.querySelectorAll('.nav-link');
+  var ids = [];
+  links.forEach(function(a){ var h = a.getAttribute('href'); if(h && h[0]==='#') ids.push(h.slice(1)); });
+  if(!ids.length) return;
+  var observer = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        var id = e.target.id;
+        links.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
+      }
+    });
+  }, {threshold:0.25, rootMargin:'-64px 0px -40% 0px'});
+  ids.forEach(function(id){ var el = document.getElementById(id); if(el) observer.observe(el); });
+})();
+
+// ── ANIMATED COUNTERS (Intersection Observer) ─────────
+(function(){
+  var done = false;
+  var targets = [
+    {sel:'[data-count="2400"]', end:2400, suffix:'+'},
+    {sel:'[data-count="80"]',   end:80,   suffix:'%'},
+    {sel:'[data-count="100"]',  end:100,  suffix:'%'}
+  ];
+  var statsEl = document.querySelector('.hero-stats');
+  if(!statsEl) return;
+  statsEl.querySelectorAll('.hero-stat-num').forEach(function(el){
+    var t = el.textContent.trim();
+    if(t === '2,400+') el.setAttribute('data-count','2400');
+    if(t === '80%')    el.setAttribute('data-count','80');
+    if(t === '100%')   el.setAttribute('data-count','100');
+  });
+  function run(){
+    if(done) return; done = true;
+    targets.forEach(function(cfg){
+      var el = document.querySelector(cfg.sel);
+      if(!el) return;
+      var start = 0, dur = 1400, began = null;
+      function frame(ts){
+        if(!began) began = ts;
+        var p = Math.min((ts - began) / dur, 1);
+        var ease = 1 - Math.pow(1 - p, 3);
+        var val = Math.round(ease * cfg.end);
+        el.textContent = val.toLocaleString() + cfg.suffix;
+        if(p < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting) run(); });
+  }, {threshold:0.6});
+  obs.observe(statsEl);
+})();
 
 // ── DASHBOARD TAB SWITCH (cosmetic) ───────────────────
 document.querySelectorAll('.dash-tab').forEach(function(tab){

@@ -905,115 +905,340 @@ footer a:hover{color:#fff}
 </section>
 
 <!-- ═══════════════════════════════════════════════════════
-     6. BULK INLINE ADDRESS UPDATER
+     6. BULK OPERATIONS — ANIMATED
 ═══════════════════════════════════════════════════════ -->
+<style>
+/* ── BULK ANIMATION DEMO ── */
+.bulk-demo{background:#0a0f1c;border-radius:16px;overflow:hidden;border:1px solid rgba(99,102,241,.2);box-shadow:0 24px 64px rgba(0,0,0,.5);margin-top:48px;user-select:none}
+.bulk-chrome{background:#111827;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.bchr-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.bchr-title{font-size:12px;font-weight:600;color:rgba(255,255,255,.4);margin-left:4px;flex:1}
+/* Stepper */
+.bulk-stepper{display:flex;align-items:center;gap:0;margin-left:auto}
+.bstep{font-size:11px;font-weight:700;color:rgba(255,255,255,.2);padding:4px 10px;border-radius:4px;transition:color 400ms,background 400ms;white-space:nowrap}
+.bstep.s-active{color:#a5b4fc;background:rgba(99,102,241,.15)}
+.bstep.s-done{color:#4ade80}
+.bstep-sep{font-size:11px;color:rgba(255,255,255,.15);padding:0 2px}
+/* Toolbar */
+.bulk-bar{background:#0f172a;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05);flex-wrap:wrap}
+.bulk-phase-label{font-size:12px;font-weight:700;color:rgba(255,255,255,.35);min-width:160px;transition:color 300ms}
+.bulk-phase-label.pl-active{color:#a5b4fc}
+.bulk-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;opacity:0;transition:opacity 300ms}
+.bb-valid{background:rgba(74,222,128,.1);color:#4ade80;border:1px solid rgba(74,222,128,.2)}
+.bb-err{background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.2)}
+.bb-gen{background:rgba(99,102,241,.12);color:#a5b4fc;border:1px solid rgba(99,102,241,.25);margin-left:auto;padding:5px 14px;font-size:12px;cursor:default;transition:opacity 300ms,background 300ms}
+.bb-gen.gen-active{background:rgba(99,102,241,.25);color:#c7d2fe}
+/* Progress bar */
+.bulk-prog-wrap{height:3px;background:rgba(255,255,255,.04);overflow:hidden}
+.bulk-prog-bar{height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#a5b4fc);transition:width 50ms linear}
+/* Table */
+.bulk-tbl{padding:0}
+.bulk-th{display:grid;grid-template-columns:70px 1fr 100px 110px 150px;gap:12px;padding:8px 16px;font-size:10px;font-weight:700;color:rgba(255,255,255,.25);letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.05)}
+.bulk-row{display:grid;grid-template-columns:70px 1fr 100px 110px 150px;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;opacity:0;transform:translateX(-10px);transition:opacity 300ms,transform 300ms,background 300ms}
+.bulk-row.br-visible{opacity:1;transform:none}
+.bulk-row.br-error{background:rgba(239,68,68,.05);border-left:2px solid rgba(239,68,68,.4)}
+.bulk-row.br-fixing{background:rgba(99,102,241,.07);border-left:2px solid rgba(99,102,241,.5)}
+.bulk-row.br-done{background:rgba(74,222,128,.03);border-left:2px solid rgba(74,222,128,.3)}
+.br-id{color:rgba(255,255,255,.3);font-size:11px;font-weight:600;font-family:monospace}
+.br-addr{font-size:12px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 300ms}
+.br-addr.addr-err{color:#f87171}
+.br-addr.addr-fix{color:#a5b4fc}
+.br-addr.addr-ok{color:rgba(255,255,255,.75)}
+.br-carrier{font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;width:fit-content;background:rgba(0,75,135,.3);color:#93c5fd}
+.br-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;min-width:80px;transition:color 300ms}
+.brs-idle{color:rgba(255,255,255,.2)}
+.brs-scan{color:#a5b4fc}
+.brs-ok{color:#4ade80}
+.brs-err{color:#f87171}
+.brs-fix{color:#a5b4fc}
+.brs-gen{color:#fbbf24}
+.brs-done{color:#4ade80}
+.br-label{font-size:10px;font-family:monospace;color:rgba(255,255,255,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 300ms}
+.br-label.lbl-done{color:#4ade80}
+/* Scanning spinner */
+@keyframes bspin{to{transform:rotate(360deg)}}
+.bspinner{width:11px;height:11px;border:2px solid rgba(99,102,241,.3);border-top-color:#a5b4fc;border-radius:50%;animation:bspin .7s linear infinite;flex-shrink:0}
+/* Cursor blink for typing effect */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.bcursor{display:inline-block;width:1px;height:11px;background:#a5b4fc;margin-left:1px;animation:blink .8s step-end infinite;vertical-align:middle}
+/* Phase label */
+.phase-info{padding:10px 16px;font-size:12px;color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.04);min-height:36px;transition:color 300ms}
+.phase-info.pi-active{color:rgba(255,255,255,.55)}
+@media(max-width:760px){
+  .bulk-th,.bulk-row{grid-template-columns:60px 1fr 90px 90px}
+  .bulk-th>*:nth-child(5),.bulk-row>*:nth-child(5){display:none}
+  .bulk-stepper{display:none}
+}
+@media(max-width:520px){
+  .bulk-th,.bulk-row{grid-template-columns:55px 1fr 80px}
+  .bulk-th>*:nth-child(4),.bulk-row>*:nth-child(4),.bulk-th>*:nth-child(5),.bulk-row>*:nth-child(5){display:none}
+}
+</style>
+
 <section class="section section-dark" role="region" aria-labelledby="addr-title">
   <div class="container">
     <div class="lbl lbl-blue">Priority #6 — Bulk Operations</div>
-    <h2 class="h2 h2-white" id="addr-title">Fix Hundreds of Addresses Inline — Without Leaving the Dashboard</h2>
-    <p class="sub sub-white" style="max-width:640px">Bad addresses kill fulfillment. Label Flow validates every address on import, flags errors inline, and lets you correct them directly in the bulk table — no CSV export, no re-upload. One screen, full control.</p>
+    <h2 class="h2 h2-white" id="addr-title">Upload. Validate. Fix. Generate. All in One Screen.</h2>
+    <p class="sub sub-white" style="max-width:620px">Drop a CSV and Label Flow handles everything — validates every address, flags errors inline, lets you correct them without re-uploading, then generates all labels in one click.</p>
 
-    <!-- ADDRESS UPDATER DEMO -->
-    <div class="addr-demo" role="img" aria-label="Bulk inline address editor demo showing address validation and editing">
-      <div class="addr-topbar">
-        <div class="dash-dot" style="background:#EF4444"></div>
-        <div class="dash-dot" style="background:#F59E0B"></div>
-        <div class="dash-dot" style="background:#22C55E"></div>
-        <span class="dash-title">Label Flow — Bulk Address Manager · 248 orders imported</span>
-      </div>
-      <div class="addr-toolbar">
-        <button class="addr-tool-btn atb-select-all" type="button">Select All</button>
-        <button class="addr-tool-btn atb-validate" type="button">Validate Addresses</button>
-        <button class="addr-tool-btn atb-update" type="button">Update Selected</button>
-        <button class="addr-tool-btn atb-export" type="button">Export</button>
-        <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;background:rgba(239,68,68,.12);border-radius:6px;border:1px solid rgba(239,68,68,.2)">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="#F87171" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
-          <span style="font-size:12px;font-weight:700;color:#F87171">3 invalid addresses</span>
+    <!-- ANIMATED BULK DEMO -->
+    <div class="bulk-demo" id="bulk-demo" aria-label="Animated bulk label generation demo">
+      <div class="bulk-chrome">
+        <div class="bchr-dot" style="background:#ef4444"></div>
+        <div class="bchr-dot" style="background:#f59e0b"></div>
+        <div class="bchr-dot" style="background:#22c55e"></div>
+        <span class="bchr-title">Label Flow — Bulk Label Generator</span>
+        <div class="bulk-stepper">
+          <div class="bstep" id="bstep-upload">Upload</div>
+          <div class="bstep-sep">›</div>
+          <div class="bstep" id="bstep-validate">Validate</div>
+          <div class="bstep-sep">›</div>
+          <div class="bstep" id="bstep-fix">Fix Errors</div>
+          <div class="bstep-sep">›</div>
+          <div class="bstep" id="bstep-generate">Generate</div>
+          <div class="bstep-sep">›</div>
+          <div class="bstep" id="bstep-done">Done</div>
         </div>
-        <span class="addr-count">248 orders · 245 valid · 3 errors</span>
       </div>
-      <div class="addr-table-wrap">
-        <div class="addr-row-h">
-          <div></div>
-          <div>Order ID</div>
+      <div class="bulk-bar">
+        <span class="bulk-phase-label" id="bulk-phase-lbl">Waiting for CSV upload…</span>
+        <div class="bulk-badge bb-valid" id="bb-valid">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span id="bb-valid-count">0</span> valid
+        </div>
+        <div class="bulk-badge bb-err" id="bb-err">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <span id="bb-err-count">0</span> errors
+        </div>
+        <div class="bulk-badge bb-gen" id="bb-gen">Generate 248 Labels</div>
+      </div>
+      <div class="bulk-prog-wrap"><div class="bulk-prog-bar" id="bulk-prog"></div></div>
+      <div class="bulk-tbl">
+        <div class="bulk-th">
+          <div>Order</div>
           <div>Address</div>
-          <div>City / State / ZIP</div>
+          <div>Carrier</div>
           <div>Status</div>
-          <div>Action</div>
+          <div>Label ID</div>
         </div>
-        <!-- Valid row -->
-        <div class="addr-row">
-          <div class="addr-check checked" role="checkbox" aria-checked="true" aria-label="Select order 4820"></div>
-          <div class="a-id">#4820</div>
-          <div class="a-addr-cell">412 Maple Ave</div>
-          <div class="a-addr-cell">Austin, TX 78701</div>
-          <div class="a-flag flag-ok">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-            Valid
-          </div>
-          <div class="a-action">Edit</div>
-        </div>
-        <!-- Error row — being edited -->
-        <div class="addr-row editing">
-          <div class="addr-check checked" role="checkbox" aria-checked="true" aria-label="Select order 4821"></div>
-          <div class="a-id">#4821</div>
-          <div>
-            <input class="a-addr-input" type="text" value="88 Comerce Blvd" aria-label="Street address for order 4821"/>
-          </div>
-          <div class="a-addr-cell" style="color:#60A5FA">Chicago, IL 60601</div>
-          <div class="a-flag flag-edit">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Editing
-          </div>
-          <div class="a-action" style="color:#4ADE80">Save</div>
-        </div>
-        <!-- Error row -->
-        <div class="addr-row error-row">
-          <div class="addr-check" role="checkbox" aria-checked="false" aria-label="Select order 4822"></div>
-          <div class="a-id">#4822</div>
-          <div class="a-addr-cell" style="color:#F87171">29 Oak Str</div>
-          <div class="a-addr-cell" style="color:#F87171">Miamii, FL 33101</div>
-          <div class="a-flag flag-err">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            Invalid ZIP
-          </div>
-          <div class="a-action">Fix Now</div>
-        </div>
-        <!-- Valid row -->
-        <div class="addr-row">
-          <div class="addr-check" role="checkbox" aria-checked="false" aria-label="Select order 4823"></div>
-          <div class="a-id">#4823</div>
-          <div class="a-addr-cell">100 Agency Drive Suite 4B</div>
-          <div class="a-addr-cell">New York, NY 10001</div>
-          <div class="a-flag flag-ok">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-            Valid
-          </div>
-          <div class="a-action">Edit</div>
-        </div>
+        <div id="bulk-rows"></div>
       </div>
+      <div class="phase-info" id="phase-info">Drop orders.csv to begin…</div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:28px">
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:5px">USPS address validation</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.5)">Auto-validates against USPS database on import</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">USPS address validation</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">Every row cross-checked on import — bad addresses flagged before a label is created</div>
       </div>
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:5px">Inline edit — no re-upload</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.5)">Fix typos directly in the table row, save instantly</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">Inline edit, no re-upload</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">Fix typos directly in the table row and save — zero round-trips to Excel</div>
       </div>
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:5px">Bulk select &amp; update</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.5)">Select 200 rows at once, apply corrections in one action</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">One-click batch generate</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">Generate 250 labels in under 30 seconds and download as a single ZIP</div>
       </div>
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px">
-        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:5px">Address suggestions</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.5)">AI-powered suggestions for near-miss street names and ZIP codes</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">Instant ZIP download</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4)">All PDFs bundled and ready — print directly or forward to your fulfillment team</div>
       </div>
     </div>
   </div>
 </section>
+
+<script>
+(function(){
+  var ROWS = [
+    { id:'#5104', addr:'412 Maple Ave, Austin TX 78701',      carrier:'USPS', label:'9400 1118 9922 3456 7890', valid:true  },
+    { id:'#5105', addr:'88 Comerce Blvd, Chicago IL 60601',   carrier:'USPS', label:'9400 1118 9922 3456 7891', valid:false, fixed:'88 Commerce Blvd, Chicago IL 60601' },
+    { id:'#5106', addr:'100 Agency Dr Suite 4B, New York NY', carrier:'USPS', label:'9400 1118 9922 3456 7892', valid:true  },
+    { id:'#5107', addr:'29 Oak Str, Miamii FL 33101',         carrier:'USPS', label:'9400 1118 9922 3456 7893', valid:false, fixed:'29 Oak St, Miami FL 33101' },
+    { id:'#5108', addr:'55 Pine Rd, Seattle WA 98101',        carrier:'USPS', label:'9400 1118 9922 3456 7894', valid:true  },
+    { id:'#5109', addr:'7 Harbor Blvd, San Diego CA 92101',   carrier:'USPS', label:'9400 1118 9922 3456 7895', valid:true  },
+  ];
+
+  var container = document.getElementById('bulk-rows');
+  var phaseLbl  = document.getElementById('bulk-phase-lbl');
+  var phaseInfo = document.getElementById('phase-info');
+  var progBar   = document.getElementById('bulk-prog');
+  var bbValid   = document.getElementById('bb-valid');
+  var bbErr     = document.getElementById('bb-err');
+  var bbGen     = document.getElementById('bb-gen');
+  var steps     = ['upload','validate','fix','generate','done'];
+
+  function setStep(active, doneBefore){
+    steps.forEach(function(s,i){
+      var el = document.getElementById('bstep-'+s);
+      if(!el) return;
+      el.className = 'bstep';
+      if(s === active) el.classList.add('s-active');
+      else if(i < steps.indexOf(active)) el.classList.add('s-done');
+    });
+  }
+
+  function makeRows(){
+    container.innerHTML = '';
+    ROWS.forEach(function(r, i){
+      var row = document.createElement('div');
+      row.className = 'bulk-row';
+      row.id = 'brow-'+i;
+      row.innerHTML =
+        '<div class="br-id">'+r.id+'</div>'+
+        '<div class="br-addr addr-ok" id="baddr-'+i+'">'+r.addr+'</div>'+
+        '<div class="br-carrier">USPS</div>'+
+        '<div class="br-status brs-idle" id="bstat-'+i+'">—</div>'+
+        '<div class="br-label" id="blbl-'+i+'">—</div>';
+      container.appendChild(row);
+    });
+  }
+
+  function setPhase(text, infoText, active){
+    phaseLbl.textContent = text;
+    phaseLbl.classList.toggle('pl-active', !!active);
+    phaseInfo.textContent = infoText;
+    phaseInfo.classList.toggle('pi-active', !!active);
+  }
+
+  function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  async function runCycle(){
+    // ── RESET ──
+    makeRows();
+    progBar.style.width = '0%';
+    bbValid.style.opacity = '0';
+    bbErr.style.opacity   = '0';
+    bbGen.style.opacity   = '0';
+    bbGen.classList.remove('gen-active');
+    setStep('upload');
+    setPhase('Waiting for CSV upload…', 'Drop orders.csv to begin…', false);
+    await delay(700);
+
+    // ── PHASE 1: UPLOAD ──
+    setStep('upload');
+    setPhase('Importing 248 orders from orders.csv…', 'Parsing rows and resolving carrier accounts…', true);
+    for(var i=0; i<ROWS.length; i++){
+      await delay(220);
+      var row = document.getElementById('brow-'+i);
+      if(row) row.classList.add('br-visible');
+    }
+    await delay(400);
+
+    // ── PHASE 2: VALIDATE ──
+    setStep('validate');
+    setPhase('Validating addresses against USPS database…', 'Cross-checking ZIP codes, city/state pairs, and street formats…', true);
+    for(var j=0; j<ROWS.length; j++){
+      (function(idx){
+        setTimeout(function(){
+          var stat = document.getElementById('bstat-'+idx);
+          var addr = document.getElementById('baddr-'+idx);
+          if(stat){ stat.className='br-status brs-scan'; stat.innerHTML='<div class="bspinner"></div> Checking'; }
+        }, idx*180);
+        setTimeout(function(){
+          var stat = document.getElementById('bstat-'+idx);
+          var addr = document.getElementById('baddr-'+idx);
+          var row  = document.getElementById('brow-'+idx);
+          if(ROWS[idx].valid){
+            if(stat){ stat.className='br-status brs-ok'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Valid'; }
+            if(addr) addr.className='br-addr addr-ok';
+          } else {
+            if(stat){ stat.className='br-status brs-err'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error'; }
+            if(addr) addr.className='br-addr addr-err';
+            if(row)  row.classList.add('br-error');
+          }
+        }, idx*180 + 600);
+      })(j);
+    }
+    await delay(ROWS.length*180 + 900);
+    bbValid.querySelector('span').textContent = '246';
+    bbErr.querySelector('span').textContent = '2';
+    bbValid.style.opacity='1'; bbErr.style.opacity='1';
+
+    // ── PHASE 3: FIX ERRORS ──
+    setStep('fix');
+    setPhase('2 address errors detected — fixing inline…', 'Correcting street name typos without re-uploading the file…', true);
+    await delay(600);
+
+    var errorIdxs = ROWS.map(function(r,i){ return r.valid?-1:i; }).filter(function(i){ return i>=0; });
+    for(var ei=0; ei<errorIdxs.length; ei++){
+      var idx = errorIdxs[ei];
+      var row  = document.getElementById('brow-'+idx);
+      var addr = document.getElementById('baddr-'+idx);
+      var stat = document.getElementById('bstat-'+idx);
+      if(row){ row.classList.remove('br-error'); row.classList.add('br-fixing'); }
+      if(stat){ stat.className='br-status brs-fix'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Fixing'; }
+      if(addr){
+        addr.className='br-addr addr-fix';
+        var fixed = ROWS[idx].fixed;
+        var chars = fixed.split('');
+        addr.innerHTML = '';
+        for(var ci=0; ci<chars.length; ci++){
+          await delay(28);
+          addr.innerHTML = fixed.slice(0, ci+1) + '<span class="bcursor"></span>';
+        }
+        await delay(300);
+        addr.innerHTML = fixed;
+        addr.className='br-addr addr-ok';
+        if(stat){ stat.className='br-status brs-ok'; stat.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Fixed'; }
+        if(row){ row.classList.remove('br-fixing'); }
+        await delay(350);
+      }
+    }
+    bbErr.style.opacity='0';
+    bbValid.querySelector('span').textContent='248';
+    await delay(400);
+
+    // ── PHASE 4: GENERATE ──
+    setStep('generate');
+    bbGen.style.opacity='1'; bbGen.classList.add('gen-active');
+    setPhase('Generating 248 labels…', 'Submitting to USPS API — labels batched in groups of 50…', true);
+    await delay(400);
+    for(var ri=0; ri<ROWS.length; ri++){
+      var s = document.getElementById('bstat-'+ri);
+      if(s){ s.className='br-status brs-gen'; s.innerHTML='<div class="bspinner" style="border-top-color:#fbbf24;border-color:rgba(251,191,36,.3)"></div> Creating'; }
+    }
+    var prog=0, progInt = setInterval(function(){
+      prog = Math.min(prog+2, 100);
+      progBar.style.width = prog+'%';
+      if(prog>=100) clearInterval(progInt);
+    }, 40);
+    await delay(2200);
+
+    // ── PHASE 5: DONE ──
+    setStep('done');
+    setPhase('248 labels generated — ZIP ready to download', 'All PDFs bundled. Tracking numbers assigned.', true);
+    bbGen.textContent='Download ZIP';
+    for(var di=0; di<ROWS.length; di++){
+      await delay(140);
+      var row2 = document.getElementById('brow-'+di);
+      var stat2= document.getElementById('bstat-'+di);
+      var lbl2 = document.getElementById('blbl-'+di);
+      if(stat2){ stat2.className='br-status brs-done'; stat2.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Created'; }
+      if(lbl2){ lbl2.textContent=ROWS[di].label; lbl2.className='br-label lbl-done'; }
+      if(row2){ row2.classList.add('br-done'); }
+    }
+    await delay(3000);
+
+    // ── FADE OUT & LOOP ──
+    var demo = document.getElementById('bulk-demo');
+    if(demo){ demo.style.opacity='0'; demo.style.transition='opacity 600ms'; }
+    await delay(650);
+    if(demo){ demo.style.opacity='1'; demo.style.transition='opacity 400ms'; }
+    await delay(200);
+    runCycle();
+  }
+
+  // Start when section scrolls into view
+  var started = false;
+  var demoEl  = document.getElementById('bulk-demo');
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting && !started){ started=true; runCycle(); obs.disconnect(); }
+    });
+  }, {threshold:0.2});
+  if(demoEl) obs.observe(demoEl);
+})();
+</script>
 
 <!-- ═══════════════════════════════════════════════════════
      7. ZIP INTELLIGENCE

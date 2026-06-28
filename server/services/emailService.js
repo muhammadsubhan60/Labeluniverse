@@ -1,35 +1,19 @@
-﻿const nodemailer = require('nodemailer');
+﻿const { Resend } = require('resend');
 
-// Lazy — transporter is created on first use, not at require() time
-let _transporter = null;
-function getTransporter() {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host:   process.env.EMAIL_HOST  || 'smtp.gmail.com',
-      port:   parseInt(process.env.EMAIL_PORT) || 587,
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-  }
-  return _transporter;
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async ({ to, subject, html }) => {
   try {
-    const transporter = getTransporter();
-    await transporter.sendMail({
-      from: `"LABEL UNIVERSE" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+      from: 'Label Flow <noreply@labelflow.org>',
       to,
       subject,
       html,
     });
-    console.log(`📧 Email → ${to} | ${subject}`);
+    console.log(`Email sent → ${to} | ${subject}`);
     return true;
   } catch (err) {
-    console.error('📧 Email error:', err.message);
+    console.error('Email error:', err.message);
     return false;
   }
 };

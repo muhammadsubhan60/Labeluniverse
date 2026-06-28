@@ -221,10 +221,11 @@ const Layout: React.FC = () => {
   ];
 
   const labelsNav: NavItem[] = [
-    { name: 'Single Label',   href: '/labels/single',       icon: TagIcon,                   current: location.pathname === '/labels/single' },
-    { name: 'Bulk Labels',    href: '/labels/bulk',          icon: RectangleStackIcon,        current: location.pathname === '/labels/bulk' },
-    { name: 'Single History', href: '/labels/history',      icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/history' },
-    { name: 'Bulk History',   href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },
+    { name: 'Single Label',      href: '/labels/single',       icon: TagIcon,                   current: location.pathname === '/labels/single' },
+    { name: 'Bulk Labels',       href: '/labels/bulk',          icon: RectangleStackIcon,        current: location.pathname === '/labels/bulk' },
+    { name: 'Single History',    href: '/labels/history',      icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/history' },
+    { name: 'Bulk History',      href: '/labels/bulk-history', icon: ClipboardDocumentListIcon, current: location.pathname === '/labels/bulk-history' },
+    { name: 'Manifest History',  href: '/manifest/history',    icon: ClipboardDocumentListIcon, current: location.pathname === '/manifest/history' },
   ];
 
   // Command Center — visible to admin OR reseller with ccAccess

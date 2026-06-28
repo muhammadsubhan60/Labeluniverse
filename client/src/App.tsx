@@ -2,10 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
-import { VendorAuthProvider } from './contexts/VendorAuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
-import VendorLayout from './components/VendorLayout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import VerifyOTP from './pages/VerifyOTP';
@@ -28,10 +26,6 @@ import LiveActivity from './pages/LiveActivity';
 import AdminLiveActivity from './pages/AdminLiveActivity';
 import AdminWarehouses from './pages/AdminWarehouses';
 import AdminStates from './pages/AdminStates';
-import VendorLogin from './pages/vendor/VendorLogin';
-import VendorDashboard from './pages/vendor/VendorDashboard';
-import VendorJobDetail from './pages/vendor/VendorJobDetail';
-import VendorEarnings  from './pages/vendor/VendorEarnings';
 import CCLayout             from './pages/CommandCenter/CCLayout';
 import CCDashboard          from './pages/CommandCenter/CCDashboard';
 import CCLabels             from './pages/CommandCenter/CCLabels';
@@ -80,7 +74,6 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <SocketProvider>
-          <VendorAuthProvider>
             <Router>
               <div className="App">
               <Routes>
@@ -104,15 +97,6 @@ function App() {
                   <Route path="bulk-labels" element={<CCBulkLabels />} />
                   <Route path="ai-status"   element={<CCBulkTrackingUpdate />} />
                   <Route path="vendor-perf" element={<CCVendorPerformance />} />
-                </Route>
-
-                {/* ── Vendor Portal (completely separate, neutral branding) ── */}
-                <Route path="/vendor-portal/login" element={<VendorLogin />} />
-                <Route path="/vendor-portal" element={<VendorLayout />}>
-                  <Route index element={<Navigate to="/vendor-portal/jobs" replace />} />
-                  <Route path="jobs"      element={<VendorDashboard />} />
-                  <Route path="jobs/:id"  element={<VendorJobDetail />} />
-                  <Route path="earnings"  element={<VendorEarnings />} />
                 </Route>
 
                 {/* Root: authenticated → dashboard, visitors → signup */}
@@ -174,7 +158,6 @@ function App() {
               </Routes>
             </div>
             </Router>
-          </VendorAuthProvider>
         </SocketProvider>
       </AuthProvider>
     </ThemeProvider>

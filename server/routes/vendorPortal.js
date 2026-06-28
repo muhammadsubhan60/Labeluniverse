@@ -210,13 +210,20 @@ router.get('/jobs/:id/download-request', async (req, res) => {
   try {
     const job = await ManifestJob.findOne({ _id: req.params.id, assignedVendor: req.vendor._id });
     if (!job) return res.status(404).json({ message: 'Job not found' });
-    if (!['assigned', 'accepted', 'uploaded', 'rejected'].includes(job.status)) {
+    if (!['assigned', 'accepted', 'uploaded', 'rejected', 'under_review', 'completed'].includes(job.status)) {
       return res.status(400).json({ message: 'Job is not in a downloadable state' });
     }
-    if (!job.requestFile?.path || !fs.existsSync(job.requestFile.path)) {
-      return res.status(404).json({ message: 'Request file not found' });
+    if (!job.requestFile?.path) {
+      return res.status(404).json({ message: 'No request file attached to this job' });
     }
-    res.download(job.requestFile.path, job.requestFile.originalName);
+    if (!fs.existsSync(job.requestFile.path)) {
+      return res.status(404).json({ message: 'Request file no longer exists on the server. Contact support.' });
+    }
+    res.download(job.requestFile.path, job.requestFile.originalName || 'manifest.csv', (err) => {
+      if (err && !res.headersSent) {
+        res.status(500).json({ message: 'File transfer failed. Please try again.' });
+      }
+    });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -383,6 +390,32 @@ router.delete('/jobs/:id/upload', async (req, res) => {
     await job.save();
 
     res.json({ message: 'Upload cancelled. You can upload a corrected file.', job: { _id: job._id, status: job.status } });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ── PUT /api/vendor-portal/me/password ───────────────────────────────────
+router.put('/me/password', async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new password are required' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'New password must be at least 8 characters' });
+    }
+    const vendor = await ManifestVendor.findById(req.vendor._id).select('+password');
+    if (!vendor.password) {
+      return res.status(400).json({ message: 'No password set. Contact support.' });
+    }
+    const isMatch = await vendor.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+    vendor.password = newPassword;
+    await vendor.save();
+    res.json({ message: 'Password updated successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }

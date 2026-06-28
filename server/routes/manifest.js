@@ -202,10 +202,16 @@ router.post('/', authenticateToken, upload.single('file'), async (req, res) => {
       }
     } catch (_) { /* email failure should not block response */ }
 
-    // Socket notification
+    // Socket notification — user side
     if (req.io) {
       req.io.to(req.user._id.toString()).emit('manifest-submitted', {
         jobId: job._id, carrier, labelCount: rows.length, cost: cost.totalAmount,
+      });
+    }
+    // Socket notification — vendor side (BatchOps portal)
+    if (req.vendorNS) {
+      req.vendorNS.to(`vendor:${vendor._id.toString()}`).emit('new-job', {
+        jobId: job._id, carrier, labelCount: rows.length,
       });
     }
 

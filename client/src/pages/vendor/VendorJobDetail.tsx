@@ -112,7 +112,18 @@ const VendorJobDetail: React.FC = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Download failed');
+      // Error responses with responseType:'blob' are also Blobs — parse them as text first
+      let message = 'Download failed';
+      try {
+        if (err?.response?.data instanceof Blob) {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          message = json.message || message;
+        } else if (err?.response?.data?.message) {
+          message = err.response.data.message;
+        }
+      } catch {}
+      setError(message);
     } finally {
       setDownloading(false);
     }

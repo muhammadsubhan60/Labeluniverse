@@ -154,9 +154,36 @@ app.use('/api/etsy/webhook',     express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// ── Vendor socket namespace (/vendor) ────────────────────────
+// Separate namespace so vendor tokens never mix with user tokens.
+const vendorNS = io.of('/vendor');
+
+vendorNS.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication required'));
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.type !== 'vendor') return next(new Error('Invalid token type'));
+    const ManifestVendor = require('./models/ManifestVendor');
+    const vendor = await ManifestVendor.findById(decoded.vendorId).select('_id carriers isActive');
+    if (!vendor || !vendor.isActive) return next(new Error('Vendor not found or inactive'));
+    socket.vendorId       = vendor._id.toString();
+    socket.vendorCarriers = vendor.carriers || [];
+    next();
+  } catch {
+    next(new Error('Invalid or expired token'));
+  }
+});
+
+vendorNS.on('connection', (socket) => {
+  socket.join(`vendor:${socket.vendorId}`);
+  socket.vendorCarriers.forEach(c => socket.join(`carrier:${c}`));
+});
+
 // ── Attach socket.io to request ───────────────────────────────
 app.use((req, res, next) => {
-  req.io = io;
+  req.io       = io;
+  req.vendorNS = vendorNS;
   next();
 });
 

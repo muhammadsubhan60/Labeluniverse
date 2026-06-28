@@ -227,10 +227,16 @@ router.put('/:id/approve', async (req, res) => {
       }
     } catch (_) {}
 
-    // Portal notification
+    // Portal notification — user side
     if (req.io) {
       req.io.to(job.user._id?.toString() || job.user.toString()).emit('manifest-completed', {
         jobId: job._id, carrier: job.carrier,
+      });
+    }
+    // Vendor portal notification (BatchOps)
+    if (req.vendorNS && job.assignedVendor) {
+      req.vendorNS.to(`vendor:${job.assignedVendor._id || job.assignedVendor}`).emit('job-updated', {
+        jobId: job._id.toString(), status: 'completed',
       });
     }
 
@@ -282,6 +288,12 @@ router.put('/:id/reject', async (req, res) => {
     } catch (_) {}
 
     if (req.io) req.io.emit('manifest-rejected', { jobId: job._id });
+    // Vendor portal notification (BatchOps)
+    if (req.vendorNS && job.assignedVendor) {
+      req.vendorNS.to(`vendor:${job.assignedVendor._id || job.assignedVendor}`).emit('job-updated', {
+        jobId: job._id.toString(), status: 'rejected',
+      });
+    }
 
     res.json({ message: 'Upload rejected. Vendor notified to re-upload.', job });
   } catch (err) {

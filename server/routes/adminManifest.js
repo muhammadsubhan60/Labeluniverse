@@ -6,8 +6,38 @@ const UserCarrierAssignment = require('../models/UserCarrierAssignment');
 const ManifestVendor        = require('../models/ManifestVendor');
 const User                  = require('../models/User');
 const Balance               = require('../models/Balance');
+const Label                 = require('../models/Label');
 
 const router = express.Router();
+
+// Parses the simple CSV written by rowsToCSV in labels.js
+function parseManifestCsv(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  const lines = fs.readFileSync(filePath, 'utf8').split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const fields = [];
+    let cur = '', inQ = false;
+    for (let j = 0; j < lines[i].length; j++) {
+      const c = lines[i][j];
+      if (c === '"') {
+        if (inQ && lines[i][j + 1] === '"') { cur += '"'; j++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) {
+        fields.push(cur); cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    fields.push(cur);
+    const row = {};
+    headers.forEach((h, idx) => { row[h] = (fields[idx] ?? '').trim(); });
+    rows.push(row);
+  }
+  return rows;
+}
 
 // All routes require admin
 router.use(authenticateToken, authorize('admin'));
@@ -215,6 +245,55 @@ router.put('/:id/approve', async (req, res) => {
       performedBy: req.user._id,
     });
     await job.save();
+
+    // Create individual Label records from the request CSV so they appear in label history
+    try {
+      if (job.requestFile?.path && fs.existsSync(job.requestFile.path)) {
+        const rows = parseManifestCsv(job.requestFile.path);
+        if (rows.length > 0) {
+          const pricePerLabel = job.userBilling.labelCount > 0
+            ? job.userBilling.totalAmount / job.userBilling.labelCount
+            : 0;
+          const docs = rows.map(row => ({
+            user:          job.user._id,
+            vendor:        job.vendor || null,
+            carrier:       job.carrier,
+            vendorName:    job.assignedVendor?.name || '',
+            from_name:     row.from_name     || '',
+            from_company:  row.from_company  || '',
+            from_phone:    row.from_phone    || '',
+            from_address1: row.from_address1 || '',
+            from_address2: row.from_address2 || '',
+            from_city:     row.from_city     || '',
+            from_state:    row.from_state    || '',
+            from_zip:      row.from_zip      || '',
+            to_name:       row.to_name       || '',
+            to_company:    row.to_company    || '',
+            to_phone:      row.to_phone      || '',
+            to_address1:   row.to_address1   || '',
+            to_address2:   row.to_address2   || '',
+            to_city:       row.to_city       || '',
+            to_state:      row.to_state      || '',
+            to_zip:        row.to_zip        || '',
+            weight:        parseFloat(row.weight) || 0,
+            length:        parseFloat(row.length) || 0,
+            width:         parseFloat(row.width)  || 0,
+            height:        parseFloat(row.height) || 0,
+            note:          row.note || '',
+            price:         pricePerLabel,
+            isBulk:        true,
+            bulkJobId:     job._id.toString(),
+            bulkFileName:  job.requestFile.originalName || '',
+            status:        'generated',
+            trackingStatus: 'not_scanned_yet',
+          }));
+          await Label.insertMany(docs, { ordered: false });
+          console.log(`Manifest approve: inserted ${docs.length} Label records for job ${job._id}`);
+        }
+      }
+    } catch (labelErr) {
+      console.error('Manifest label insertion error (non-fatal):', labelErr.message);
+    }
 
     // Notify user via email
     try {

@@ -15,7 +15,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import Profile from './pages/Profile';
 import LabelGenerator from './pages/LabelGenerator';
-import LabelHistory from './pages/LabelHistory';
 import AllLabelHistory from './pages/AllLabelHistory';
 import BulkLabels from './pages/BulkLabels';
 import BulkLabelGenerator from './pages/BulkLabelGenerator';

@@ -61,8 +61,12 @@ const server = createServer(app);
 app.set('trust proxy', 1);
 
 const allowedOrigins = process.env.CLIENT_URL
-  ? [process.env.CLIENT_URL]
-  : ['http://localhost:3000', 'http://localhost:3001'];
+  ? [
+      process.env.CLIENT_URL,
+      'https://batchops.vercel.app',
+      ...(process.env.VENDOR_PORTAL_URL ? [process.env.VENDOR_PORTAL_URL] : []),
+    ]
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
 
 const io = new Server(server, {
   cors: {

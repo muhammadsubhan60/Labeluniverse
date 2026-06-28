@@ -190,8 +190,7 @@ app.use((req, res, next) => {
 // ── Routes ────────────────────────────────────────────────────
 // Auth routes get the stricter per-endpoint rate limiter
 app.use('/api/auth',         authLimiter, authRoutes);
-// Vendor portal login also gets the auth limiter
-app.use('/api/vendor-portal', authLimiter, vendorPortalRoutes);
+app.use('/api/vendor-portal', vendorPortalRoutes);
 
 app.use('/api/users',    userRoutes);
 app.use('/api/email',    emailRoutes);

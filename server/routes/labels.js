@@ -1775,6 +1775,31 @@ router.get('/labelcrow-order/:orderId/zip', authenticateToken, async (req, res) 
   }
 });
 
+// ── PATCH /api/labels/bulk-tracking-assign ───────────────────
+// Admin: batch-assign trackingIds to specific labels by _id
+router.patch('/bulk-tracking-assign', authenticateToken, authorize('admin'), async (req, res) => {
+  try {
+    const { updates } = req.body; // [{ labelId, trackingId }]
+    if (!Array.isArray(updates) || !updates.length) {
+      return res.status(400).json({ message: 'updates array required' });
+    }
+    const ops = updates
+      .filter(u => u.labelId && typeof u.trackingId === 'string' && u.trackingId.trim())
+      .map(u => ({
+        updateOne: {
+          filter: { _id: u.labelId },
+          update: { $set: { trackingId: u.trackingId.trim() } },
+        },
+      }));
+    if (!ops.length) return res.status(400).json({ message: 'No valid updates' });
+    const result = await Label.bulkWrite(ops);
+    res.json({ updated: result.modifiedCount });
+  } catch (err) {
+    console.error('Bulk tracking assign error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ── GET /api/labels/bulk-detail/:bulkJobId ────────────────────
 // Per-label detail for a bulk job (used by history page drawer)
 router.get('/bulk-detail/:bulkJobId', authenticateToken, async (req, res) => {
@@ -1782,7 +1807,7 @@ router.get('/bulk-detail/:bulkJobId', authenticateToken, async (req, res) => {
     const filter = { bulkJobId: req.params.bulkJobId, isBulk: true };
     if (req.user.role !== 'admin') filter.user = req.user._id;
     const labels = await Label.find(filter)
-      .select('_id trackingId pdfUrl status from_name to_name to_city to_state to_zip weight price createdAt')
+      .select('_id trackingId pdfUrl status trackingStatus from_name to_name to_city to_state to_zip weight price createdAt')
       .sort({ createdAt: 1 })
       .lean();
     res.json({ labels });

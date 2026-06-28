@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   MagnifyingGlassIcon, XMarkIcon, ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon, ArrowPathIcon,
-  ChevronLeftIcon, ChevronRightIcon,
+  ChevronLeftIcon, ChevronRightIcon, TagIcon,
+  CheckCircleIcon, ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
 const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
@@ -60,6 +62,257 @@ const STATUS_CFG = {
 const inp: React.CSSProperties = { height: 34, padding: '0 0.7rem', background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', borderRadius: 8, color: 'var(--navy-900)', fontSize: '0.8rem', fontFamily: FONT, outline: 'none', boxSizing: 'border-box' };
 const thBase: React.CSSProperties = { padding: '8px 12px', textAlign: 'left', fontSize: '0.62rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' };
 
+// ── Tracking detail label shape ────────────────────────────────
+interface DetailLabel {
+  _id: string; trackingId: string; trackingStatus?: string;
+  to_name: string; to_city: string; to_state: string; to_zip: string;
+}
+
+interface MatchedPair {
+  label: DetailLabel;
+  newTracking: string;
+  matched: boolean;
+}
+
+// ── Add Tracking Modal ─────────────────────────────────────────
+function AddTrackingModal({ job, token, onClose, onApplied }: {
+  job: BulkJob; token: string; onClose: () => void; onApplied: () => void;
+}) {
+  const [labels,    setLabels]    = useState<DetailLabel[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [mode,      setMode]      = useState<'seq' | 'zip'>('seq');
+  const [paste,     setPaste]     = useState('');
+  const [pairs,     setPairs]     = useState<MatchedPair[] | null>(null);
+  const [applying,  setApplying]  = useState(false);
+  const [applied,   setApplied]   = useState<number | null>(null);
+
+  useEffect(() => {
+    axios.get(`${API_BASE}/labels/bulk-detail/${job._id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => setLabels(r.data.labels || [])).catch(() => {}).finally(() => setLoading(false));
+  }, [job._id, token]);
+
+  const preview = () => {
+    const lines = paste.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (mode === 'seq') {
+      const result: MatchedPair[] = labels.map((lbl, i) => ({
+        label:       lbl,
+        newTracking: lines[i] || '',
+        matched:     !!lines[i],
+      }));
+      setPairs(result);
+    } else {
+      // By ZIP: each line is "tracking,zip"
+      const zipMap: Record<string, string> = {};
+      lines.forEach(line => {
+        const comma = line.indexOf(',');
+        if (comma === -1) return;
+        const tracking = line.slice(0, comma).trim();
+        const zip      = line.slice(comma + 1).trim().replace(/\D/g, '').slice(0, 5);
+        if (tracking && zip) zipMap[zip] = tracking;
+      });
+      const result: MatchedPair[] = labels.map(lbl => {
+        const zip5 = (lbl.to_zip || '').replace(/\D/g, '').slice(0, 5);
+        const t    = zipMap[zip5] || '';
+        return { label: lbl, newTracking: t, matched: !!t };
+      });
+      setPairs(result);
+    }
+  };
+
+  const apply = async () => {
+    if (!pairs) return;
+    const updates = pairs
+      .filter(p => p.matched && p.newTracking)
+      .map(p => ({ labelId: p.label._id, trackingId: p.newTracking }));
+    if (!updates.length) return;
+    setApplying(true);
+    try {
+      const r = await axios.patch(
+        `${API_BASE}/labels/bulk-tracking-assign`,
+        { updates },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setApplied(r.data.updated || 0);
+      onApplied();
+    } catch {}
+    setApplying(false);
+  };
+
+  const matchedCount  = pairs?.filter(p => p.matched).length ?? 0;
+  const unmatchedCount = pairs ? pairs.length - matchedCount : 0;
+
+  return ReactDOM.createPortal(
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,6,23,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem', backdropFilter: 'blur(4px)' }}
+    >
+      <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', width: '100%', maxWidth: 1060, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.45)', fontFamily: FONT }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.9rem 1.25rem', borderBottom: '1.5px solid var(--navy-200)', background: 'var(--navy-50)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: 'linear-gradient(135deg,#6366f1,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <TagIcon style={{ width: 17, height: 17, color: '#fff' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.02em' }}>
+                Add Tracking Numbers
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 1 }}>
+                {job.carrier} · {job.bulkFileName || 'Unnamed batch'} · {labels.length} labels
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, border: 'none', borderRadius: 8, background: 'var(--navy-100)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-500)', flexShrink: 0 }}>
+            <XMarkIcon style={{ width: 15, height: 15 }} />
+          </button>
+        </div>
+
+        {/* Mode selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.6rem 1.25rem', borderBottom: '1px solid var(--navy-100)', background: 'var(--navy-50)', flexShrink: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Match mode:</span>
+          {([['seq', 'Sequential (by order)'], ['zip', 'By ZIP code (tracking, zip)']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => { setMode(k); setPairs(null); }}
+              style={{ padding: '4px 12px', borderRadius: 99, border: `1.5px solid ${mode === k ? '#6366f1' : 'var(--navy-200)'}`, background: mode === k ? '#6366f1' : 'transparent', color: mode === k ? '#fff' : 'var(--navy-600)', fontSize: '0.73rem', fontWeight: 700, cursor: 'pointer' }}>
+              {label}
+            </button>
+          ))}
+          <span style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginLeft: 4 }}>
+            {mode === 'seq'
+              ? 'Paste one tracking number per line — matched top-to-bottom in the same order as labels below.'
+              : 'Each line: tracking_number,zip_code — matched by destination ZIP.'}
+          </span>
+        </div>
+
+        {/* Body */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+
+          {/* Left: label list */}
+          <div style={{ flex: 1, overflowY: 'auto', borderRight: '1.5px solid var(--navy-200)', minWidth: 0 }}>
+            {loading ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.82rem' }}>Loading labels…</div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.77rem' }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--navy-50)', zIndex: 1 }}>
+                  <tr style={{ borderBottom: '1.5px solid var(--navy-200)' }}>
+                    <th style={{ ...thBase, width: 36 }}>#</th>
+                    <th style={thBase}>Recipient</th>
+                    <th style={thBase}>ZIP</th>
+                    <th style={thBase}>Current Tracking</th>
+                    {pairs && <th style={thBase}>New Tracking</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {labels.map((lbl, i) => {
+                    const pair = pairs?.[i];
+                    return (
+                      <tr key={lbl._id} style={{ borderBottom: '1px solid var(--navy-100)', background: pair ? (pair.matched ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.03)') : 'transparent' }}>
+                        <td style={{ padding: '7px 12px', color: 'var(--navy-300)', fontWeight: 700, fontSize: '0.65rem' }}>{i + 1}</td>
+                        <td style={{ padding: '7px 12px' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--navy-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{lbl.to_name}</div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--navy-400)', marginTop: 1 }}>{lbl.to_city}, {lbl.to_state}</div>
+                        </td>
+                        <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--navy-700)' }}>{lbl.to_zip || '—'}</td>
+                        <td style={{ padding: '7px 12px' }}>
+                          {lbl.trackingId
+                            ? <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: '#15803d', background: '#F0FDF4', padding: '2px 6px', borderRadius: 5, border: '1px solid #BBF7D0' }}>{lbl.trackingId.slice(0, 20)}{lbl.trackingId.length > 20 ? '…' : ''}</span>
+                            : <span style={{ fontSize: '0.68rem', color: 'var(--navy-300)' }}>None</span>
+                          }
+                        </td>
+                        {pairs && (
+                          <td style={{ padding: '7px 12px' }}>
+                            {pair?.matched
+                              ? <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: '#4F46E5', background: '#EEF2FF', padding: '2px 6px', borderRadius: 5, border: '1px solid #C7D2FE', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                                  <CheckCircleIcon style={{ width: 11, height: 11, flexShrink: 0 }} />
+                                  {pair.newTracking.slice(0, 20)}{pair.newTracking.length > 20 ? '…' : ''}
+                                </span>
+                              : <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                  <ExclamationTriangleIcon style={{ width: 11, height: 11, color: '#f59e0b' }} />
+                                  No match
+                                </span>
+                            }
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Right: paste area */}
+          <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', padding: '1rem', gap: '0.75rem', overflowY: 'auto' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy-700)' }}>
+              {mode === 'seq' ? 'Paste tracking numbers (one per line)' : 'Paste tracking + ZIP (tracking,zip per line)'}
+            </div>
+            <textarea
+              value={paste}
+              onChange={e => { setPaste(e.target.value); setPairs(null); setApplied(null); }}
+              placeholder={mode === 'seq'
+                ? '9400111899223397993164\n9400111899223397993171\n...'
+                : '9400111899223397993164,90210\n9400111899223397993171,95112\n...'}
+              style={{ flex: 1, minHeight: 240, padding: '0.7rem', border: '1.5px solid var(--navy-200)', borderRadius: 10, fontFamily: 'monospace', fontSize: '0.73rem', color: 'var(--navy-800)', resize: 'none', outline: 'none', background: 'var(--navy-50)', lineHeight: 1.7 }}
+              onFocus={e => (e.target.style.borderColor = '#6366f1')}
+              onBlur={e => (e.target.style.borderColor = 'var(--navy-200)')}
+            />
+            <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)' }}>
+              {paste.trim() ? `${paste.trim().split(/\r?\n/).filter(l => l.trim()).length} lines pasted` : 'Nothing pasted yet'}
+              {' · '}{labels.length} labels in this batch
+            </div>
+
+            {/* Summary after preview */}
+            {pairs && (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ flex: 1, textAlign: 'center', padding: '0.5rem', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#15803d' }}>{matchedCount}</div>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 600, color: '#15803d' }}>Matched</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center', padding: '0.5rem', borderRadius: 8, background: unmatchedCount > 0 ? 'rgba(239,68,68,0.07)' : 'var(--navy-50)', border: `1px solid ${unmatchedCount > 0 ? 'rgba(239,68,68,0.2)' : 'var(--navy-200)'}` }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: unmatchedCount > 0 ? '#dc2626' : 'var(--navy-300)' }}>{unmatchedCount}</div>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 600, color: unmatchedCount > 0 ? '#dc2626' : 'var(--navy-400)' }}>Unmatched</div>
+                </div>
+              </div>
+            )}
+
+            {applied !== null && (
+              <div style={{ padding: '0.6rem 0.8rem', borderRadius: 9, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', display: 'flex', alignItems: 'center', gap: 7 }}>
+                <CheckCircleIcon style={{ width: 16, height: 16, color: '#15803d', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#15803d' }}>{applied} labels updated!</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.8rem 1.25rem', borderTop: '1.5px solid var(--navy-200)', background: 'var(--navy-50)', flexShrink: 0, gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={onClose} style={{ padding: '0.5rem 1.1rem', borderRadius: 9, border: '1.5px solid var(--navy-200)', background: 'var(--bg-card)', color: 'var(--navy-700)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+            Close
+          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={preview}
+              disabled={!paste.trim() || loading}
+              style={{ padding: '0.5rem 1.2rem', borderRadius: 9, border: '1.5px solid var(--navy-200)', background: 'var(--navy-100)', color: 'var(--navy-800)', fontSize: '0.8rem', fontWeight: 700, cursor: paste.trim() && !loading ? 'pointer' : 'not-allowed', opacity: paste.trim() && !loading ? 1 : 0.5, fontFamily: FONT }}
+            >
+              Preview Matches
+            </button>
+            <button
+              onClick={apply}
+              disabled={!pairs || matchedCount === 0 || applying || applied !== null}
+              style={{ padding: '0.5rem 1.4rem', borderRadius: 9, border: 'none', background: pairs && matchedCount > 0 && !applying && applied === null ? 'linear-gradient(135deg,#6366f1,#4f46e5)' : 'var(--navy-200)', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: pairs && matchedCount > 0 && !applying && applied === null ? 'pointer' : 'not-allowed', fontFamily: FONT }}
+            >
+              {applying ? 'Saving…' : applied !== null ? 'Applied ✓' : `Apply ${matchedCount > 0 ? matchedCount : ''} Matches`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function CCBulkLabels() {
   const { token } = useAuth();
 
@@ -74,7 +327,8 @@ export default function CCBulkLabels() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo,   setDateTo]   = useState('');
 
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloading,   setDownloading]   = useState<string | null>(null);
+  const [trackingModal, setTrackingModal] = useState<BulkJob | null>(null);
 
   const authH = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -277,6 +531,9 @@ export default function CCBulkLabels() {
                               <ArrowDownTrayIcon style={{ width: 11, height: 11 }} /> {isDl ? '…' : 'ZIP'}
                             </button>
                           )}
+                          <button onClick={() => setTrackingModal(job)} title="Add tracking numbers" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0.3rem 0.6rem', borderRadius: 6, background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)', color: '#15803d', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                            <TagIcon style={{ width: 11, height: 11 }} /> Tracking
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -301,6 +558,15 @@ export default function CCBulkLabels() {
             </button>
           </div>
         </div>
+      )}
+
+      {trackingModal && (
+        <AddTrackingModal
+          job={trackingModal}
+          token={token!}
+          onClose={() => setTrackingModal(null)}
+          onApplied={fetchJobs}
+        />
       )}
     </div>
   );

@@ -963,6 +963,64 @@ router.get('/bulk-jobs', authenticateToken, async (req, res) => {
   }
 });
 
+// ── GET /api/labels/all-history ──────────────────────────────
+// All labels (single + bulk) for label history page — scoped to own labels for non-admin
+router.get('/all-history', authenticateToken, async (req, res) => {
+  try {
+    const { carrier, trackingStatus, isBulk, dateFrom, dateTo, search } = req.query;
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(parseInt(req.query.limit) || 35, PAGE_LIMIT_MAX);
+
+    const filter = {};
+
+    if (req.user.role !== 'admin') {
+      filter.user = req.user._id;
+    } else {
+      const vendorParam = req.query.vendor;
+      const userParam   = req.query.userId;
+      if (vendorParam && isValidObjectId(vendorParam)) filter.vendor = vendorParam;
+      if (userParam   && isValidObjectId(userParam))   filter.user   = userParam;
+    }
+
+    if (carrier) filter.carrier = carrier;
+    if (isBulk === 'true')  filter.isBulk = true;
+    if (isBulk === 'false') filter.isBulk = false;
+
+    if (trackingStatus) {
+      const statuses = String(trackingStatus).split(',').map(s => s.trim()).filter(Boolean);
+      filter.trackingStatus = statuses.length === 1 ? statuses[0] : { $in: statuses };
+    }
+
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   filter.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+
+    if (search && search.length <= 200) {
+      const esc = escapeRegex(search);
+      filter.$or = [
+        { trackingId: { $regex: esc, $options: 'i' } },
+        { to_name:    { $regex: esc, $options: 'i' } },
+        { from_name:  { $regex: esc, $options: 'i' } },
+      ];
+    }
+
+    const total  = await Label.countDocuments(filter);
+    const labels = await Label.find(filter)
+      .populate('user',   'firstName lastName email')
+      .populate('vendor', 'name carrier rate')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json({ labels, total, totalPages: Math.ceil(total / limit), currentPage: page });
+  } catch (err) {
+    console.error('All history error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // ── GET /api/labels/cc-all  (Command Center — admin only) ────
 // All labels (single + bulk) with full filtering for the tracking command center
 router.get('/cc-all', authenticateToken, authorizeCC, async (req, res) => {

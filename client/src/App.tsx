@@ -16,6 +16,7 @@ import UserManagement from './pages/UserManagement';
 import Profile from './pages/Profile';
 import LabelGenerator from './pages/LabelGenerator';
 import LabelHistory from './pages/LabelHistory';
+import AllLabelHistory from './pages/AllLabelHistory';
 import BulkLabels from './pages/BulkLabels';
 import BulkLabelGenerator from './pages/BulkLabelGenerator';
 import VendorManagement from './pages/VendorManagement';
@@ -114,7 +115,7 @@ function App() {
                   <Route path="/announcements"       element={<Announcements />} />
                   <Route path="/labels/single"       element={<LabelGenerator />} />
                   <Route path="/labels/bulk"         element={<BulkLabelGenerator />} />
-                  <Route path="/labels/history"      element={<LabelHistory />} />
+                  <Route path="/labels/history"      element={<AllLabelHistory />} />
                   <Route path="/labels/bulk-history" element={<BulkLabels />} />
                   <Route path="/manifest/upload"     element={<Navigate to="/labels/bulk" replace />} />
                   <Route path="/manifest/history"    element={<ManifestHistory />} />

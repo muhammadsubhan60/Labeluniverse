@@ -312,7 +312,7 @@ const AnnouncementCard: React.FC<{
         {/* Footer */}
         <div style={{ marginTop: '0.75rem', paddingTop: '0.625rem', borderTop: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '0.7rem', color: 'var(--navy-400)', fontFamily: FONT }}>
-            {item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}` : 'LABEL UNIVERSE'}
+            {item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}` : 'LABEL FLOW'}
           </span>
           <span style={{ fontSize: '0.7rem', color: 'var(--navy-400)', fontWeight: 600, fontFamily: FONT }}>{date}</span>
         </div>

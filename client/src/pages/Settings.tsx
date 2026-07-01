@@ -212,7 +212,7 @@ export default function Settings() {
 
   // ── Styles ────────────────────────────────────────────────────────────────
   const card: React.CSSProperties = {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     border: '1.5px solid var(--navy-100, #e8edf5)',
     boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
@@ -229,24 +229,24 @@ export default function Settings() {
   const btnGhost: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '6px 12px', borderRadius: 7,
-    border: '1.5px solid var(--navy-150, #e2e8f0)', background: '#fff',
+    border: '1.5px solid var(--navy-150, #e2e8f0)', background: 'var(--bg-card)',
     color: 'var(--navy-600, #475569)', fontSize: '0.78rem', fontWeight: 600,
     cursor: 'pointer',
   };
 
   const btnDanger: React.CSSProperties = {
     ...btnGhost,
-    color: '#DC2626', borderColor: '#FCA5A5', background: '#FFF5F5',
+    color: '#DC2626', borderColor: 'rgba(220,38,38,0.35)', background: 'rgba(220,38,38,0.1)',
   };
 
   const btnSuccess: React.CSSProperties = {
     ...btnGhost,
-    color: '#059669', borderColor: '#6EE7B7', background: '#F0FDF4',
+    color: '#059669', borderColor: 'rgba(5,150,105,0.35)', background: 'rgba(5,150,105,0.1)',
   };
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '9px 12px', borderRadius: 8,
-    border: '1.5px solid var(--navy-150, #e2e8f0)',
+    border: '1.5px solid var(--navy-150, #e2e8f0)', background: 'var(--bg-card)',
     fontSize: '0.85rem', color: 'var(--navy-800)', outline: 'none',
     boxSizing: 'border-box',
   };
@@ -270,14 +270,13 @@ export default function Settings() {
 
       {/* Action feedback */}
       {actionMsg && (
-        <div style={{
+        <div className="alert alert-success" style={{
           padding: '10px 16px', borderRadius: 9, marginBottom: 16,
-          background: '#F0FDF4', border: '1.5px solid #6EE7B7',
-          color: '#065F46', fontSize: '0.82rem', fontWeight: 600,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          fontSize: '0.82rem', fontWeight: 600,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
         }}>
           {actionMsg}
-          <button onClick={() => setActionMsg('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#065F46', fontSize: '1rem', lineHeight: 1 }}>×</button>
+          <button onClick={() => setActionMsg('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '1rem', lineHeight: 1 }}>×</button>
         </div>
       )}
 
@@ -303,13 +302,10 @@ export default function Settings() {
         </div>
 
         {/* Important notice */}
-        <div style={{
+        <div className="alert alert-warning" style={{
           margin: '0.9rem 1.4rem',
           padding: '10px 14px',
           borderRadius: 9,
-          background: '#FFFBEB',
-          border: '1.5px solid #FDE68A',
-          color: '#92400E',
           fontSize: '0.78rem',
           lineHeight: 1.6,
         }}>
@@ -345,7 +341,7 @@ export default function Settings() {
                     padding: '1rem 1.4rem',
                     borderBottom: i < accounts.length - 1 ? '1px solid var(--navy-50, #f8fafc)' : 'none',
                     display: 'flex', alignItems: 'center', gap: 16,
-                    background: acc.isActive ? 'rgba(5,150,105,0.03)' : '#fff',
+                    background: acc.isActive ? 'rgba(5,150,105,0.08)' : 'transparent',
                     transition: 'background 0.15s',
                   }}
                 >
@@ -390,9 +386,9 @@ export default function Settings() {
                       <div style={{
                         marginTop: 6, padding: '5px 10px', borderRadius: 7, display: 'inline-flex',
                         alignItems: 'center', gap: 5, fontSize: '0.75rem', fontWeight: 600,
-                        background: myTestMsg.ok ? '#F0FDF4' : '#FFF5F5',
+                        background: myTestMsg.ok ? 'rgba(5,150,105,0.1)' : 'rgba(220,38,38,0.1)',
                         color: myTestMsg.ok ? '#059669' : '#DC2626',
-                        border: `1px solid ${myTestMsg.ok ? '#6EE7B7' : '#FCA5A5'}`,
+                        border: `1px solid ${myTestMsg.ok ? 'rgba(5,150,105,0.35)' : 'rgba(220,38,38,0.35)'}`,
                       }}>
                         {myTestMsg.ok
                           ? <CheckCircleIcon style={{ width: 13, height: 13 }} />
@@ -503,7 +499,7 @@ export default function Settings() {
 
             <div style={{ padding: '1rem 1.4rem' }}>
               {msg && (
-                <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: msg.ok ? '#F0FDF4' : '#FFF5F5', border: `1px solid ${msg.ok ? '#6EE7B7' : '#FCA5A5'}`, color: msg.ok ? '#059669' : '#DC2626', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: msg.ok ? 'rgba(5,150,105,0.1)' : 'rgba(220,38,38,0.1)', border: `1px solid ${msg.ok ? 'rgba(5,150,105,0.35)' : 'rgba(220,38,38,0.35)'}`, color: msg.ok ? '#059669' : '#DC2626', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                   {msg.ok ? <CheckCircleIcon style={{ width: 14, height: 14 }} /> : <XCircleIcon style={{ width: 14, height: 14 }} />}
                   {msg.msg}
                 </div>
@@ -540,7 +536,7 @@ export default function Settings() {
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
         >
           <div style={{
-            background: '#fff', borderRadius: 16, width: '100%', maxWidth: 440,
+            background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 440,
             boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
             padding: '1.6rem',
           }}>
@@ -591,9 +587,8 @@ export default function Settings() {
               </div>
 
               {formError && (
-                <div style={{
-                  padding: '8px 12px', borderRadius: 8, background: '#FFF5F5',
-                  border: '1px solid #FCA5A5', color: '#DC2626', fontSize: '0.78rem', fontWeight: 600,
+                <div className="alert alert-danger" style={{
+                  padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600,
                 }}>
                   {formError}
                 </div>

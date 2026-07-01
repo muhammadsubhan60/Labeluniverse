@@ -9,7 +9,7 @@ const LandingProxy: React.FC = () => {
 
   return (
     <iframe
-      title="LABEL UNIVERSE Landing"
+      title="LABEL FLOW Landing"
       src="/landing.html"
       style={{
         width: '100%',

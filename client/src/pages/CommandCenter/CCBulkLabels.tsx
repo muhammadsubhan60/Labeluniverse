@@ -186,10 +186,10 @@ function AddTrackingModal({ job, token, onClose, onApplied }: {
         </div>
 
         {/* Body */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div className="cc-modal-body" style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
 
           {/* Left: label list */}
-          <div style={{ flex: 1, overflowY: 'auto', borderRight: '1.5px solid var(--navy-200)', minWidth: 0 }}>
+          <div className="cc-modal-list" style={{ flex: 1, overflowY: 'auto', borderRight: '1.5px solid var(--navy-200)', minWidth: 0 }}>
             {loading ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.82rem' }}>Loading labels…</div>
             ) : (
@@ -243,7 +243,7 @@ function AddTrackingModal({ job, token, onClose, onApplied }: {
           </div>
 
           {/* Right: paste area */}
-          <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', padding: '1rem', gap: '0.75rem', overflowY: 'auto' }}>
+          <div className="cc-modal-paste" style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', padding: '1rem', gap: '0.75rem', overflowY: 'auto' }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--navy-700)' }}>
               {mode === 'seq' ? 'Paste tracking numbers (one per line)' : 'Paste tracking + ZIP (tracking,zip per line)'}
             </div>
@@ -308,6 +308,13 @@ function AddTrackingModal({ job, token, onClose, onApplied }: {
           </div>
         </div>
       </div>
+      <style>{`
+        @media (max-width: 700px) {
+          .cc-modal-body { flex-direction: column; }
+          .cc-modal-list { border-right: none !important; border-bottom: 1.5px solid var(--navy-200); max-height: 38vh; }
+          .cc-modal-paste { width: 100% !important; }
+        }
+      `}</style>
     </div>,
     document.body,
   );

@@ -22,6 +22,7 @@ interface Client {
   role: 'user';
   isActive: boolean;
   createdAt: string;
+  hasPassword?: boolean;
 }
 interface RateTier { minLbs: number; maxLbs: number | null; rate: number; }
 interface VendorAccess {
@@ -86,12 +87,14 @@ const ResellerClients: React.FC = () => {
   // ── Right panel ──────────────────────────────────────────────
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isCreating,     setIsCreating]     = useState(false);
+  const [createMode,     setCreateMode]     = useState<'password' | 'invite'>('password');
   const [activeTab,      setActiveTab]      = useState<ActiveTab>('edit');
 
   // ── Edit/Create form ─────────────────────────────────────────
   const blank = { firstName: '', lastName: '', email: '', password: '', phone: '' };
   const [clientForm,  setClientForm]  = useState(blank);
   const [submitting,  setSubmitting]  = useState(false);
+  const [reinviting,  setReinviting]  = useState(false);
 
   // ── Balance tab ──────────────────────────────────────────────
   const [balance,       setBalance]       = useState<Balance | null>(null);
@@ -247,6 +250,15 @@ const ResellerClients: React.FC = () => {
 
   const startCreate = () => {
     setIsCreating(true);
+    setCreateMode('password');
+    setSelectedClient(null);
+    setClientForm(blank);
+    setActiveTab('edit');
+  };
+
+  const startInvite = () => {
+    setIsCreating(true);
+    setCreateMode('invite');
     setSelectedClient(null);
     setClientForm(blank);
     setActiveTab('edit');
@@ -256,12 +268,17 @@ const ResellerClients: React.FC = () => {
     e.preventDefault();
     setSubmitting(true); setError('');
     try {
-      await axios.post('/users/reseller/clients', clientForm);
-      setMessage('Client created');
+      if (createMode === 'invite') {
+        await axios.post('/users/reseller/invite', { firstName: clientForm.firstName, lastName: clientForm.lastName, email: clientForm.email, phone: clientForm.phone || null });
+        setMessage('Invite sent');
+      } else {
+        await axios.post('/users/reseller/clients', clientForm);
+        setMessage('Client created');
+      }
       setIsCreating(false);
       setClientForm(blank);
       fetchClients();
-    } catch (err: any) { setError(err.response?.data?.message || 'Failed to create'); }
+    } catch (err: any) { setError(err.response?.data?.message || (createMode === 'invite' ? 'Failed to send invite' : 'Failed to create')); }
     finally { setSubmitting(false); }
   };
 
@@ -304,6 +321,15 @@ const ResellerClients: React.FC = () => {
         setSelectedClient({ ...c, isActive: !c.isActive });
       }
     } catch (err: any) { setError(err.response?.data?.message || 'Failed'); }
+  };
+
+  const handleReinvite = async (c: Client) => {
+    setReinviting(true);
+    try {
+      await axios.post(`/users/${clientId(c)}/reinvite`);
+      setMessage('Invite resent');
+    } catch (err: any) { setError(err.response?.data?.message || 'Failed to resend invite'); }
+    finally { setReinviting(false); }
   };
 
   // ── Balance actions ───────────────────────────────────────────
@@ -395,6 +421,9 @@ const ResellerClients: React.FC = () => {
           <Link to="/reseller/bulk-access" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
             <ShieldCheckIcon style={{ width: 13, height: 13 }} /> Bulk Access
           </Link>
+          <button className="btn btn-sm" style={{ color: 'var(--warning-600)', background: 'var(--warning-50)', border: '1.5px solid rgba(217,119,6,0.3)' }} onClick={startInvite}>
+            <UserPlusIcon style={{ width: 14, height: 14 }} /> Invite Client
+          </button>
           <button className="btn btn-primary btn-sm" onClick={startCreate}>
             <UserPlusIcon style={{ width: 14, height: 14 }} /> New Client
           </button>
@@ -485,9 +514,12 @@ const ResellerClients: React.FC = () => {
                 </div>
 
                 {/* Status */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span className={`status-dot ${c.isActive ? 'green' : 'red'}`} />
-                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: c.isActive ? '#22c55e' : '#ef4444' }}>{c.isActive ? 'Active' : 'Inactive'}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span className={`status-dot ${c.isActive ? 'green' : 'red'}`} />
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: c.isActive ? '#22c55e' : '#ef4444' }}>{c.isActive ? 'Active' : 'Inactive'}</span>
+                  </div>
+                  {c.hasPassword === false && <span className="badge badge-amber" style={{ fontSize: '0.58rem', whiteSpace: 'nowrap' }}>Pending invite</span>}
                 </div>
 
                 {/* Actions */}
@@ -592,8 +624,8 @@ const ResellerClients: React.FC = () => {
               <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 {isCreating ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
-                    <UserPlusIcon style={{ width: 15, height: 15, color: 'var(--accent-600)' }} />
-                    <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--navy-900)' }}>New Client</span>
+                    <UserPlusIcon style={{ width: 15, height: 15, color: createMode === 'invite' ? 'var(--warning-600)' : 'var(--accent-600)' }} />
+                    <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--navy-900)' }}>{createMode === 'invite' ? 'Invite Client' : 'New Client'}</span>
                   </div>
                 ) : selectedClient && (
                   <>
@@ -607,9 +639,18 @@ const ResellerClients: React.FC = () => {
                       </div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)' }}>{selectedClient.email}</div>
                     </div>
+                    {selectedClient.hasPassword === false && <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>Pending invite</span>}
                     <span className={`badge ${selectedClient.isActive ? 'badge-green' : 'badge-red'}`} style={{ fontSize: '0.65rem' }}>
                       {selectedClient.isActive ? 'Active' : 'Inactive'}
                     </span>
+                    {selectedClient.hasPassword === false && (
+                      <button onClick={() => handleReinvite(selectedClient)} disabled={reinviting} title="Resend invite email"
+                        style={{ background: 'none', border: 'none', cursor: reinviting ? 'not-allowed' : 'pointer', color: 'var(--warning-600)', padding: 3, opacity: reinviting ? 0.5 : 1 }}>
+                        <svg style={{ width: 15, height: 15 }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                      </button>
+                    )}
                     <button onClick={() => handleToggleStatus(selectedClient)} title={selectedClient.isActive ? 'Deactivate' : 'Activate'}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: selectedClient.isActive ? 'var(--danger-500)' : 'var(--success-600)', padding: 3 }}>
                       <EyeIcon style={{ width: 15, height: 15 }} />
@@ -664,7 +705,7 @@ const ResellerClients: React.FC = () => {
                         placeholder="+1 555 000 0000"
                         onChange={e => setClientForm({ ...clientForm, phone: e.target.value })} />
                     </div>
-                    {isCreating && (
+                    {isCreating && createMode === 'password' && (
                       <div>
                         <label className="form-label">Password <span style={{ color: 'var(--navy-400)', fontWeight: 500, textTransform: 'none', fontSize: '0.65rem' }}>(5-digit PIN)</span></label>
                         <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
@@ -696,12 +737,19 @@ const ResellerClients: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    {isCreating && createMode === 'invite' && (
+                      <div style={{ padding: '0.7rem 0.875rem', borderRadius: 8, background: 'var(--warning-50)', border: '1px solid rgba(217,119,6,0.2)', fontSize: '0.78rem', color: 'var(--warning-600)', lineHeight: 1.5 }}>
+                        No password needed — an email will be sent to this address with a link to set one. The link expires in 3 days.
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 7, paddingTop: 2 }}>
                       {isCreating && (
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setIsCreating(false)}>Cancel</button>
                       )}
                       <button type="submit" disabled={submitting} className="btn btn-primary btn-sm">
-                        {submitting ? (isCreating ? 'Creating…' : 'Saving…') : (isCreating ? 'Create Client' : 'Save Changes')}
+                        {isCreating && createMode === 'invite'
+                          ? (submitting ? 'Sending…' : 'Send Invite')
+                          : (submitting ? (isCreating ? 'Creating…' : 'Saving…') : (isCreating ? 'Create Client' : 'Save Changes'))}
                       </button>
                     </div>
                   </form>

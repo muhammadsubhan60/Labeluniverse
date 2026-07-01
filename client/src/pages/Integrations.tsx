@@ -226,7 +226,7 @@ const GUIDE_STEPS = [
   { n: 1, title: 'Open Shopify Admin',        desc: 'Go to your store admin panel at yourstore.myshopify.com/admin' },
   { n: 2, title: 'Settings → Apps',           desc: 'Click Settings (bottom-left), then Apps and sales channels' },
   { n: 3, title: 'Develop apps',              desc: 'Click Develop apps (top-right corner). Confirm if prompted.' },
-  { n: 4, title: 'Create an app',             desc: 'Click Create an app. Name it anything, e.g. "Label Universe".' },
+  { n: 4, title: 'Create an app',             desc: 'Click Create an app. Name it anything, e.g. "Label Flow".' },
   { n: 5, title: 'Configure API scopes',      desc: 'Click Configure Admin API scopes. Enable: read_orders, read_customers, write_fulfillments. Save.' },
   { n: 6, title: 'Add redirect URL',          desc: 'Under App Setup, paste this redirect URL:', url: 'https://labeluniverse-production.up.railway.app/api/shopify/callback' },
   { n: 7, title: 'Install & copy credentials', desc: 'Go to API credentials tab → Install app. Copy the API key (Client ID) and API secret key (Client Secret).' },

@@ -9,6 +9,7 @@ import {
   BanknotesIcon, CurrencyDollarIcon, PhotoIcon,
   ArrowUpTrayIcon, ArrowDownTrayIcon, AdjustmentsHorizontalIcon,
   PlusIcon, ChevronDownIcon, ChevronUpIcon, ShieldCheckIcon,
+  Bars3Icon, Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
 const FONT = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif";
@@ -33,6 +34,9 @@ const toAbsUrl = (p: string) => p.startsWith('http') ? p : `${_API_BASE}${p}`;
 interface User {
   id: string; firstName: string; lastName: string; email: string;
   role: 'admin' | 'reseller' | 'user'; isActive: boolean; createdAt: string; ccAccess?: boolean;
+  hasPassword?: boolean; lastLogin?: string;
+  totalLabels?: number; totalRevenue?: number; profit?: number; currentBalance?: number;
+  clients?: string[];
 }
 interface RateTier { minLbs: number; maxLbs: number | null; rate: number; }
 interface VendorAccess {
@@ -92,6 +96,12 @@ const RoleChip: React.FC<{ role: string }> = ({ role }) => {
   );
 };
 
+const PendingBadge: React.FC = () => (
+  <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: 'rgba(245,158,11,0.1)', color: '#d97706', border: '1px solid rgba(245,158,11,0.25)', fontFamily: FONT }}>
+    Pending invite
+  </span>
+);
+
 const txColor = (t: string) =>
   ({ topup: '#10b981', deduction: '#ef4444', adjustment: '#3b82f6' }[t] ?? 'var(--navy-600)');
 const txDot = (t: string) =>
@@ -106,14 +116,18 @@ const UserManagement: React.FC = () => {
   const [users,        setUsers]        = useState<User[]>([]);
   const [loadingList,  setLoadingList]  = useState(true);
   const [searchTerm,   setSearchTerm]   = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter,   setRoleFilter]   = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage,  setCurrentPage]  = useState(1);
   const [totalPages,   setTotalPages]   = useState(1);
+  const [totalCount,   setTotalCount]   = useState(0);
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isCreating,   setIsCreating]   = useState(false);
+  const [createMode,   setCreateMode]   = useState<'password' | 'invite'>('password');
   const [activeTab,    setActiveTab]    = useState<ActiveTab>('edit');
+  const [viewMode,     setViewMode]     = useState<'panel' | 'list'>('panel');
 
   const blank: { firstName: string; lastName: string; email: string; password: string; role: 'admin' | 'reseller' | 'user'; source: string } = { firstName: '', lastName: '', email: '', password: '', role: 'user', source: '' };
   const [userForm,    setUserForm]    = useState(blank);
@@ -121,6 +135,7 @@ const UserManagement: React.FC = () => {
 
   const [resetPwd,     setResetPwd]     = useState('');
   const [resettingPwd, setResettingPwd] = useState(false);
+  const [reinviting,   setReinviting]   = useState(false);
 
   const [balance,      setBalance]      = useState<Balance | null>(null);
   const [loadingBal,   setLoadingBal]   = useState(false);
@@ -163,7 +178,12 @@ const UserManagement: React.FC = () => {
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
-  useEffect(() => { fetchUsers(); }, [currentPage, roleFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(searchTerm); setCurrentPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  useEffect(() => { fetchUsers(); }, [currentPage, roleFilter, statusFilter, debouncedSearch]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchWallets(); }, []);
 
   useEffect(() => {
@@ -196,11 +216,13 @@ const UserManagement: React.FC = () => {
     setLoadingList(true);
     try {
       const p = new URLSearchParams({ page: String(currentPage), limit: '20' });
-      if (roleFilter)   p.append('role', roleFilter);
-      if (statusFilter) p.append('isActive', statusFilter);
+      if (roleFilter)     p.append('role', roleFilter);
+      if (statusFilter)   p.append('isActive', statusFilter);
+      if (debouncedSearch) p.append('search', debouncedSearch);
       const res = await axios.get(`/users?${p}`);
       setUsers(res.data.users);
       setTotalPages(res.data.totalPages);
+      setTotalCount(res.data.total);
     } catch (e) { console.error(e); }
     finally { setLoadingList(false); }
   };
@@ -300,6 +322,15 @@ const UserManagement: React.FC = () => {
 
   const startCreate = () => {
     setIsCreating(true);
+    setCreateMode('password');
+    setSelectedUser(null);
+    setUserForm(blank);
+    setActiveTab('edit');
+  };
+
+  const startInvite = () => {
+    setIsCreating(true);
+    setCreateMode('invite');
     setSelectedUser(null);
     setUserForm(blank);
     setActiveTab('edit');
@@ -309,9 +340,15 @@ const UserManagement: React.FC = () => {
     e.preventDefault();
     setSubmitting(true); setError('');
     try {
-      await axios.post('/users', userForm);
-      setMessage('User created'); setIsCreating(false); setUserForm(blank); fetchUsers();
-    } catch (err: any) { setError(err.response?.data?.message || 'Failed to create'); }
+      if (createMode === 'invite') {
+        await axios.post('/users/invite', { firstName: userForm.firstName, lastName: userForm.lastName, email: userForm.email, role: userForm.role, source: userForm.source || null });
+        setMessage('Invite sent');
+      } else {
+        await axios.post('/users', userForm);
+        setMessage('User created');
+      }
+      setIsCreating(false); setUserForm(blank); fetchUsers();
+    } catch (err: any) { setError(err.response?.data?.message || (createMode === 'invite' ? 'Failed to send invite' : 'Failed to create')); }
     finally { setSubmitting(false); }
   };
 
@@ -357,6 +394,15 @@ const UserManagement: React.FC = () => {
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ccAccess: r.data.ccAccess } : x));
       if (selectedUser?.id === u.id) setSelectedUser({ ...u, ccAccess: r.data.ccAccess });
     } catch { setMessage('Failed to update CC access'); }
+  };
+
+  const handleReinvite = async (u: User) => {
+    setReinviting(true);
+    try {
+      await axios.post(`/users/${u.id}/reinvite`);
+      setMessage('Invite resent');
+    } catch (err: any) { setError(err.response?.data?.message || 'Failed to resend invite'); }
+    finally { setReinviting(false); }
   };
 
   const doBalanceAction = async (e: React.FormEvent) => {
@@ -433,6 +479,8 @@ const UserManagement: React.FC = () => {
     `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
   const fmt = (v?: number) => `$${(v ?? 0).toFixed(2)}`;
+  const hasActiveFilters = !!(searchTerm || roleFilter || statusFilter);
+  const clearFilters = () => { setSearchTerm(''); setDebouncedSearch(''); setRoleFilter(''); setStatusFilter(''); setCurrentPage(1); };
 
   const focusInp = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     Object.assign(e.currentTarget.style, { borderColor: '#6366f1', boxShadow: '0 0 0 3px rgba(99,102,241,0.12)' });
@@ -466,47 +514,93 @@ const UserManagement: React.FC = () => {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 3, background: 'var(--navy-50)', border: '1px solid var(--navy-200)', borderRadius: 9 }}>
+            <button
+              onClick={() => setViewMode('panel')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '0.4rem 0.7rem', borderRadius: 7, border: 'none', cursor: 'pointer',
+                background: viewMode === 'panel' ? '#fff' : 'transparent',
+                boxShadow: viewMode === 'panel' ? '0 1px 3px rgba(15,23,42,0.1)' : 'none',
+                color: viewMode === 'panel' ? '#6366f1' : 'var(--navy-500)',
+                fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT,
+              }}
+            >
+              <Squares2X2Icon style={{ width: 13, height: 13 }} /> Panel
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '0.4rem 0.7rem', borderRadius: 7, border: 'none', cursor: 'pointer',
+                background: viewMode === 'list' ? '#fff' : 'transparent',
+                boxShadow: viewMode === 'list' ? '0 1px 3px rgba(15,23,42,0.1)' : 'none',
+                color: viewMode === 'list' ? '#6366f1' : 'var(--navy-500)',
+                fontSize: '0.78rem', fontWeight: 700, fontFamily: FONT,
+              }}
+            >
+              <Bars3Icon style={{ width: 13, height: 13 }} /> List
+            </button>
+          </div>
           <button
             onClick={() => navigate('/admin/bulk-vendor-access')}
             style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '0.55rem 1.1rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: isMobile ? '0.5rem 0.75rem' : '0.55rem 1.1rem',
+              flex: isMobile ? '1 1 auto' : undefined,
               background: 'rgba(99,102,241,0.08)',
               border: '1.5px solid rgba(99,102,241,0.25)', borderRadius: 9, color: '#6366f1',
-              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-              fontFamily: FONT,
+              fontSize: isMobile ? '0.75rem' : '0.82rem', fontWeight: 700, cursor: 'pointer',
+              fontFamily: FONT, whiteSpace: 'nowrap',
             }}
           >
-            <ShieldCheckIcon style={{ width: 15, height: 15 }} />
+            <ShieldCheckIcon style={{ width: 15, height: 15, flexShrink: 0 }} />
             Bulk Access
           </button>
           <button
             onClick={() => navigate('/command-center/dashboard')}
             style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '0.55rem 1.1rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: isMobile ? '0.5rem 0.75rem' : '0.55rem 1.1rem',
+              flex: isMobile ? '1 1 auto' : undefined,
               background: 'linear-gradient(135deg,#0f172a,#1e1b4b)',
               border: 'none', borderRadius: 9, color: '#a5b4fc',
-              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(15,23,42,0.3)', fontFamily: FONT,
+              fontSize: isMobile ? '0.75rem' : '0.82rem', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(15,23,42,0.3)', fontFamily: FONT, whiteSpace: 'nowrap',
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
             Command Center
+          </button>
+          <button
+            onClick={startInvite}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: isMobile ? '0.5rem 0.75rem' : '0.55rem 1.1rem',
+              flex: isMobile ? '1 1 auto' : undefined,
+              background: 'rgba(245,158,11,0.08)',
+              border: '1.5px solid rgba(245,158,11,0.3)', borderRadius: 9, color: '#d97706',
+              fontSize: isMobile ? '0.75rem' : '0.82rem', fontWeight: 700, cursor: 'pointer',
+              fontFamily: FONT, whiteSpace: 'nowrap',
+            }}
+          >
+            <UserPlusIcon style={{ width: 15, height: 15, flexShrink: 0 }} />
+            Invite User
           </button>
           <button
             onClick={startCreate}
             style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '0.55rem 1.1rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: isMobile ? '0.5rem 0.75rem' : '0.55rem 1.1rem',
+              flex: isMobile ? '1 1 auto' : undefined,
               background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
               border: 'none', borderRadius: 9, color: '#fff',
-              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(99,102,241,0.3)', fontFamily: FONT,
+              fontSize: isMobile ? '0.75rem' : '0.82rem', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(99,102,241,0.3)', fontFamily: FONT, whiteSpace: 'nowrap',
             }}
           >
-            <UserPlusIcon style={{ width: 15, height: 15 }} />
+            <UserPlusIcon style={{ width: 15, height: 15, flexShrink: 0 }} />
             Add User
           </button>
         </div>
@@ -532,8 +626,205 @@ const UserManagement: React.FC = () => {
         </div>
       )}
 
+      {/* ── LIST VIEW ──────────────────────────────────────────── */}
+      {viewMode === 'list' && (() => {
+        const listGridCols = '2fr 80px 110px 85px 65px 85px 80px 70px 85px 90px 80px';
+        const listRightAlignCols = ['Balance', 'Labels', 'Revenue', 'Profit', 'Clients'];
+        return (
+        <div className="db-card" style={{ overflow: 'hidden' }}>
+          {/* Search + filter bar */}
+          <div style={{ padding: '0.625rem 1rem', borderBottom: '1px solid var(--navy-100)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flexGrow: 1, minWidth: isMobile ? '100%' : 200 }}>
+              <MagnifyingGlassIcon style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: 'var(--navy-400)', pointerEvents: 'none' }} />
+              <input type="text" style={{ ...inp, paddingLeft: '1.75rem', paddingRight: searchTerm ? '1.75rem' : '0.75rem', fontSize: '0.78rem' }} placeholder="Search by name or email…"
+                value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={focusInp} onBlur={blurInp} />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm('')} title="Clear search"
+                  style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 2, display: 'flex' }}>
+                  <XMarkIcon style={{ width: 13, height: 13 }} />
+                </button>
+              )}
+            </div>
+            <select style={{ ...inp, fontSize: '0.78rem', minWidth: isMobile ? 0 : 130, flex: isMobile ? '1 1 auto' : undefined, appearance: 'auto' }}
+              value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setCurrentPage(1); }}>
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="reseller">Reseller</option>
+              <option value="user">User</option>
+            </select>
+            <select style={{ ...inp, fontSize: '0.78rem', minWidth: isMobile ? 0 : 130, flex: isMobile ? '1 1 auto' : undefined, appearance: 'auto' }}
+              value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+            {hasActiveFilters && (
+              <button onClick={clearFilters} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '0.75rem', fontWeight: 700, fontFamily: FONT, whiteSpace: 'nowrap', padding: '0.3rem 0' }}>
+                <XMarkIcon style={{ width: 12, height: 12 }} /> Clear filters
+              </button>
+            )}
+            <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)', whiteSpace: 'nowrap', fontFamily: FONT, marginLeft: 'auto' }}>{totalCount} user{totalCount !== 1 ? 's' : ''}</span>
+          </div>
+
+          {/* Table header — desktop grid only; mobile renders cards instead (no header needed) */}
+          {!isMobile && (
+            <div style={{ display: 'grid', gridTemplateColumns: listGridCols, gap: '0 0.75rem', padding: '0.5rem 1rem', background: 'var(--navy-50)', borderBottom: '1.5px solid var(--navy-100)' }}>
+              {['User', 'Role', 'Status', 'Balance', 'Labels', 'Revenue', 'Profit', 'Clients', 'Joined', 'Last Login', ''].map(h => (
+                <div key={h} style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--navy-400)', fontFamily: FONT, textAlign: listRightAlignCols.includes(h) ? 'right' : 'left' }}>{h}</div>
+              ))}
+            </div>
+          )}
+
+          {/* Rows */}
+          <div style={{ overflowY: 'auto', maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 280px)' }}>
+            {loadingList ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div className="spinner" /></div>
+            ) : filtered.length === 0 ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--navy-400)', fontSize: '0.85rem', fontFamily: FONT }}>No users found</div>
+            ) : filtered.map((u, idx) => {
+              const rs = roleStyle[u.role] ?? roleStyle.user;
+
+              const avatar = (
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                  background: u.isActive ? rs.avatarGrad : 'linear-gradient(135deg,#94a3b8,#64748b)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.68rem', fontWeight: 700, color: '#fff', fontFamily: FONT,
+                }}>
+                  {u.firstName[0]}{u.lastName[0]}
+                </div>
+              );
+
+              const actions = (
+                <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                  <button title="Edit" onClick={() => { selectUser(u); setViewMode('panel'); }}
+                    style={{ width: 26, height: 26, borderRadius: 6, border: '1.5px solid var(--navy-200)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navy-600)' }}>
+                    <PencilIcon style={{ width: 12, height: 12 }} />
+                  </button>
+                  <button title={u.isActive ? 'Deactivate' : 'Activate'} onClick={() => handleToggleStatus(u)}
+                    style={{ width: 26, height: 26, borderRadius: 6, border: `1.5px solid ${u.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}`, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: u.isActive ? '#ef4444' : '#10b981' }}>
+                    <EyeIcon style={{ width: 12, height: 12 }} />
+                  </button>
+                  <button title="Delete" onClick={() => handleDelete(u)}
+                    style={{ width: 26, height: 26, borderRadius: 6, border: '1.5px solid rgba(239,68,68,0.25)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
+                    <TrashIcon style={{ width: 12, height: 12 }} />
+                  </button>
+                </div>
+              );
+
+              if (isMobile) {
+                return (
+                  <div
+                    key={u.id}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0.75rem', borderTop: idx === 0 ? 'none' : '1px solid var(--navy-100)', cursor: 'pointer' }}
+                    onClick={() => { selectUser(u); setViewMode('panel'); }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                      {avatar}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--navy-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>{u.firstName} {u.lastName}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>{u.email}</div>
+                      </div>
+                      {actions}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <RoleChip role={u.role} />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: u.isActive ? '#10b981' : '#ef4444', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: u.isActive ? '#10b981' : '#ef4444', fontFamily: FONT }}>{u.isActive ? 'Active' : 'Inactive'}</span>
+                      </span>
+                      {u.hasPassword === false && <PendingBadge />}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                      {[
+                        { label: 'Balance', value: fmt(u.currentBalance),      color: (u.currentBalance ?? 0) > 0 ? 'var(--navy-700)' : '#ef4444' },
+                        { label: 'Labels',  value: String(u.totalLabels ?? 0), color: 'var(--navy-700)' },
+                        { label: 'Revenue', value: fmt(u.totalRevenue),        color: 'var(--navy-700)' },
+                        { label: 'Profit',  value: fmt(u.profit),              color: (u.profit ?? 0) >= 0 ? '#10b981' : '#ef4444' },
+                        ...(u.role === 'reseller' ? [{ label: 'Clients', value: String(u.clients?.length ?? 0), color: 'var(--navy-700)' }] : []),
+                      ].map(stat => (
+                        <div key={stat.label} style={{ minWidth: 0, background: 'var(--navy-50)', border: '1px solid var(--navy-100)', borderRadius: 8, padding: '0.4rem 0.5rem' }}>
+                          <div style={{ fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--navy-400)', fontFamily: FONT }}>{stat.label}</div>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: stat.color, fontFamily: FONT, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stat.value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', fontFamily: FONT }}>
+                      Joined {new Date(u.createdAt).toLocaleDateString()} · Last login: {u.lastLogin ? new Date(u.lastLogin).toLocaleDateString() : <span style={{ fontStyle: 'italic' }}>Never</span>}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={u.id}
+                  style={{ display: 'grid', gridTemplateColumns: listGridCols, gap: '0 0.75rem', alignItems: 'center', padding: '0.65rem 1rem', borderTop: idx === 0 ? 'none' : '1px solid var(--navy-100)', transition: 'background 0.1s', cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--navy-50)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => { selectUser(u); setViewMode('panel'); }}
+                >
+                  {/* User (name + email combined — one glance, one column) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                    {avatar}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--navy-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>{u.firstName} {u.lastName}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT }}>{u.email}</div>
+                    </div>
+                  </div>
+
+                  {/* Role */}
+                  <div><RoleChip role={u.role} /></div>
+
+                  {/* Status — active/inactive is the most decision-relevant signal, right after identity+role */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: u.isActive ? '#10b981' : '#ef4444', flexShrink: 0 }} />
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: u.isActive ? '#10b981' : '#ef4444', fontFamily: FONT }}>{u.isActive ? 'Active' : 'Inactive'}</span>
+                    </div>
+                    {u.hasPassword === false && <PendingBadge />}
+                  </div>
+
+                  {/* Balance — current standing, right after Status since both are "does this need attention" signals */}
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: (u.currentBalance ?? 0) > 0 ? 'var(--navy-700)' : '#ef4444', fontFamily: FONT, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(u.currentBalance)}</div>
+
+                  {/* Labels → Revenue → Profit: reads left-to-right as volume → money in → money kept */}
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy-700)', fontFamily: FONT, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{u.totalLabels ?? 0}</div>
+
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy-700)', fontFamily: FONT, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(u.totalRevenue)}</div>
+
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: (u.profit ?? 0) >= 0 ? '#10b981' : '#ef4444', fontFamily: FONT, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(u.profit)}</div>
+
+                  {/* Clients — reseller-only; dash for everyone else */}
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--navy-700)', fontFamily: FONT, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    {u.role === 'reseller' ? (u.clients?.length ?? 0) : <span style={{ color: 'var(--navy-300)' }}>—</span>}
+                  </div>
+
+                  {/* Joined */}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--navy-500)', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                    {new Date(u.createdAt).toLocaleDateString()}
+                  </div>
+
+                  {/* Last Login */}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--navy-500)', fontFamily: FONT, whiteSpace: 'nowrap' }}>
+                    {u.lastLogin ? new Date(u.lastLogin).toLocaleDateString() : <span style={{ color: 'var(--navy-300)', fontStyle: 'italic' }}>Never</span>}
+                  </div>
+
+                  {/* Actions */}
+                  {actions}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        );
+      })()}
+
       {/* ── Two-column layout ──────────────────────────────────── */}
-      <div style={{
+      {viewMode === 'panel' && <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : '272px 1fr',
         gap: '1rem',
@@ -553,12 +844,18 @@ const UserManagement: React.FC = () => {
               <MagnifyingGlassIcon style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--navy-400)', pointerEvents: 'none' }} />
               <input
                 type="text"
-                style={{ ...inp, paddingLeft: '2rem', fontSize: '0.8rem' }}
+                style={{ ...inp, paddingLeft: '2rem', paddingRight: searchTerm ? '2rem' : '0.75rem', fontSize: '0.8rem' }}
                 placeholder="Search by name or email…"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 onFocus={focusInp} onBlur={blurInp}
               />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm('')} title="Clear search"
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navy-400)', padding: 2, display: 'flex' }}>
+                  <XMarkIcon style={{ width: 13, height: 13 }} />
+                </button>
+              )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <select
@@ -581,6 +878,11 @@ const UserManagement: React.FC = () => {
                 <option value="false">Inactive</option>
               </select>
             </div>
+            {hasActiveFilters && (
+              <button onClick={clearFilters} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '0.72rem', fontWeight: 700, fontFamily: FONT, padding: '0.2rem 0' }}>
+                <XMarkIcon style={{ width: 11, height: 11 }} /> Clear filters
+              </button>
+            )}
           </div>
 
           {/* User rows */}
@@ -627,6 +929,7 @@ const UserManagement: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
                     <RoleChip role={u.role} />
+                    {u.hasPassword === false && <PendingBadge />}
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: u.isActive ? '#10b981' : '#ef4444' }} />
                   </div>
                 </div>
@@ -691,12 +994,12 @@ const UserManagement: React.FC = () => {
                 )}
                 {isCreating ? (
                   <>
-                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: createMode === 'invite' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#6366f1,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <UserPlusIcon style={{ width: 18, height: 18, color: '#fff' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--navy-900)', fontFamily: FONT }}>New User</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', fontFamily: FONT }}>Fill in the details below to create an account</div>
+                      <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--navy-900)', fontFamily: FONT }}>{createMode === 'invite' ? 'Invite User' : 'New User'}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', fontFamily: FONT }}>{createMode === 'invite' ? 'They\'ll get an email to set their own password' : 'Fill in the details below to create an account'}</div>
                     </div>
                   </>
                 ) : selectedUser && (
@@ -718,6 +1021,7 @@ const UserManagement: React.FC = () => {
                       </div>
                     </div>
                     <RoleChip role={selectedUser.role} />
+                    {selectedUser.hasPassword === false && <PendingBadge />}
                     <span style={{
                       padding: '2px 8px', borderRadius: 99, fontSize: '0.62rem', fontWeight: 700, fontFamily: FONT,
                       background: selectedUser.isActive ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
@@ -727,6 +1031,18 @@ const UserManagement: React.FC = () => {
                       {selectedUser.isActive ? 'Active' : 'Inactive'}
                     </span>
                     <div style={{ display: 'flex', gap: 4 }}>
+                      {selectedUser.hasPassword === false && (
+                        <button
+                          onClick={() => handleReinvite(selectedUser)}
+                          disabled={reinviting}
+                          title="Resend invite email"
+                          style={{ width: 28, height: 28, borderRadius: 7, border: '1.5px solid rgba(245,158,11,0.3)', background: 'transparent', cursor: reinviting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', opacity: reinviting ? 0.5 : 1 }}
+                        >
+                          <svg style={{ width: 14, height: 14 }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                          </svg>
+                        </button>
+                      )}
                       <button
                         onClick={() => handleToggleStatus(selectedUser)}
                         title={selectedUser.isActive ? 'Deactivate' : 'Activate'}
@@ -815,7 +1131,7 @@ const UserManagement: React.FC = () => {
                         onFocus={focusInp} onBlur={blurInp} />
                     </div>
 
-                    {isCreating && (
+                    {isCreating && createMode === 'password' && (
                       <div>
                         <label style={lbl}>Password <span style={{ color: 'var(--navy-400)', fontWeight: 500, textTransform: 'none', fontSize: '0.65rem' }}>(5-digit PIN)</span></label>
                         <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
@@ -832,6 +1148,12 @@ const UserManagement: React.FC = () => {
                             Copy
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {isCreating && createMode === 'invite' && (
+                      <div style={{ padding: '0.7rem 0.875rem', borderRadius: 8, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', fontSize: '0.78rem', color: '#b45309', fontFamily: FONT, lineHeight: 1.5 }}>
+                        No password needed — an email will be sent to this address with a link to set one. The link expires in 3 days.
                       </div>
                     )}
 
@@ -866,8 +1188,10 @@ const UserManagement: React.FC = () => {
                         </button>
                       )}
                       <button type="submit" disabled={submitting}
-                        style={{ padding: '0.6rem 1.25rem', background: 'linear-gradient(135deg,#6366f1,#4f46e5)', border: 'none', borderRadius: 8, color: '#fff', fontSize: '0.84rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: FONT, opacity: submitting ? 0.7 : 1, boxShadow: '0 4px 12px rgba(99,102,241,0.25)' }}>
-                        {submitting ? (isCreating ? 'Creating…' : 'Saving…') : (isCreating ? 'Create User' : 'Save Changes')}
+                        style={{ padding: '0.6rem 1.25rem', background: isCreating && createMode === 'invite' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#6366f1,#4f46e5)', border: 'none', borderRadius: 8, color: '#fff', fontSize: '0.84rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: FONT, opacity: submitting ? 0.7 : 1, boxShadow: '0 4px 12px rgba(99,102,241,0.25)' }}>
+                        {isCreating && createMode === 'invite'
+                          ? (submitting ? 'Sending…' : 'Send Invite')
+                          : (submitting ? (isCreating ? 'Creating…' : 'Saving…') : (isCreating ? 'Create User' : 'Save Changes'))}
                       </button>
                     </div>
                   </form>
@@ -1430,7 +1754,7 @@ const UserManagement: React.FC = () => {
             </>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 };

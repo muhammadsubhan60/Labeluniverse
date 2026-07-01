@@ -172,7 +172,7 @@ const LiveActivity: React.FC = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
             <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--navy-900)', textTransform: 'uppercase' }}>
-              LABEL UNIVERSE
+              LABEL FLOW
             </span>
             <span style={{ fontSize: 11, color: 'var(--navy-400)', letterSpacing: '0.06em', fontWeight: 500 }}>
               / Platform Live Metrics

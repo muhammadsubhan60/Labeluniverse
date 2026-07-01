@@ -68,7 +68,7 @@ def make_frame(t: float, logo: Image.Image):
       (5.0, 8.0, "Track every parcel with confidence.", ""),
       (8.0, 11.0, "Powerful admin visibility.", "Warehouses, users, parcel volume"),
       (11.0, 13.5, "Built for scale. Designed for control.", ""),
-      (13.5, 15.0, "Start with LABEL UNIVERSE", "Book a Demo"),
+      (13.5, 15.0, "Start with LABEL FLOW", "Book a Demo"),
   ]
 
   active = scenes[-1]
@@ -88,7 +88,7 @@ def make_frame(t: float, logo: Image.Image):
   # Top brand strip
   d.rectangle((0, 0, W, 120), fill=(NAVY[0], NAVY[1], NAVY[2], 255))
   d.rectangle((0, 114, W, 120), fill=(BLUE[0], BLUE[1], BLUE[2], 255))
-  d.text((40, 36), "LABEL UNIVERSE", font=load_font(34, bold=True), fill=(255, 255, 255, 255))
+  d.text((40, 36), "LABEL FLOW", font=load_font(34, bold=True), fill=(255, 255, 255, 255))
 
   # Logo center
   logo_size = 190
@@ -124,7 +124,7 @@ def make_frame(t: float, logo: Image.Image):
 
 def main():
   root = Path(__file__).resolve().parents[1]
-  logo_path = root / "client" / "build" / "LABELUNIVERSE-social-logo.png"
+  logo_path = root / "client" / "build" / "LABELFLOW-social-logo.png"
   if not logo_path.exists():
     logo_path = root / "client" / "build" / "logo512.png"
 
@@ -133,7 +133,7 @@ def main():
 
   out_dir = root / "media"
   out_dir.mkdir(parents=True, exist_ok=True)
-  out_file = out_dir / "LABELUNIVERSE-meta-ad-15s.mp4"
+  out_file = out_dir / "LABELFLOW-meta-ad-15s.mp4"
 
   clip = ImageSequenceClip(frames, fps=FPS)
   clip.write_videofile(str(out_file), codec="libx264", audio=False, preset="medium", fps=FPS)

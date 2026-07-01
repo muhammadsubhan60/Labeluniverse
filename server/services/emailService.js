@@ -85,7 +85,7 @@ const userLabelsReady = (userName, jobId, carrier, labelCount, downloadUrl) => (
       </table>
       <p style="color:#475569;">Please download your labels and ship within the required timeframe.</p>
       <a href="${downloadUrl}" style="display:inline-block;background:#059669;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:8px;">Download Labels →</a>
-      <p style="margin-top:24px;color:#94a3b8;font-size:12px;">LABEL UNIVERSE</p>
+      <p style="margin-top:24px;color:#94a3b8;font-size:12px;">LABEL FLOW</p>
     </div>
   `,
 });
@@ -97,7 +97,7 @@ const announcementNotification = (userName, title, content, category, portalUrl)
   const catLabel = CATEGORY_LABEL[category] || 'General';
   const catColor = CATEGORY_COLOR[category] || '#2563EB';
   return {
-    subject: `[LABEL UNIVERSE] ${catLabel}: ${title}`,
+    subject: `[LABEL FLOW] ${catLabel}: ${title}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:24px;border-radius:8px;">
         <div style="background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">

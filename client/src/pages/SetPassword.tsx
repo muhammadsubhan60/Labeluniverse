@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { EyeIcon, EyeSlashIcon, ExclamationCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,6 +33,7 @@ function checkRules(pw: string) {
 
 const SetPassword: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { authenticateWithToken } = useAuth();
 
   const [password, setPassword]   = useState('');
@@ -43,7 +44,14 @@ const SetPassword: React.FC = () => {
   const [error, setError]         = useState('');
 
   const rules = checkRules(password);
-  const setupToken = sessionStorage.getItem('setupToken');
+
+  // Invite links carry the token in the URL; the OTP-verify flow stashes it in sessionStorage.
+  const urlToken = searchParams.get('token');
+  useEffect(() => {
+    if (urlToken) sessionStorage.setItem('setupToken', urlToken);
+  }, [urlToken]);
+
+  const setupToken = urlToken || sessionStorage.getItem('setupToken');
 
   useEffect(() => {
     if (!setupToken) navigate('/signup');

@@ -1,7 +1,7 @@
 ﻿const { spawn } = require('child_process');
 const path = require('path');
 
-console.log('🚀 Starting LABEL UNIVERSE...\n');
+console.log('🚀 Starting LABEL FLOW...\n');
 
 // Start backend server
 console.log('📦 Starting backend server...');

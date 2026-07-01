@@ -54,6 +54,32 @@ function resetPasswordHtml(firstName, resetUrl) {
 </html>`;
 }
 
+function inviteEmailHtml(firstName, inviteUrl) {
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f4fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f4fb;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:520px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(10,15,31,0.08);">
+        <tr><td style="background:linear-gradient(135deg,#0F172A 0%,#1E293B 60%,#1e3a8a 100%);padding:28px 40px;">
+          <span style="font-size:1.1rem;font-weight:800;color:#fff;letter-spacing:-0.4px;">Label Flow</span>
+        </td></tr>
+        <tr><td style="padding:40px;">
+          <h2 style="margin:0 0 8px;font-size:1.2rem;font-weight:800;color:#0a0f1f;">You've been invited, ${firstName}</h2>
+          <p style="margin:0 0 28px;color:#64748b;font-size:0.9rem;line-height:1.65;">An account has been created for you on Label Flow. Click the button below to set your password and get started.</p>
+          <a href="${inviteUrl}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-weight:700;font-size:0.9rem;text-decoration:none;border-radius:10px;">Set Your Password</a>
+          <p style="margin:24px 0 0;color:#94a3b8;font-size:0.78rem;">This link expires in <strong>3 days</strong>. If you weren't expecting this invite, you can ignore this email.</p>
+          <hr style="margin:24px 0;border:none;border-top:1px solid #e6eaf5;">
+          <p style="margin:0;color:#94a3b8;font-size:0.75rem;">Or copy this link into your browser:<br><a href="${inviteUrl}" style="color:#6366f1;word-break:break-all;font-size:0.72rem;">${inviteUrl}</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 async function sendMail({ to, subject, html }) {
   await resend.emails.send({
     from: 'Label Flow <noreply@labelflow.org>',
@@ -63,4 +89,4 @@ async function sendMail({ to, subject, html }) {
   });
 }
 
-module.exports = { sendMail, otpEmailHtml, resetPasswordHtml };
+module.exports = { sendMail, otpEmailHtml, resetPasswordHtml, inviteEmailHtml };

@@ -45,7 +45,7 @@ const VendorLogin: React.FC = () => {
           }}>
             <BrandMonogram size={26} color="#111" strokeWidth={2.1} />
           </div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>LABEL UNIVERSE</h1>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>LABEL FLOW</h1>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', marginTop: 4 }}>Vendor Access</p>
         </div>
 

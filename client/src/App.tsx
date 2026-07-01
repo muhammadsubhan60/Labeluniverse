@@ -102,7 +102,7 @@ function App() {
                 {/* Root: authenticated → dashboard, visitors → signup */}
                 <Route path="/" element={<RootRedirect />} />
 
-                {/* ── Main portal (LABEL UNIVERSE users) ─────────────────────── */}
+                {/* ── Main portal (LABEL FLOW users) ─────────────────────── */}
                 <Route element={
                   <ProtectedRoute>
                     <Layout />

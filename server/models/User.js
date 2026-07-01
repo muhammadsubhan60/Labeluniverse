@@ -122,6 +122,7 @@ userSchema.virtual('fullName').get(function() {
 userSchema.set('toJSON', {
   virtuals: true,
   transform: function(doc, ret) {
+    ret.hasPassword = !!ret.password;
     delete ret.password;
     delete ret.resetPasswordToken;
     delete ret.resetPasswordExpire;

@@ -1,6 +1,6 @@
-﻿# Deployment Guide - LABEL UNIVERSE
+﻿# Deployment Guide - LABEL FLOW
 
-This guide will help you deploy the LABEL UNIVERSE to Railway for production use.
+This guide will help you deploy the LABEL FLOW to Railway for production use.
 
 ## Prerequisites
 
@@ -204,6 +204,6 @@ As your application grows:
 
 ---
 
-**Your LABEL UNIVERSE is now live! 🎉**
+**Your LABEL FLOW is now live! 🎉**
 
 For support, check the logs and documentation, or create an issue in the GitHub repository.

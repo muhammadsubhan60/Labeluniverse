@@ -107,7 +107,7 @@ const Signup: React.FC = () => {
                 <BrandMonogram size={19} color="#111" strokeWidth={2.3} />
               </div>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px' }}>
-                Label<span style={{ color: 'rgba(255,255,255,0.55)' }}> Universe</span>
+                Label<span style={{ color: 'rgba(255,255,255,0.55)' }}> Flow</span>
               </span>
             </div>
             <h2 style={{ fontSize: isTablet ? '1.75rem' : 'clamp(1.85rem, 2.8vw, 2.4rem)', fontWeight: 900, color: '#fff', letterSpacing: '-1px', lineHeight: 1.1, marginBottom: 14 }}>
@@ -143,7 +143,7 @@ const Signup: React.FC = () => {
                 <BrandMonogram size={17} color="#111" strokeWidth={2.2} />
               </div>
               <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.4px' }}>
-                Label<span style={{ color: 'rgba(255,255,255,0.55)' }}> Universe</span>
+                Label<span style={{ color: 'rgba(255,255,255,0.55)' }}> Flow</span>
               </span>
             </div>
             <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.38)', textAlign: 'center', position: 'relative', zIndex: 1 }}>Create your free account</p>

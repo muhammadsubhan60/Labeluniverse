@@ -440,7 +440,7 @@ export default function CCVendorPerformance() {
       {tab === 'vendors' && (
         <>
           <div style={{ marginBottom: '0.85rem' }}>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendor…" style={{ ...inp, width: 260 }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendor…" style={{ ...inp, width: '100%', maxWidth: 260 }} />
           </div>
           <div className="db-card" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>

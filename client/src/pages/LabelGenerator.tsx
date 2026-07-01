@@ -601,6 +601,12 @@ const LabelGenerator: React.FC = () => {
           0%   { background-color: rgba(254,252,232,0.85); }
           100% { background-color: transparent; }
         }
+        @media (max-width: 768px) {
+          .label-gen-bottom-bar {
+            left: 0 !important;
+            padding: 0.65rem 0.9rem !important;
+          }
+        }
       `}</style>
 
       {showManifestModal && (
@@ -1091,7 +1097,7 @@ const LabelGenerator: React.FC = () => {
       </div>
 
       {/* Sticky bottom bar */}
-      <div style={{ position: 'fixed', bottom: 0, right: 0, left: 'var(--sidebar-w, 256px)', background: 'rgba(15,23,42,0.97)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${canSubmit && weight > 0 ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, zIndex: 200, padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', transition: 'border-color 0.3s' }}>
+      <div className="label-gen-bottom-bar" style={{ position: 'fixed', bottom: 0, right: 0, left: 'var(--sidebar-w, 256px)', background: 'rgba(15,23,42,0.97)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${canSubmit && weight > 0 ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, zIndex: 200, padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', transition: 'border-color 0.3s' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.875rem', flexWrap: 'wrap' }}>
           {canSubmit ? (
             <>

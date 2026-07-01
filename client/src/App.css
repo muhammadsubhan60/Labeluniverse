@@ -1,6 +1,6 @@
 ﻿/* ============================================================
-   LABEL UNIVERSE — Design System
-   Premium Shipping LABEL UNIVERSE
+   LABEL FLOW — Design System
+   Premium Shipping LABEL FLOW
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -180,7 +180,7 @@ body {
 .to-primary-800 { --tw-gradient-to: var(--accent-800) !important; }
 .to-primary-900 { --tw-gradient-to: var(--accent-900) !important; }
 
-/* ── LABEL UNIVERSE Card ─────────────────────────────────────────── */
+/* ── LABEL FLOW Card ─────────────────────────────────────────── */
 .sh-card {
   background: var(--bg-card);
   border-radius: var(--radius-xl);

@@ -60,7 +60,7 @@ const getHeroByCategoryAndIntent = (category?: string, intent?: string, title?: 
   if (c.includes('software') || c.includes('analytics') || c.includes('strategy') || c.includes('tools')) {
     return { hero: '/blog-assets/hero-software.svg', rule: 'category:software' };
   }
-  return { hero: '/blog-assets/LABELUNIVERSE-blog-hero.svg', rule: 'fallback:default' };
+  return { hero: '/blog-assets/LABELFLOW-blog-hero.svg', rule: 'fallback:default' };
 };
 
 const BlogPost: React.FC = () => {
@@ -72,10 +72,10 @@ const BlogPost: React.FC = () => {
 
   useEffect(() => {
     if (!post) return;
-    document.title = `${post.title} | LABELUNIVERSE Blog`;
+    document.title = `${post.title} | LABELFLOW Blog`;
     const origin = window.location.origin;
     const url = `${origin}/blog/${post.slug}`;
-    const imageUrl = `${origin}/og-LABELUNIVERSE-blog.png`;
+    const imageUrl = `${origin}/og-LABELFLOW-blog.png`;
 
     upsertMetaTag('meta[name="description"]', { name: 'description', content: post.metaDescription });
     upsertMetaTag('meta[property="og:type"]', { property: 'og:type', content: 'article' });
@@ -106,11 +106,11 @@ const BlogPost: React.FC = () => {
       dateModified: post.publishedAt,
       author: {
         '@type': 'Organization',
-        name: 'LABELUNIVERSE',
+        name: 'LABELFLOW',
       },
       publisher: {
         '@type': 'Organization',
-        name: 'LABELUNIVERSE',
+        name: 'LABELFLOW',
       },
       mainEntityOfPage: url,
     };
@@ -160,7 +160,7 @@ const BlogPost: React.FC = () => {
 
   useEffect(() => {
     if (!post) return;
-    const key = `LABELUNIVERSE_blog_checklist_${post.slug}`;
+    const key = `LABELFLOW_blog_checklist_${post.slug}`;
     try {
       const raw = localStorage.getItem(key);
       setDoneItems(raw ? JSON.parse(raw) : []);
@@ -171,7 +171,7 @@ const BlogPost: React.FC = () => {
 
   const toggleAction = (item: string) => {
     if (!post) return;
-    const key = `LABELUNIVERSE_blog_checklist_${post.slug}`;
+    const key = `LABELFLOW_blog_checklist_${post.slug}`;
     setDoneItems((prev) => {
       const next = prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item];
       localStorage.setItem(key, JSON.stringify(next));
@@ -240,7 +240,7 @@ ${actionItems.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`;
 
         <div className="article-content">
         <div className="article-meta-row">
-          <span className="article-meta-pill">By LABELUNIVERSE Editorial Team</span>
+          <span className="article-meta-pill">By LABELFLOW Editorial Team</span>
           <span className="article-meta-pill">Published {post.publishedAt}</span>
           <span className="article-meta-pill">{post.readMinutes} min read</span>
         </div>
@@ -414,10 +414,10 @@ ${actionItems.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`;
               Supporting infographic: decision flow (weight {'->'} dimensions {'->'} zone {'->'} best carrier/service).
             </li>
             <li>
-              Social preview card: 1200x630 with headline "{post.title}" and LABELUNIVERSE blue accents.
+              Social preview card: 1200x630 with headline "{post.title}" and LABELFLOW blue accents.
             </li>
             <li>
-              SEO filename suggestion: {post.slug}-LABELUNIVERSE-us-{post.publishedAt.replaceAll('-', '')}.webp
+              SEO filename suggestion: {post.slug}-LABELFLOW-us-{post.publishedAt.replaceAll('-', '')}.webp
             </li>
           </ul>
         </section>

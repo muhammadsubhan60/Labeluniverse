@@ -147,7 +147,7 @@ const HistoryModal = ({ label, onClose }: { label: Label; onClose: () => void })
 
   useEffect(() => {
     axios.get(`${API_BASE}/labels/${label._id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => setHistory(r.data?.trackingStatusHistory || []))
+      .then(r => setHistory(r.data?.label?.trackingStatusHistory || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [label._id, token]);
@@ -353,7 +353,7 @@ export default function CCLabels() {
           <div style={{ fontSize: '0.75rem', color: 'var(--navy-400)', marginTop: 3 }}>All users · single + bulk labels</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {/* Track All — current page only, 1 tab */}
             <button onClick={trackAll} disabled={labels.length === 0}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.45rem 0.9rem', borderRadius: 8, background: 'var(--bg-card)', border: '1.5px solid var(--navy-200)', color: 'var(--navy-700)', fontSize: '0.8rem', fontWeight: 600, cursor: labels.length > 0 ? 'pointer' : 'not-allowed', fontFamily: FONT, opacity: labels.length === 0 ? 0.5 : 1 }}>

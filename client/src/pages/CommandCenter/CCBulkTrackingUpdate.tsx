@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -89,15 +89,20 @@ interface ApplyResult { updated: number; alreadySame: number; notFound: number; 
 export default function CCBulkTrackingUpdate() {
   const { token } = useAuth();
   const fileRef   = useRef<HTMLInputElement>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
 
-  const [step,     setStep]     = useState<1 | 2 | 3>(1);
-  const [copied,   setCopied]   = useState(false);
-  const [csvText,  setCsvText]  = useState('');
-  const [parsed,   setParsed]   = useState<ParsedRow[]>([]);
+  const [copied,    setCopied]    = useState(false);
+  const [csvText,   setCsvText]   = useState('');
+  const [previewed, setPreviewed] = useState(false);
+  const [parsed,    setParsed]    = useState<ParsedRow[]>([]);
   const [parseErr, setParseErr] = useState<string[]>([]);
   const [confirm,  setConfirm]  = useState(false);
   const [applying, setApplying] = useState(false);
   const [result,   setResult]   = useState<ApplyResult | null>(null);
+
+  useEffect(() => {
+    if (previewed) reviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [previewed]);
 
   const copyPrompt = async () => {
     try { await navigator.clipboard.writeText(PROMPT_TEMPLATE); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {}
@@ -112,12 +117,19 @@ export default function CCBulkTrackingUpdate() {
   };
 
   const preview = () => {
-    const rows = parseCsv(csvText);
-    const errs = rows.filter(r => !r.valid).map(r => `"${r.rawStatus}" on tracking ${r.trackingId}`);
-    setParsed(rows.slice(0, 1000));
-    setParseErr(errs.slice(0, 20));
-    setResult(null);
-    setStep(3);
+    console.log('[AI Status Update] Preview clicked. csvText:', JSON.stringify(csvText.slice(0, 200)), 'length:', csvText.length);
+    try {
+      const rows = parseCsv(csvText);
+      const errs = rows.filter(r => !r.valid).map(r => `"${r.rawStatus}" on tracking ${r.trackingId}`);
+      console.log('[AI Status Update] Parsed', rows.length, 'row(s), ', errs.length, 'invalid:', rows);
+      setParsed(rows.slice(0, 1000));
+      setParseErr(errs.slice(0, 20));
+      setResult(null);
+      setPreviewed(true);
+      console.log('[AI Status Update] State set: previewed=true');
+    } catch (err) {
+      console.error('[AI Status Update] preview() threw an error:', err);
+    }
   };
 
   const apply = async () => {
@@ -141,7 +153,7 @@ export default function CCBulkTrackingUpdate() {
     setApplying(false);
   };
 
-  const reset = () => { setStep(1); setCsvText(''); setParsed([]); setParseErr([]); setResult(null); setConfirm(false); };
+  const reset = () => { setCsvText(''); setPreviewed(false); setParsed([]); setParseErr([]); setResult(null); setConfirm(false); };
 
   const validRows    = parsed.filter(r => r.valid);
   const statusGroups = validRows.reduce<Record<string, number>>((acc, r) => {
@@ -149,13 +161,6 @@ export default function CCBulkTrackingUpdate() {
     acc[k]  = (acc[k] || 0) + 1;
     return acc;
   }, {});
-
-  const stepStyle = (n: number): React.CSSProperties => ({
-    width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '0.78rem', fontWeight: 800, flexShrink: 0, fontFamily: FONT,
-    background: step > n ? '#22c55e' : step === n ? '#6366f1' : 'var(--navy-200)',
-    color: step >= n ? '#fff' : 'var(--navy-500)',
-  });
 
   return (
     <div style={{ padding: '1.5rem', fontFamily: FONT, maxWidth: 900, margin: '0 auto' }}>
@@ -169,99 +174,108 @@ export default function CCBulkTrackingUpdate() {
         <div style={{ fontSize: '0.75rem', color: 'var(--navy-400)', marginTop: 3 }}>Bulk-update tracking statuses using AI-classified CSV output</div>
       </div>
 
-      {/* ── Step progress ──────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: '1.5rem' }}>
-        {([1, 2, 3] as const).map((n, i) => (
-          <React.Fragment key={n}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <div style={stepStyle(n)}>
-                {step > n ? <CheckCircleIcon style={{ width: 14, height: 14 }} /> : n}
-              </div>
-              <span style={{ fontSize: '0.65rem', fontWeight: 600, color: step === n ? '#6366f1' : 'var(--navy-400)', whiteSpace: 'nowrap' }}>
-                {n === 1 ? 'Copy Prompt' : n === 2 ? 'Paste Output' : 'Review & Apply'}
-              </span>
-            </div>
-            {i < 2 && <div style={{ flex: 1, height: 2, background: step > n ? '#22c55e' : 'var(--navy-200)', margin: '0 10px 18px' }} />}
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* ── STEP 1: Copy AI prompt ─────────────────────────────── */}
-      {step === 1 && (
-        <div className="db-card" style={{ padding: '1.4rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+      {/* ── Copy prompt + paste result, one flow ────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="db-card" style={{ padding: '1.6rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 6 }}>
             <SparklesIcon style={{ width: 18, height: 18, color: '#6366f1' }} />
-            <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy-900)' }}>Step 1 — Copy the AI Prompt</span>
+            <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy-900)' }}>Copy the Prompt, Paste the Result</span>
           </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--navy-600)', lineHeight: 1.6, marginBottom: 16 }}>
-            Copy this prompt, then paste it into <strong>ChatGPT</strong> or <strong>Claude</strong> along with your USPS tracking page content (copy-pasted from browser tabs). The AI will output a CSV with <code>tracking_number,status</code>.
+          <p style={{ fontSize: '0.82rem', color: 'var(--navy-500)', lineHeight: 1.6, marginBottom: 18 }}>
+            Copy the prompt below and paste it into <strong>ChatGPT</strong> or <strong>Claude</strong> along with your USPS tracking data. Then paste the CSV it hands back into the box underneath — all on this one page.
           </p>
-          <div style={{ background: 'var(--navy-50)', border: '1.5px solid var(--navy-200)', borderRadius: 10, padding: '1rem', marginBottom: 14, fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--navy-700)', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: 220, overflowY: 'auto' }}>
-            {PROMPT_TEMPLATE}
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={copyPrompt} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '0.6rem 1.2rem', borderRadius: 9, background: 'linear-gradient(135deg,#6366f1,#4f46e5)', border: 'none', color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
-              <ClipboardDocumentIcon style={{ width: 16, height: 16 }} />
-              {copied ? 'Copied!' : 'Copy Prompt'}
-            </button>
-            <button onClick={() => setStep(2)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.6rem 1.1rem', borderRadius: 9, background: 'var(--navy-100)', border: '1px solid var(--navy-200)', color: 'var(--navy-700)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
-              Next <ArrowRightIcon style={{ width: 14, height: 14 }} />
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* ── STEP 2: Paste CSV output ───────────────────────────── */}
-      {step === 2 && (
-        <div className="db-card" style={{ padding: '1.4rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
-            <ClipboardDocumentIcon style={{ width: 18, height: 18, color: '#6366f1' }} />
-            <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy-900)' }}>Step 2 — Paste the AI Output</span>
+          {/* Copy prompt row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+            padding: '1rem 1.2rem', borderRadius: 12, marginBottom: '1.4rem',
+            background: 'var(--navy-50)', border: '1.5px solid var(--navy-200)',
+          }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+              background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#6366f1', fontFamily: FONT }}>1</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy-800)' }}>Copy the classification prompt</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginTop: 2 }}>Paste into ChatGPT or Claude, plus your tracking page content</div>
+            </div>
+            <button onClick={copyPrompt} style={{
+              display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
+              padding: '0.55rem 1.1rem', borderRadius: 9, border: 'none',
+              background: copied ? '#22c55e' : 'linear-gradient(135deg,#6366f1,#4f46e5)',
+              color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', fontFamily: FONT,
+              transition: 'background 0.2s',
+            }}>
+              {copied
+                ? <><CheckCircleIcon style={{ width: 15, height: 15 }} /> Copied!</>
+                : <><ClipboardDocumentIcon style={{ width: 15, height: 15 }} /> Copy Prompt</>
+              }
+            </button>
           </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--navy-600)', lineHeight: 1.6, marginBottom: 12 }}>
-            Paste the CSV output from the AI below, or upload a <code>.csv</code> file. Max 1,000 rows.
-          </p>
+
+          {/* Paste result */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+              background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#6366f1', fontFamily: FONT }}>2</span>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--navy-800)' }}>Paste the AI's CSV output</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--navy-500)', marginTop: 2 }}>Or upload a .csv file · max 1,000 rows</div>
+            </div>
+          </div>
 
           <textarea
             value={csvText}
             onChange={e => setCsvText(e.target.value)}
             placeholder={"9400111899223397993164,Delivered\n9400111899223397993171,In Transit\n..."}
-            style={{ width: '100%', minHeight: 200, padding: '0.8rem', background: 'var(--navy-50)', border: '1.5px solid var(--navy-200)', borderRadius: 10, fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--navy-800)', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', minHeight: 190, padding: '0.8rem', background: 'var(--navy-50)', border: '1.5px solid var(--navy-200)', borderRadius: 10, fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--navy-800)', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
           />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.74rem', color: 'var(--navy-400)' }}>{parseCsv(csvText).length} rows detected</span>
-            <span style={{ color: 'var(--navy-200)' }}>·</span>
-            <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '0.78rem', fontWeight: 600, fontFamily: FONT }}>
-              <ArrowUpTrayIcon style={{ width: 13, height: 13 }} /> Upload .csv instead
-            </button>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFileChange} style={{ display: 'none' }} />
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.74rem', color: 'var(--navy-400)' }}>{parseCsv(csvText).length} rows detected</span>
+              <span style={{ color: 'var(--navy-200)' }}>·</span>
+              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: '0.78rem', fontWeight: 600, fontFamily: FONT }}>
+                <ArrowUpTrayIcon style={{ width: 13, height: 13 }} /> Upload .csv instead
+              </button>
+              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFileChange} style={{ display: 'none' }} />
+            </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button onClick={() => setStep(1)} style={{ padding: '0.55rem 1rem', borderRadius: 9, background: 'var(--navy-100)', border: '1px solid var(--navy-200)', color: 'var(--navy-700)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
-              Back
-            </button>
             <button
               onClick={preview}
               disabled={!csvText.trim()}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.55rem 1.2rem', borderRadius: 9, background: csvText.trim() ? 'linear-gradient(135deg,#6366f1,#4f46e5)' : 'var(--navy-200)', border: 'none', color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: csvText.trim() ? 'pointer' : 'not-allowed', fontFamily: FONT }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0.6rem 1.3rem', borderRadius: 9, background: csvText.trim() ? 'linear-gradient(135deg,#6366f1,#4f46e5)' : 'var(--navy-200)', border: 'none', color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: csvText.trim() ? 'pointer' : 'not-allowed', fontFamily: FONT }}>
               Preview Updates <ArrowRightIcon style={{ width: 14, height: 14 }} />
             </button>
           </div>
         </div>
-      )}
 
-      {/* ── STEP 3: Review & Apply ─────────────────────────────── */}
-      {step === 3 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* ── Review & Apply — appears below once you've previewed ── */}
+        {previewed && (
+          <div ref={reviewRef}>
           {/* Summary */}
           <div className="db-card" style={{ padding: '1.2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
               <CheckCircleIcon style={{ width: 18, height: 18, color: '#22c55e' }} />
-              <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy-900)' }}>Step 3 — Review & Apply</span>
+              <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--navy-900)' }}>Review & Apply</span>
             </div>
 
+            {parsed.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.8rem 1rem', borderRadius: 9, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', marginBottom: 4 }}>
+                <ExclamationTriangleIcon style={{ width: 15, height: 15, color: '#dc2626', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.78rem', color: '#dc2626' }}>
+                  No rows detected. Make sure each line looks like <code>tracking_number,status</code>.
+                </span>
+              </div>
+            ) : (
+            <>
             <div style={{ display: 'flex', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
               <div style={{ padding: '0.7rem 1.1rem', borderRadius: 10, background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)' }}>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#6366f1', lineHeight: 1 }}>{parsed.length}</div>
@@ -308,7 +322,6 @@ export default function CCBulkTrackingUpdate() {
             {/* Actions */}
             {!result && (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button onClick={() => setStep(2)} style={{ padding: '0.55rem 1rem', borderRadius: 9, background: 'var(--navy-100)', border: '1px solid var(--navy-200)', color: 'var(--navy-700)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>Back</button>
                 <button
                   onClick={() => setConfirm(true)}
                   disabled={validRows.length === 0 || applying}
@@ -316,6 +329,8 @@ export default function CCBulkTrackingUpdate() {
                   {applying ? 'Applying…' : `Apply ${validRows.length} Updates`}
                 </button>
               </div>
+            )}
+            </>
             )}
           </div>
 
@@ -403,8 +418,9 @@ export default function CCBulkTrackingUpdate() {
               </button>
             </div>
           )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* ── Confirm modal ─────────────────────────────────────── */}
       {confirm && (

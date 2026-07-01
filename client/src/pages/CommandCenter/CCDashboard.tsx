@@ -84,16 +84,16 @@ interface CcLabel {
 const KpiCard = ({ label, value, sub, color, Icon }: {
   label: string; value: string | number; sub?: string; color: string; Icon: React.ElementType;
 }) => (
-  <div className="db-card" style={{ padding: '1.1rem 1.2rem', position: 'relative', overflow: 'hidden', fontFamily: FONT }}>
+  <div className="db-card" style={{ padding: '0.85rem 1rem', position: 'relative', overflow: 'hidden', fontFamily: FONT }}>
     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: '16px 16px 0 0' }} />
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-      <div style={{ width: 34, height: 34, borderRadius: 9, background: `${color}18`, border: `1px solid ${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon style={{ width: 16, height: 16, color }} />
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+      <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}18`, border: `1px solid ${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon style={{ width: 14, height: 14, color }} />
       </div>
     </div>
-    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</div>
-    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--navy-500)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-    {sub && <div style={{ fontSize: '0.7rem', color: 'var(--navy-400)', marginTop: 2 }}>{sub}</div>}
+    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</div>
+    <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--navy-500)', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+    {sub && <div style={{ fontSize: '0.66rem', color: 'var(--navy-400)', marginTop: 2 }}>{sub}</div>}
   </div>
 );
 
@@ -169,10 +169,10 @@ export default function CCDashboard() {
   ].filter(b => b.count > 0);
 
   return (
-    <div style={{ padding: '1.5rem', fontFamily: FONT, maxWidth: 1300, margin: '0 auto' }}>
+    <div style={{ padding: '1.1rem 1.25rem', fontFamily: FONT, maxWidth: 1300, margin: '0 auto' }}>
 
       {/* ── Header ────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: 10 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <h1 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--navy-900)', margin: 0, letterSpacing: '-0.4px' }}>
@@ -230,7 +230,7 @@ export default function CCDashboard() {
       ) : (
         <>
           {/* ── KPI cards ────────────────────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '0.75rem', marginBottom: '0.85rem' }}>
             <KpiCard label="Total Labels"   value={total.toLocaleString()}     color="#6366f1"  Icon={TagIcon}                  sub={`${stats?.labels.generated ?? 0} generated`} />
             <KpiCard label="Delivered"      value={delivered.toLocaleString()} color="#22c55e"  Icon={CheckCircleIcon}           sub={`${deliveryRate}% delivery rate`} />
             <KpiCard label="In Transit"     value={inTransit.toLocaleString()} color="#3b82f6"  Icon={TruckIcon}                 sub={`${outForDel} out for delivery`} />
@@ -238,15 +238,15 @@ export default function CCDashboard() {
             <KpiCard label="Not Scanned"    value={notScanned.toLocaleString()}color="#94a3b8"  Icon={ClockIcon}                 sub={`${pending} pending pickup`} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <div className="dashboard-two-col-grid" style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.85rem' }}>
 
             {/* ── Status breakdown ─────────────────────────────── */}
-            <div className="db-card" style={{ padding: '1.2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 16 }}>
+            <div className="db-card" style={{ padding: '0.9rem 1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
                 <div style={{ width: 3, height: 13, borderRadius: 3, background: '#6366f1', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>Status Breakdown</span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {statusBars.map(b => (
                   <div key={b.key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -265,27 +265,27 @@ export default function CCDashboard() {
             </div>
 
             {/* ── Attention required ───────────────────────────── */}
-            <div className="db-card" style={{ padding: '1.2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 16 }}>
+            <div className="db-card" style={{ padding: '0.9rem 1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
                 <div style={{ width: 3, height: 13, borderRadius: 3, background: '#ef4444', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>Attention Required</span>
               </div>
               {attention.length === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '1.5rem 0' }}>
-                  <CheckCircleIcon style={{ width: 28, height: 28, color: '#22c55e' }} />
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#22c55e' }}>All clear</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>No issues requiring attention</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '1rem 0' }}>
+                  <CheckCircleIcon style={{ width: 24, height: 24, color: '#22c55e' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#22c55e' }}>All clear</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--navy-400)' }}>No issues requiring attention</span>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {attention.map(a => (
                     <button
                       key={a.key}
                       onClick={() => navigate(`/command-center/labels?trackingStatus=${a.ts}`)}
-                      style={{ padding: '0.9rem', borderRadius: 10, background: `${a.color}0d`, border: `1.5px solid ${a.color}22`, cursor: 'pointer', textAlign: 'left' }}
+                      style={{ padding: '0.65rem 0.7rem', borderRadius: 9, background: `${a.color}0d`, border: `1.5px solid ${a.color}22`, cursor: 'pointer', textAlign: 'left' }}
                     >
-                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: a.color, lineHeight: 1 }}>{a.count.toLocaleString()}</div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, color: a.color, marginTop: 3 }}>{a.label}</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: a.color, lineHeight: 1 }}>{a.count.toLocaleString()}</div>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 600, color: a.color, marginTop: 2 }}>{a.label}</div>
                     </button>
                   ))}
                 </div>
@@ -294,8 +294,8 @@ export default function CCDashboard() {
           </div>
 
           {/* ── Recent labels ─────────────────────────────────── */}
-          <div className="db-card" style={{ padding: '1.2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div className="db-card" style={{ padding: '0.9rem 1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <div style={{ width: 3, height: 13, borderRadius: 3, background: '#6366f1', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>Recent Activity</span>
@@ -323,21 +323,21 @@ export default function CCDashboard() {
                   <tbody>
                     {recent.map(l => (
                       <tr key={l._id} style={{ borderBottom: '1px solid var(--navy-100)' }}>
-                        <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--navy-700)', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '6px 9px', fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--navy-700)', whiteSpace: 'nowrap' }}>
                           {l.trackingId?.slice(0, 20)}{l.trackingId?.length > 20 ? '…' : ''}
                         </td>
-                        <td style={{ padding: '8px 10px' }}>
+                        <td style={{ padding: '6px 9px' }}>
                           <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99, background: l.isBulk ? 'rgba(99,102,241,0.1)' : 'rgba(34,197,94,0.1)', color: l.isBulk ? '#6366f1' : '#15803d', border: `1px solid ${l.isBulk ? 'rgba(99,102,241,0.2)' : 'rgba(34,197,94,0.2)'}` }}>
                             {l.isBulk ? 'Bulk' : 'Single'}
                           </span>
                         </td>
-                        <td style={{ padding: '8px 10px', color: 'var(--navy-700)', whiteSpace: 'nowrap', fontSize: '0.76rem' }}>{l.vendorName || '—'}</td>
-                        <td style={{ padding: '8px 10px', color: 'var(--navy-600)', whiteSpace: 'nowrap', fontSize: '0.76rem' }}>{l.to_name}, {l.to_state}</td>
-                        <td style={{ padding: '8px 10px' }}><StatusBadge ts={l.trackingStatus} /></td>
-                        <td style={{ padding: '8px 10px', color: 'var(--navy-600)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '6px 9px', color: 'var(--navy-700)', whiteSpace: 'nowrap', fontSize: '0.76rem' }}>{l.vendorName || '—'}</td>
+                        <td style={{ padding: '6px 9px', color: 'var(--navy-600)', whiteSpace: 'nowrap', fontSize: '0.76rem' }}>{l.to_name}, {l.to_state}</td>
+                        <td style={{ padding: '6px 9px' }}><StatusBadge ts={l.trackingStatus} /></td>
+                        <td style={{ padding: '6px 9px', color: 'var(--navy-600)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                           {l.user ? `${l.user.firstName} ${l.user.lastName}` : '—'}
                         </td>
-                        <td style={{ padding: '8px 10px', color: 'var(--navy-400)', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{timeAgo(l.createdAt)}</td>
+                        <td style={{ padding: '6px 9px', color: 'var(--navy-400)', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{timeAgo(l.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

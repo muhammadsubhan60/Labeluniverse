@@ -35,7 +35,7 @@ const VendorLayout: React.FC = () => {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0f172a' }}>
 
-      {/* Sidebar — neutral branding (no LABEL UNIVERSE name) */}
+      {/* Sidebar — neutral branding (no LABEL FLOW name) */}
       <aside style={{
         width: 220, background: '#0f172a', borderRight: '1px solid rgba(255,255,255,0.07)',
         display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, bottom: 0, left: 0,
@@ -52,7 +52,7 @@ const VendorLayout: React.FC = () => {
               <BrandMonogram size={17} color="#111" strokeWidth={2.1} />
             </div>
             <div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#e2e8f0', lineHeight: 1.2 }}>LABEL UNIVERSE</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#e2e8f0', lineHeight: 1.2 }}>LABEL FLOW</div>
               <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vendor Access</div>
             </div>
           </div>

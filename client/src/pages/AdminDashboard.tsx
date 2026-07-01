@@ -531,7 +531,7 @@ const AdminDashboard: React.FC = () => {
       })()}
 
       {/* ── 6 KPI Cards ─────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
         <KpiCard label="Total Users"      value={fmtN(users.total)}           sub={`${users.newThisMonth} new this month`} color="#6366f1" Icon={UserGroupIcon}             onClick={() => navigate('/admin/users')} />
         <KpiCard label="Labels Generated" value={fmtN(labels.generated)}      sub={`${labels.today} today`}               color="#0ea5e9" Icon={TagIcon} />
         <KpiCard label="Active Manifests" value={fmtN(manifests.active)}      sub={`${manifests.underReview} need review`} color="#f59e0b" Icon={ClipboardDocumentListIcon} onClick={() => navigate('/admin/manifest')} />
@@ -602,17 +602,17 @@ const AdminDashboard: React.FC = () => {
             <div style={{ marginBottom: '0.9rem' }}>
               <SLabel text="Labels by Portal" accent="#059669" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
               {[
-                { key: 'shippershub', label: 'ShippersHub', color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' },
-                { key: 'labelcrow',   label: 'Label Crow',  color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-                { key: 'shiplabel',   label: 'ShipLabel',   color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
-              ].map(({ key, label, color, bg, border }) => {
+                { key: 'shippershub', label: 'ShippersHub', color: '#1D4ED8' },
+                { key: 'labelcrow',   label: 'Label Crow',  color: '#7C3AED' },
+                { key: 'shiplabel',   label: 'ShipLabel',   color: '#059669' },
+              ].map(({ key, label, color }) => {
                 const p = labelsByPortal?.[key] || { count: 0, revenue: 0 };
                 const total = labels.generated || 1;
                 const pct   = Math.round((p.count / total) * 100);
                 return (
-                  <div key={key} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '0.9rem 1rem' }}>
+                  <div key={key} style={{ background: `${color}12`, border: `1px solid ${color}30`, borderRadius: 12, padding: '0.9rem 1rem' }}>
                     <div style={{ fontSize: '0.62rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 6 }}>{label}</div>
                     <div style={{ fontSize: '1.55rem', fontWeight: 900, color: 'var(--navy-900)', letterSpacing: '-0.04em', lineHeight: 1 }}>{fmtN(p.count)}</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 2, marginBottom: 8 }}>generated · {fmt$(p.revenue)}</div>
@@ -767,17 +767,17 @@ const AdminDashboard: React.FC = () => {
         const ts = trackingStatus || {} as Record<string, number>;
 
         const journeyStages = [
-          { key: 'not_scanned_yet',  label: 'Not Scanned',     color: '#64748B', bg: '#F8FAFC', border: '#CBD5E1' },
-          { key: 'in_transit',       label: 'In Transit',       color: '#0ea5e9', bg: '#F0F9FF', border: '#7DD3FC' },
-          { key: 'out_for_delivery', label: 'Out for Delivery', color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
-          { key: 'delivered',        label: 'Delivered',        color: '#15803D', bg: '#F0FDF4', border: '#86EFAC' },
+          { key: 'not_scanned_yet',  label: 'Not Scanned',     color: '#64748B' },
+          { key: 'in_transit',       label: 'In Transit',       color: '#0ea5e9' },
+          { key: 'out_for_delivery', label: 'Out for Delivery', color: '#7C3AED' },
+          { key: 'delivered',        label: 'Delivered',        color: '#15803D' },
         ] as const;
 
         const issueItems = [
-          { key: 'exception_problem',  label: 'Exception', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
-          { key: 'returned_to_sender', label: 'Returned',  color: '#BE123C', bg: '#FFF1F2', border: '#FECDD3' },
-          { key: 'delayed',            label: 'Delayed',   color: '#92400E', bg: '#FFFBEB', border: '#FDE68A' },
-          { key: 'pending_pickup',     label: 'Pending',   color: '#C2410C', bg: '#FFF7ED', border: '#FED7AA' },
+          { key: 'exception_problem',  label: 'Exception', color: '#DC2626' },
+          { key: 'returned_to_sender', label: 'Returned',  color: '#BE123C' },
+          { key: 'delayed',            label: 'Delayed',   color: '#92400E' },
+          { key: 'pending_pickup',     label: 'Pending',   color: '#C2410C' },
         ] as const;
 
         const tsDelivered  = ts.delivered ?? 0;
@@ -806,24 +806,24 @@ const AdminDashboard: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
               {/* Delivery rate headline */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--navy-100)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--navy-100)', flexWrap: 'wrap' }}>
                 <div style={{ flexShrink: 0 }}>
                   <div style={{ fontSize: '2rem', fontWeight: 900, color: '#15803D', letterSpacing: '-0.045em', lineHeight: 1, fontFamily: FONT }}>
                     {deliveryRate}<span style={{ fontSize: '1.1rem' }}>%</span>
                   </div>
                   <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em', marginTop: 2, fontFamily: FONT }}>Delivery Rate</div>
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                   <div style={{ height: 8, background: 'var(--navy-100)', borderRadius: 99, overflow: 'hidden', marginBottom: 5 }}>
                     <div style={{ width: `${deliveryRate}%`, height: '100%', background: 'linear-gradient(90deg,#22c55e,#16a34a)', borderRadius: 99, transition: 'width 0.6s ease' }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
                     <span style={{ fontSize: '0.63rem', color: 'var(--navy-400)', fontFamily: FONT }}>{fmtN(tsDelivered)} delivered</span>
                     <span style={{ fontSize: '0.63rem', color: 'var(--navy-400)', fontFamily: FONT }}>{fmtN(tsActive)} active labels</span>
                   </div>
                 </div>
                 {tsIssueTotal > 0 && (
-                  <div style={{ flexShrink: 0, textAlign: 'center', padding: '6px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10 }}>
+                  <div style={{ flexShrink: 0, textAlign: 'center', padding: '6px 14px', background: '#DC262614', border: '1px solid #DC262640', borderRadius: 10 }}>
                     <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#DC2626', lineHeight: 1, fontFamily: FONT }}>{fmtN(tsIssueTotal)}</div>
                     <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 2, fontFamily: FONT }}>Issues</div>
                   </div>
@@ -833,22 +833,14 @@ const AdminDashboard: React.FC = () => {
               {/* Shipment journey pipeline */}
               <div>
                 <div style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8, fontFamily: FONT }}>Shipment Journey</div>
-                <div style={{ display: 'flex' }}>
-                  {journeyStages.map(({ key, label, color, bg, border }, idx) => {
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
+                  {journeyStages.map(({ key, label, color }) => {
                     const count = ts[key] ?? 0;
-                    const isLast = idx === journeyStages.length - 1;
                     return (
-                      <React.Fragment key={key}>
-                        <div style={{ flex: 1, padding: '0.7rem 0.8rem', background: count > 0 ? bg : 'var(--navy-50)', border: `1px solid ${count > 0 ? border : 'var(--navy-100)'}`, borderRight: !isLast ? 'none' : undefined, borderRadius: idx === 0 ? '9px 0 0 9px' : isLast ? '0 9px 9px 0' : 0 }}>
-                          <div style={{ fontSize: '1.45rem', fontWeight: 800, color: count > 0 ? color : 'var(--navy-300)', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{fmtN(count)}</div>
-                          <div style={{ fontSize: '0.58rem', fontWeight: 700, color: count > 0 ? color : 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4, fontFamily: FONT }}>{label}</div>
-                        </div>
-                        {!isLast && (
-                          <div style={{ width: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy-100)', flexShrink: 0 }}>
-                            <span style={{ fontSize: '0.85rem', color: 'var(--navy-300)', lineHeight: 1 }}>›</span>
-                          </div>
-                        )}
-                      </React.Fragment>
+                      <div key={key} style={{ padding: '0.7rem 0.8rem', background: count > 0 ? `${color}14` : 'var(--navy-50)', border: `1px solid ${count > 0 ? `${color}40` : 'var(--navy-100)'}`, borderRadius: 9 }}>
+                        <div style={{ fontSize: '1.35rem', fontWeight: 800, color: count > 0 ? color : 'var(--navy-300)', letterSpacing: '-0.04em', lineHeight: 1, fontFamily: FONT }}>{fmtN(count)}</div>
+                        <div style={{ fontSize: '0.58rem', fontWeight: 700, color: count > 0 ? color : 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4, fontFamily: FONT }}>{label}</div>
+                      </div>
                     );
                   })}
                 </div>
@@ -858,11 +850,11 @@ const AdminDashboard: React.FC = () => {
               {tsIssueTotal > 0 && (
                 <div>
                   <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8, fontFamily: FONT }}>Needs Attention</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-                    {issueItems.map(({ key, label, color, bg, border }) => {
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.5rem' }}>
+                    {issueItems.map(({ key, label, color }) => {
                       const count = ts[key] ?? 0;
                       return (
-                        <div key={key} style={{ padding: '0.55rem 0.7rem', background: count > 0 ? bg : 'var(--navy-50)', border: `1px solid ${count > 0 ? border : 'var(--navy-100)'}`, borderRadius: 9, opacity: count > 0 ? 1 : 0.38 }}>
+                        <div key={key} style={{ padding: '0.55rem 0.7rem', background: count > 0 ? `${color}14` : 'var(--navy-50)', border: `1px solid ${count > 0 ? `${color}40` : 'var(--navy-100)'}`, borderRadius: 9, opacity: count > 0 ? 1 : 0.38 }}>
                           <div style={{ fontSize: '1.1rem', fontWeight: 800, color: count > 0 ? color : 'var(--navy-400)', letterSpacing: '-0.03em', lineHeight: 1, fontFamily: FONT }}>{fmtN(count)}</div>
                           <div style={{ fontSize: '0.58rem', fontWeight: 700, color: count > 0 ? color : 'var(--navy-400)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3, fontFamily: FONT }}>{label}</div>
                         </div>

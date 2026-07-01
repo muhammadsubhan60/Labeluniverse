@@ -26,7 +26,7 @@ const getHeroByCategoryAndIntent = (category?: string, intent?: string, title?: 
   if (c.includes('software') || c.includes('analytics') || c.includes('strategy') || c.includes('tools')) {
     return { hero: '/blog-assets/hero-software.svg', rule: 'category:software' };
   }
-  return { hero: '/blog-assets/LABELUNIVERSE-blog-hero.svg', rule: 'fallback:default' };
+  return { hero: '/blog-assets/LABELFLOW-blog-hero.svg', rule: 'fallback:default' };
 };
 
 const BlogIndex: React.FC = () => {
@@ -34,7 +34,7 @@ const BlogIndex: React.FC = () => {
   const [selectedIntent, setSelectedIntent] = useState('All');
 
   useEffect(() => {
-    document.title = 'LABELUNIVERSE Blog | Shipping Tips for US Ecommerce Sellers';
+    document.title = 'LABELFLOW Blog | Shipping Tips for US Ecommerce Sellers';
     const meta = document.querySelector('meta[name="description"]');
     if (meta) {
       meta.setAttribute(
@@ -64,13 +64,13 @@ const BlogIndex: React.FC = () => {
       <div className="blog-container">
         <div style={{ marginBottom: '1rem' }}>
           <Link to="/" className="blog-back-link">
-            {'<- Back to LABELUNIVERSE'}
+            {'<- Back to LABELFLOW'}
           </Link>
         </div>
 
         <header className="blog-index-hero">
           <p style={{ color: '#93c5fd', fontWeight: 700, marginBottom: 8, letterSpacing: '0.04em' }}>
-            LABELUNIVERSE BLOG
+            LABELFLOW BLOG
           </p>
           <h1>
             Shipping Growth Playbooks for US Ecommerce Sellers

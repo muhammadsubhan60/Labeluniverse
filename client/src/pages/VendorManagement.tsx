@@ -66,10 +66,10 @@ const BLANK: FormData = {
 const CARRIERS = ['USPS', 'UPS', 'FedEx', 'DHL'] as const;
 
 const CARRIER_STYLES: Record<string, { bg: string; color: string; border: string }> = {
-  USPS:  { bg: '#e8f0fe', color: '#1a56db', border: '#bfdbfe' },
-  UPS:   { bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
-  FedEx: { bg: '#ede9fe', color: '#5b21b6', border: '#ddd6fe' },
-  DHL:   { bg: '#fef9c3', color: '#713f12', border: '#fef08a' },
+  USPS:  { bg: 'rgba(29,78,216,0.12)',  color: '#1a56db', border: 'rgba(29,78,216,0.3)' },
+  UPS:   { bg: 'rgba(146,64,14,0.12)',  color: '#92400e', border: 'rgba(146,64,14,0.3)' },
+  FedEx: { bg: 'rgba(91,33,182,0.12)',  color: '#5b21b6', border: 'rgba(91,33,182,0.3)' },
+  DHL:   { bg: 'rgba(113,63,18,0.12)',  color: '#713f12', border: 'rgba(113,63,18,0.3)' },
 };
 
 // ── Star rating ────────────────────────────────────────────────
@@ -460,9 +460,9 @@ const VendorManagement: React.FC = () => {
 
   // ── Portal config ────────────────────────────────────────────
   const PORTALS = [
-    { id: 'shippershub' as const, label: 'ShippersHub', count: apiVendors.length, accent: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', syncing: importing,  onSync: handleImportShippersHub, syncLabel: 'Sync from ShippersHub', desc: 'API vendors synced from your ShippersHub account' },
-    { id: 'labelcrow'   as const, label: 'Label Crow',  count: lcVendors.length,  accent: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', syncing: lcSyncing,   onSync: handleSyncLabelCrow,     syncLabel: 'Sync from Label Crow',  desc: 'USPS vendors · each series × provider key combo' },
-    { id: 'shiplabel'   as const, label: 'ShipLabel',   count: slVendors.length,  accent: '#059669', bg: '#ECFDF5', border: '#A7F3D0', syncing: slSyncing,   onSync: handleSyncShipLabel,     syncLabel: 'Sync from ShipLabel',   desc: 'USPS vendors synced from shiplabel.net' },
+    { id: 'shippershub' as const, label: 'ShippersHub', count: apiVendors.length, accent: '#1D4ED8', syncing: importing,  onSync: handleImportShippersHub, syncLabel: 'Sync from ShippersHub', desc: 'API vendors synced from your ShippersHub account' },
+    { id: 'labelcrow'   as const, label: 'Label Crow',  count: lcVendors.length,  accent: '#7C3AED', syncing: lcSyncing,   onSync: handleSyncLabelCrow,     syncLabel: 'Sync from Label Crow',  desc: 'USPS vendors · each series × provider key combo' },
+    { id: 'shiplabel'   as const, label: 'ShipLabel',   count: slVendors.length,  accent: '#059669', syncing: slSyncing,   onSync: handleSyncShipLabel,     syncLabel: 'Sync from ShipLabel',   desc: 'USPS vendors synced from shiplabel.net' },
   ];
   const portal = PORTALS.find(p => p.id === activePortal)!;
 
@@ -486,8 +486,8 @@ const VendorManagement: React.FC = () => {
       <style>{`
         .sh-table tbody tr { transition: background 120ms; }
         .sh-table tbody tr:hover { background: var(--navy-25, #f8fafc); }
-        .sh-table tbody tr.row-selected { background: #eff6ff; }
-        .sh-table tbody tr.row-selected:hover { background: #dbeafe; }
+        .sh-table tbody tr.row-selected { background: rgba(59,130,246,0.1); }
+        .sh-table tbody tr.row-selected:hover { background: rgba(59,130,246,0.16); }
         .vnd-btn { background: none; border: none; cursor: pointer; padding: 5px; border-radius: 5px; transition: background 120ms, color 120ms; display: flex; align-items: center; }
         .vnd-btn:hover { background: var(--navy-100, #f1f5f9); }
       `}</style>
@@ -553,7 +553,7 @@ const VendorManagement: React.FC = () => {
                 return (
                   <button key={p.id} onClick={() => switchPortal(p.id)} style={{
                     flex: 1, padding: '0.75rem 0.5rem', border: 'none', cursor: 'pointer',
-                    background: active ? p.bg : '#fff',
+                    background: active ? `${p.accent}16` : 'var(--bg-card)',
                     borderBottom: active ? `2.5px solid ${p.accent}` : '2.5px solid transparent',
                     transition: 'all 0.12s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                   }}>
@@ -570,13 +570,13 @@ const VendorManagement: React.FC = () => {
                 );
               })}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', background: portal.bg }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', background: `${portal.accent}16` }}>
               <span style={{ fontSize: '0.78rem', color: portal.accent, fontWeight: 600 }}>{portal.desc}</span>
               <button onClick={portal.onSync} disabled={portal.syncing} style={{
                 display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
                 padding: '6px 14px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
                 border: `1.5px solid ${portal.accent}`,
-                background: portal.syncing ? portal.bg : portal.accent,
+                background: portal.syncing ? `${portal.accent}16` : portal.accent,
                 color: portal.syncing ? portal.accent : '#fff',
                 cursor: portal.syncing ? 'not-allowed' : 'pointer',
                 opacity: portal.syncing ? 0.75 : 1, transition: 'all 0.15s',
@@ -591,7 +591,7 @@ const VendorManagement: React.FC = () => {
 
           {/* Diagnostics (ShippersHub only) */}
           {activePortal === 'shippershub' && (diagData !== null || diagError) && (
-            <div className="sh-card" style={{ padding: '1rem 1.25rem', border: diagError ? '1.5px solid #fca5a5' : '1.5px solid #bbf7d0', background: diagError ? '#fff5f5' : '#f0fdf4' }}>
+            <div className="sh-card" style={{ padding: '1rem 1.25rem', border: diagError ? '1.5px solid #ef444450' : '1.5px solid #22c55e50', background: diagError ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ fontWeight: 700, fontSize: '0.82rem', color: diagError ? '#b91c1c' : '#15803d' }}>
                   {diagError ? '✗ Connection failed' : `✓ ShippersHub connected — ${diagData!.length} carrier(s) found`}
@@ -605,14 +605,14 @@ const VendorManagement: React.FC = () => {
               {diagData && diagData.map((carrier: any) => (
                 <div key={carrier._id || carrier.id} style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--navy-700)', marginBottom: 4 }}>
-                    {carrier.name} — Carrier ID: <code style={{ background: '#e0f2fe', padding: '1px 5px', borderRadius: 3, fontSize: '0.75rem' }}>{carrier._id || carrier.id || '?'}</code>
+                    {carrier.name} — Carrier ID: <code style={{ background: 'rgba(14,165,233,0.14)', padding: '1px 5px', borderRadius: 3, fontSize: '0.75rem' }}>{carrier._id || carrier.id || '?'}</code>
                   </div>
                   {(carrier.vendors || []).length === 0
                     ? <div style={{ fontSize: '0.72rem', color: 'var(--navy-400)' }}>No vendors found for this carrier</div>
                     : (carrier.vendors || []).map((v: any) => (
                         <div key={v._id || v.id} style={{ fontSize: '0.72rem', color: 'var(--navy-600)', display: 'flex', gap: 8, marginBottom: 2 }}>
                           <span style={{ fontWeight: 600 }}>{v.name}</span>
-                          <span>Vendor ID: <code style={{ background: '#e0f2fe', padding: '1px 4px', borderRadius: 3 }}>{v._id || v.id || '?'}</code></span>
+                          <span>Vendor ID: <code style={{ background: 'rgba(14,165,233,0.14)', padding: '1px 4px', borderRadius: 3 }}>{v._id || v.id || '?'}</code></span>
                           <span style={{ color: 'var(--navy-400)' }}>{v.status || ''}</span>
                         </div>
                       ))
@@ -698,14 +698,14 @@ const VendorManagement: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span>
                               {(!v.shippershubCarrierId || !v.shippershubVendorId) && (
-                                <span title="Missing IDs — re-sync to fix" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 5px', fontSize: '0.65rem', fontWeight: 700, cursor: 'help' }}>IDs missing</span>
+                                <span title="Missing IDs — re-sync to fix" style={{ background: 'rgba(146,64,14,0.14)', color: '#92400e', border: '1px solid rgba(146,64,14,0.35)', borderRadius: 4, padding: '1px 5px', fontSize: '0.65rem', fontWeight: 700, cursor: 'help' }}>IDs missing</span>
                               )}
                             </div>
                             <div style={{ fontSize: '0.68rem', color: 'var(--navy-400)', marginTop: 1 }}>
                               C: {v.shippershubCarrierId || <span style={{ color: '#dc2626' }}>—</span>} · V: {v.shippershubVendorId || <span style={{ color: '#dc2626' }}>—</span>}
                             </div>
                           </td>
-                          <td>{(() => { const s = CARRIER_STYLES[v.carrier] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' }; return <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{v.carrier}</span>; })()}</td>
+                          <td>{(() => { const s = CARRIER_STYLES[v.carrier] || { bg: 'var(--navy-100)', color: 'var(--navy-600)', border: 'var(--navy-300)' }; return <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{v.carrier}</span>; })()}</td>
                           <td style={{ fontSize: '0.82rem', color: 'var(--navy-600)' }}>{v.shippingService || '—'}</td>
                           <td><span style={{ fontWeight: 700, color: 'var(--success-700)' }}>${v.rate.toFixed(2)}</span></td>
                           <td><span className={v.isActive ? 'badge badge-green' : 'badge badge-red'}>{v.isActive ? 'Active' : 'Inactive'}</span></td>
@@ -742,9 +742,9 @@ const VendorManagement: React.FC = () => {
                         <tr key={v._id} className={selectedIds.has(v._id) ? 'row-selected' : ''}>
                           {checkTd(v._id)}
                           <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
-                          <td><code style={{ background: '#ede9fe', color: '#5b21b6', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.labelcrowSeriesId ?? '—'}</code></td>
+                          <td><code style={{ background: 'rgba(91,33,182,0.14)', color: '#5b21b6', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.labelcrowSeriesId ?? '—'}</code></td>
                           <td>
-                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: v.labelcrowServiceClass === 'priority' ? '#e8f0fe' : '#f0fdf4', color: v.labelcrowServiceClass === 'priority' ? '#1a56db' : '#15803d', border: `1px solid ${v.labelcrowServiceClass === 'priority' ? '#bfdbfe' : '#bbf7d0'}` }}>
+                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: v.labelcrowServiceClass === 'priority' ? 'rgba(29,78,216,0.14)' : 'rgba(21,128,61,0.12)', color: v.labelcrowServiceClass === 'priority' ? '#1a56db' : '#15803d', border: `1px solid ${v.labelcrowServiceClass === 'priority' ? 'rgba(29,78,216,0.35)' : 'rgba(21,128,61,0.35)'}` }}>
                               {v.labelcrowServiceClass ? v.labelcrowServiceClass.charAt(0).toUpperCase() + v.labelcrowServiceClass.slice(1) : '—'}
                             </span>
                           </td>
@@ -784,12 +784,12 @@ const VendorManagement: React.FC = () => {
                         <tr key={v._id} className={selectedIds.has(v._id) ? 'row-selected' : ''}>
                           {checkTd(v._id)}
                           <td><span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--navy-900)' }}>{v.name}</span></td>
-                          <td><code style={{ background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.shiplabelServiceId ?? '—'}</code></td>
+                          <td><code style={{ background: 'rgba(6,95,70,0.16)', color: '#065f46', padding: '2px 6px', borderRadius: 4, fontSize: '0.75rem' }}>{v.shiplabelServiceId ?? '—'}</code></td>
                           <td>
                             {v.shiplabelSeries?.length ? (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {v.shiplabelSeries.map((s, i) => (
-                                  <span key={i} style={{ background: '#d1fae5', color: '#065f46', padding: '2px 7px', borderRadius: 10, fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                  <span key={i} style={{ background: 'rgba(6,95,70,0.16)', color: '#065f46', padding: '2px 7px', borderRadius: 10, fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                     {s.name || s.series}
                                   </span>
                                 ))}
@@ -955,9 +955,9 @@ const VendorManagement: React.FC = () => {
                   <label className="form-label">Status</label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {([
-                      { val: 'keep'       as const, label: 'Keep current', color: 'var(--accent-600)', bg: '#eff6ff' },
-                      { val: 'activate'   as const, label: 'Activate all',  color: '#15803d',           bg: '#f0fdf4' },
-                      { val: 'deactivate' as const, label: 'Deactivate all', color: '#dc2626',          bg: '#fef2f2' },
+                      { val: 'keep'       as const, label: 'Keep current', color: 'var(--accent-600)', bg: 'rgba(37,99,235,0.12)' },
+                      { val: 'activate'   as const, label: 'Activate all',  color: '#15803d',           bg: 'rgba(21,128,61,0.12)' },
+                      { val: 'deactivate' as const, label: 'Deactivate all', color: '#dc2626',          bg: 'rgba(220,38,38,0.12)' },
                     ]).map(opt => (
                       <button key={opt.val} type="button" onClick={() => setBulkStatus(opt.val)} style={{
                         flex: 1, padding: '7px 0', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
@@ -1044,7 +1044,7 @@ const VendorManagement: React.FC = () => {
                         <td>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                             {(v.carriers || []).map(c => {
-                              const s = CARRIER_STYLES[c] || { bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+                              const s = CARRIER_STYLES[c] || { bg: 'var(--navy-100)', color: 'var(--navy-600)', border: 'var(--navy-300)' };
                               return <span key={c} style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{c}</span>;
                             })}
                           </div>

@@ -1,4 +1,4 @@
-﻿# LABEL UNIVERSE
+﻿# LABEL FLOW
 
 A streamlined USPS label management portal built with the MERN stack, designed to facilitate efficient communication and file exchange between admins (who generate labels) and users/resellers (who need them).
 

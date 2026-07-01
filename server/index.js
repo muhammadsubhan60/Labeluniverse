@@ -1,5 +1,5 @@
 ﻿const startTime = Date.now();
-console.log('⏳ Starting LABEL UNIVERSE server…');
+console.log('⏳ Starting LABEL FLOW server…');
 
 const express    = require('express');
 const cors       = require('cors');

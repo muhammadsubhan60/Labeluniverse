@@ -19,11 +19,23 @@ const NAV = [
 export default function CCLayout() {
   const navigate    = useNavigate();
   const [col, setCol] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const closeMobile = () => setMobileOpen(false);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f1f5f9', fontFamily: FONT }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-page)', fontFamily: FONT }}>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          onClick={closeMobile}
+          style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(2px)' }}
+        />
+      )}
+
       {/* ── Sidebar ─────────────────────────────────────────────── */}
-      <aside style={{
+      <aside className={`cc-sidebar${mobileOpen ? ' cc-mobile-open' : ''}`} style={{
         width: col ? 60 : 220,
         background: 'linear-gradient(180deg,#0f172a 0%,#1e1b4b 100%)',
         display: 'flex', flexDirection: 'column',
@@ -51,11 +63,19 @@ export default function CCLayout() {
           )}
           <button
             onClick={() => setCol(c => !c)}
+            className="cc-collapse-btn"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4, display: 'flex', flexShrink: 0 }}
           >
             {col
               ? <Bars3Icon style={{ width: 17, height: 17 }} />
               : <XMarkIcon style={{ width: 17, height: 17 }} />}
+          </button>
+          <button
+            onClick={closeMobile}
+            className="cc-mobile-close"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4, display: 'none', flexShrink: 0 }}
+          >
+            <XMarkIcon style={{ width: 18, height: 18 }} />
           </button>
         </div>
 
@@ -66,6 +86,7 @@ export default function CCLayout() {
               key={to}
               to={to}
               title={col ? label : undefined}
+              onClick={closeMobile}
               style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: 9,
                 padding: col ? '10px 0' : '8px 11px',
@@ -95,7 +116,7 @@ export default function CCLayout() {
         {/* Exit */}
         <div style={{ padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
           <button
-            onClick={() => navigate('/admin/users')}
+            onClick={() => { closeMobile(); navigate('/admin/users'); }}
             title="Exit Command Center"
             style={{
               display: 'flex', alignItems: 'center', gap: 9,
@@ -113,8 +134,42 @@ export default function CCLayout() {
 
       {/* ── Main ────────────────────────────────────────────────── */}
       <main style={{ flex: 1, overflowY: 'auto', minHeight: '100vh', minWidth: 0 }}>
+        {/* Mobile topbar — hidden on desktop */}
+        <div className="cc-mobile-topbar" style={{
+          display: 'none', alignItems: 'center', gap: 10,
+          padding: '12px 16px', background: '#0f172a',
+          position: 'sticky', top: 0, zIndex: 40,
+        }}>
+          <button
+            onClick={() => setMobileOpen(true)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0 }}
+          >
+            <Bars3Icon style={{ width: 22, height: 22 }} />
+          </button>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: '0.9rem', fontFamily: FONT }}>Command Center</span>
+        </div>
         <Outlet />
       </main>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .cc-sidebar {
+            position: fixed !important;
+            left: 0; top: 0; bottom: 0;
+            width: 240px !important;
+            transform: translateX(-100%);
+            transition: transform 0.22s ease;
+            z-index: 1000;
+          }
+          .cc-sidebar.cc-mobile-open {
+            transform: translateX(0);
+            box-shadow: 4px 0 32px rgba(0,0,0,0.35);
+          }
+          .cc-collapse-btn { display: none !important; }
+          .cc-mobile-close { display: flex !important; }
+          .cc-mobile-topbar { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }

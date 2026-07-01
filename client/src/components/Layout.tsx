@@ -86,6 +86,7 @@ const Layout: React.FC = () => {
   const [tooltip, setTooltip] = useState<{ name: string; y: number } | null>(null);
   const tooltipTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tooltipShowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const adminDefaultsApplied = useRef(false);
 
   // ── Announcement state ─────────────────────────────────────────────────────
   const [announcements,  setAnnouncements]  = useState<Announcement[]>([]);
@@ -109,6 +110,17 @@ const Layout: React.FC = () => {
     axios.get(`${API_BASE}/balance`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => setBalance(res.data?.balance?.currentBalance ?? 0))
       .catch(() => {});
+  }, [user]);
+
+  // Admins rarely use their own store/label tools (that's the end-user's job) —
+  // start those two sections collapsed so the sidebar opens on admin-relevant
+  // sections instead. Runs once, so it never fights a manual toggle afterward.
+  useEffect(() => {
+    if (!user || adminDefaultsApplied.current) return;
+    adminDefaultsApplied.current = true;
+    if (user.role === 'admin') {
+      setOpenSections(prev => ({ ...prev, mystore: false, labels: false }));
+    }
   }, [user]);
 
   // Fetch nav badge counts (admin only)
@@ -206,7 +218,24 @@ const Layout: React.FC = () => {
   };
 
   // ── Navigation definitions ──────────────────────────────────────────────
-  const overviewNav: NavItem[] = [
+  //
+  // Admin gets a purpose-built Overview instead of the shared one:
+  //  - "Dashboard" always redirected admins straight to /admin anyway (see
+  //    Dashboard.tsx's role check) — that's a dead extra click, so admins
+  //    land on "Admin Panel" directly instead.
+  //  - "Live Activity" (/activity) is a hardcoded-fake-numbers vanity page
+  //    (see STATE_DATA / labelsToday seed values in LiveActivity.tsx) meant
+  //    for end users, not an admin signal — admins get the real one,
+  //    "Live Monitor" (/admin/live, "REAL DATA"), moved up here instead.
+  //  - Command Center is folded in rather than getting its own one-link
+  //    section (that's just an extra header + click for a single item).
+  const overviewNav: NavItem[] = user?.role === 'admin' ? [
+    { name: 'Admin Panel',    href: '/admin',          icon: HomeIcon,        current: location.pathname === '/admin' },
+    { name: 'Live Monitor',   href: '/admin/live',     icon: SignalIcon,      current: location.pathname === '/admin/live', badge: navCounts?.labelsToday },
+    { name: 'Command Center', href: '/command-center', icon: CommandLineIcon, current: location.pathname.startsWith('/command-center') },
+    { name: 'Announcements',  href: '/announcements',  icon: MegaphoneIcon,   current: location.pathname === '/announcements' },
+    { name: 'Suggestions',    href: '/suggestions',    icon: LightBulbIcon,   current: location.pathname === '/suggestions' },
+  ] : [
     { name: 'Dashboard',     href: '/dashboard',     icon: HomeIcon,       current: location.pathname === '/dashboard' },
     { name: 'Announcements', href: '/announcements', icon: MegaphoneIcon,  current: location.pathname === '/announcements' },
     { name: 'Live Activity', href: '/activity',      icon: SignalIcon,     current: location.pathname === '/activity' },
@@ -228,19 +257,19 @@ const Layout: React.FC = () => {
     { name: 'Manifest History',  href: '/manifest/history',    icon: ClipboardDocumentListIcon, current: location.pathname === '/manifest/history' },
   ];
 
-  // Command Center — visible to admin OR reseller with ccAccess
-  const ccItems: NavItem[] = (user?.role === 'admin' || (user?.role === 'reseller' && user?.ccAccess)) ? [
+  // Command Center — its own section only for a reseller with delegate access;
+  // for admin it now lives inside Overview (see above) instead of a lone-item section.
+  const ccItems: NavItem[] = (user?.role === 'reseller' && user?.ccAccess) ? [
     { name: 'Command Center', href: '/command-center', icon: CommandLineIcon, current: location.pathname.startsWith('/command-center') },
   ] : [];
 
-  // Admin — Operations
+  // Admin — Operations (Live Monitor + User Stats moved out; Manifest History
+  // dropped here since it's already in the shared Labels section above — it
+  // was showing up twice in the sidebar)
   const adminOpsItems: NavItem[] = user?.role === 'admin' ? [
-    { name: 'Live Monitor',      href: '/admin/live',          icon: SignalIcon,                current: location.pathname === '/admin/live',          badge: navCounts?.labelsToday },
-    { name: 'User Stats',        href: '/admin/user-stats',    icon: UserGroupIcon,             current: location.pathname === '/admin/user-stats' },
-    { name: 'Manifest Ops',      href: '/admin/manifest',      icon: Squares2X2Icon,            current: location.pathname === '/admin/manifest',      badge: navCounts?.manifestsUnderReview || undefined },
-    { name: 'Manifest History',  href: '/manifest/history',    icon: ClipboardDocumentListIcon, current: location.pathname === '/manifest/history' },
-    { name: 'Warehouses',        href: '/admin/warehouses',    icon: CubeIcon,                  current: location.pathname === '/admin/warehouses' },
-    { name: 'State Analytics',   href: '/admin/states',        icon: MapIcon,                   current: location.pathname === '/admin/states' },
+    { name: 'Manifest Ops',      href: '/admin/manifest',      icon: Squares2X2Icon, current: location.pathname === '/admin/manifest', badge: navCounts?.manifestsUnderReview || undefined },
+    { name: 'Warehouses',        href: '/admin/warehouses',    icon: CubeIcon,       current: location.pathname === '/admin/warehouses' },
+    { name: 'State Analytics',   href: '/admin/states',        icon: MapIcon,        current: location.pathname === '/admin/states' },
   ] : [];
 
   // Admin — Finance
@@ -250,12 +279,13 @@ const Layout: React.FC = () => {
     { name: 'Fin. Dashboard',    href: '/admin/financial-dashboard', icon: PresentationChartLineIcon, current: location.pathname === '/admin/financial-dashboard' },
   ] : [];
 
-  // Admin — Management | Reseller — Clients
+  // Admin — Management (Admin Panel moved to Overview; User Stats moved in here
+  // next to Users, since it's people-analytics, not day-to-day ops) | Reseller — Clients
   const mgmtItems: NavItem[] = user?.role === 'admin' ? [
-    { name: 'Admin Panel', href: '/admin',          icon: Squares2X2Icon,         current: location.pathname === '/admin' },
-    { name: 'Users',       href: '/admin/users',    icon: UserGroupIcon,          current: location.pathname.startsWith('/admin/users'), badge: navCounts?.users },
-    { name: 'Vendors',     href: '/admin/vendors',  icon: BuildingStorefrontIcon, current: location.pathname === '/admin/vendors' },
-    { name: 'Settings',    href: '/admin/settings', icon: Cog6ToothIcon,          current: location.pathname === '/admin/settings' },
+    { name: 'Users',       href: '/admin/users',       icon: UserGroupIcon,         current: location.pathname.startsWith('/admin/users'), badge: navCounts?.users },
+    { name: 'Vendors',     href: '/admin/vendors',     icon: BuildingStorefrontIcon, current: location.pathname === '/admin/vendors' },
+    { name: 'User Stats',  href: '/admin/user-stats',  icon: PresentationChartLineIcon, current: location.pathname === '/admin/user-stats' },
+    { name: 'Settings',    href: '/admin/settings',    icon: Cog6ToothIcon,         current: location.pathname === '/admin/settings' },
   ] : user?.role === 'reseller' ? [
     { name: 'My Clients',  href: '/reseller/clients',     icon: UserGroupIcon,             current: location.pathname.startsWith('/reseller/clients') },
     { name: 'Bulk Access', href: '/reseller/bulk-access', icon: UsersIcon,                 current: location.pathname === '/reseller/bulk-access' },
@@ -423,7 +453,7 @@ const Layout: React.FC = () => {
             </div>
             {!collapsed && (
               <div style={{ overflow: 'hidden', flex: 1 }}>
-                <div className="sidebar-brand-name">LABEL UNIVERSE</div>
+                <div className="sidebar-brand-name">LABEL FLOW</div>
                 <div className="sidebar-brand-sub">Shipping Portal</div>
               </div>
             )}

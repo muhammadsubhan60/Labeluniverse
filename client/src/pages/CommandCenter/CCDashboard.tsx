@@ -26,14 +26,15 @@ const TS: Record<string, { label: string; color: string; bg: string; border: str
 };
 
 // ── Period helpers ─────────────────────────────────────────────
-type Period = 'all' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'last_year';
+type Period = 'last_30_days' | 'all' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year' | 'last_year';
 const PERIODS: { key: Period; label: string }[] = [
-  { key: 'all',           label: 'All Time'      },
+  { key: 'last_30_days',  label: 'Last 30 Days'  },
   { key: 'this_month',    label: 'This Month'    },
   { key: 'last_month',    label: 'Last Month'    },
   { key: 'this_quarter',  label: 'This Quarter'  },
   { key: 'this_year',     label: 'This Year'     },
   { key: 'last_year',     label: 'Last Year'     },
+  { key: 'all',           label: 'All Time'      },
 ];
 
 function getPeriodRange(p: Period): { from?: string; to?: string } {
@@ -41,7 +42,8 @@ function getPeriodRange(p: Period): { from?: string; to?: string } {
   const y     = now.getFullYear();
   const m     = now.getMonth();
   const fmt   = (d: Date) => d.toISOString().slice(0, 10);
-  if (p === 'all')         return {};
+  if (p === 'all')          return {};
+  if (p === 'last_30_days') return { from: fmt(new Date(now.getTime() - 30 * 86400000)), to: fmt(now) };
   if (p === 'this_month')  return { from: fmt(new Date(y, m, 1)),     to: fmt(now) };
   if (p === 'last_month')  return { from: fmt(new Date(y, m - 1, 1)), to: fmt(new Date(y, m, 0)) };
   if (p === 'this_quarter'){
@@ -97,6 +99,51 @@ const KpiCard = ({ label, value, sub, color, Icon }: {
   </div>
 );
 
+const RING_R = 38;
+const RING_C = 2 * Math.PI * RING_R;
+
+const RateRing = ({ label, rate, count, total, color, onClick }: {
+  label: string; rate: number; count: number; total: number; color: string; onClick?: () => void;
+}) => {
+  const [hover, setHover] = useState(false);
+  const offset = RING_C - (Math.min(Math.max(rate, 0), 100) / 100) * RING_C;
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onClick}
+      title={`${label}: ${count.toLocaleString()} of ${total.toLocaleString()} (${rate}%)`}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        cursor: onClick ? 'pointer' : 'default', padding: '0.6rem 0.5rem', borderRadius: 12,
+        transition: 'transform 0.15s ease, background 0.15s ease',
+        transform: hover ? 'translateY(-3px) scale(1.03)' : 'none',
+        background: hover ? `${color}0d` : 'transparent',
+      }}
+    >
+      <div style={{ width: 92, height: 92, position: 'relative' }}>
+        <svg width={92} height={92} viewBox="0 0 92 92" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={46} cy={46} r={RING_R} fill="none" stroke="var(--navy-100)" strokeWidth={8} />
+          <circle
+            cx={46} cy={46} r={RING_R} fill="none" stroke={color} strokeWidth={8} strokeLinecap="round"
+            strokeDasharray={RING_C} strokeDashoffset={offset}
+            style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+          />
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--navy-900)', letterSpacing: '-0.4px' }}>{rate}%</span>
+        </div>
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--navy-700)' }}>{label}</div>
+        <div style={{ fontSize: '0.65rem', fontWeight: hover ? 700 : 500, color: hover ? color : 'var(--navy-400)', marginTop: 1, transition: 'color 0.15s ease' }}>
+          {count.toLocaleString()} / {total.toLocaleString()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StatusBadge = ({ ts }: { ts?: string }) => {
   const cfg = TS[ts || 'not_scanned_yet'] || TS.not_scanned_yet;
   return (
@@ -109,7 +156,7 @@ const StatusBadge = ({ ts }: { ts?: string }) => {
 export default function CCDashboard() {
   const { token } = useAuth();
   const navigate  = useNavigate();
-  const [period,   setPeriod]   = useState<Period>('this_month');
+  const [period,   setPeriod]   = useState<Period>('last_30_days');
   const [stats,    setStats]    = useState<AdminStats | null>(null);
   const [recent,   setRecent]   = useState<CcLabel[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -147,8 +194,11 @@ export default function CCDashboard() {
   const delayed   = ts?.delayed           ?? 0;
   const total     = stats?.labels.total   ?? 0;
 
-  const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
-  const periodLabel  = PERIODS.find(p => p.key === period)?.label ?? 'This Month';
+  const scanned       = total - notScanned;
+  const deliveryRate  = total > 0 ? Math.round((delivered / total) * 100)  : 0;
+  const scanningRate  = total > 0 ? Math.round((scanned / total) * 100)   : 0;
+  const exceptionRate = total > 0 ? Math.round((exceptions / total) * 100): 0;
+  const periodLabel   = PERIODS.find(p => p.key === period)?.label ?? 'Last 30 Days';
 
   const attention = [
     { key: 'exception_problem',   label: 'Exceptions',        count: exceptions, color: '#dc2626', ts: 'exception_problem'   },
@@ -236,6 +286,28 @@ export default function CCDashboard() {
             <KpiCard label="In Transit"     value={inTransit.toLocaleString()} color="#3b82f6"  Icon={TruckIcon}                 sub={`${outForDel} out for delivery`} />
             <KpiCard label="Exceptions"     value={exceptions.toLocaleString()}color="#ef4444"  Icon={ExclamationTriangleIcon}   sub={`${returned} returned`} />
             <KpiCard label="Not Scanned"    value={notScanned.toLocaleString()}color="#94a3b8"  Icon={ClockIcon}                 sub={`${pending} pending pickup`} />
+          </div>
+
+          {/* ── Performance rates (interactive) ─────────────────── */}
+          <div className="db-card" style={{ padding: '0.9rem 1rem', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+              <div style={{ width: 3, height: 13, borderRadius: 3, background: '#6366f1', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.67rem', fontWeight: 700, color: 'var(--navy-500)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>Performance Rates</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-around', gap: 8 }}>
+              <RateRing
+                label="Delivery Rate" rate={deliveryRate} count={delivered} total={total} color="#22c55e"
+                onClick={() => navigate('/command-center/labels?trackingStatus=delivered')}
+              />
+              <RateRing
+                label="Scanning Rate" rate={scanningRate} count={scanned} total={total} color="#6366f1"
+                onClick={() => navigate('/command-center/labels?trackingStatus=not_scanned_yet')}
+              />
+              <RateRing
+                label="Exception Rate" rate={exceptionRate} count={exceptions} total={total} color="#ef4444"
+                onClick={() => navigate('/command-center/labels?trackingStatus=exception_problem')}
+              />
+            </div>
           </div>
 
           <div className="dashboard-two-col-grid" style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.85rem' }}>
